@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <defs>
+    <pattern id="grid2" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#e4e0d5" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="600" height="600" fill="#f3f1ea"/>
+  <rect width="600" height="600" fill="url(#grid2)"/>
+
+  <g fill="none" stroke="#14130f" stroke-width="1.5">
+    <circle cx="300" cy="300" r="95"/>
+    <circle cx="300" cy="300" r="72"/>
+    <path d="M300 205 C 260 230, 250 260, 260 300 C 268 330, 240 350, 210 355" stroke-width="1"/>
+    <path d="M340 210 C 370 240, 380 270, 355 300 C 335 322, 350 350, 380 360" stroke-width="1"/>
+    <path d="M300 395 C 320 370, 350 365, 370 340" stroke-width="1"/>
+  </g>
+
+  <g font-family="JetBrains Mono, monospace" fill="#6b7a5e">
+    <text x="40" y="50" font-size="13" letter-spacing="1">N&#176;02 — ROOT BAND</text>
+    <text x="40" y="560" font-size="10" fill="#5c594e">PLACEHOLDER — replace with your product photo</text>
+  </g>
+
+  <g stroke="#b8b3a4" stroke-width="1">
+    <line x1="24" y1="24" x2="60" y2="24"/>
+    <line x1="24" y1="24" x2="24" y2="60"/>
+    <line x1="576" y1="24" x2="540" y2="24"/>
+    <line x1="576" y1="24" x2="576" y2="60"/>
+    <line x1="24" y1="576" x2="60" y2="576"/>
+    <line x1="24" y1="576" x2="24" y2="540"/>
+    <line x1="576" y1="576" x2="540" y2="576"/>
+    <line x1="576" y1="576" x2="576" y2="540"/>
+  </g>
+</svg>

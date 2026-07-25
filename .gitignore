@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+.claude/settings.local.json
+
+# Original HDRI source is 300MB+ — GitHub hard-rejects files over 100MB.
+# The 2k version is under the limit but still unused (only the .hdr
+# versions in assets/hdri/ are referenced in code) — excluded to keep
+# the repo lean. Both stay on disk, just untracked.
+assets/studio_kontrast_04_8k.exr
+assets/studio_kontrast_04_2k.exr

@@ -1,0 +1,546 @@
+/* ==========================================================================
+   J&MV — base design tokens
+   ========================================================================== */
+
+:root {
+  --bg: #f8f8f8;
+  --ink: #000000;
+  --ink-soft: #5c594e;
+  --line: #dcd8cd;
+  --line-strong: #b8b3a4;
+  --border: #7a7974;
+  --accent: #8a6a4f;   /* warm metal / rust — industrial */
+  --moss: #6b7a5e;     /* muted organic green, used sparingly */
+  --paper: #e9e2d2;
+  --category-col: #777777;
+
+  --spray-bg: var(--bg);
+  --spray-a: #b0ecf6;
+  --spray-b: #f9a9f3;
+
+  --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+
+  /* Header rubrics: navigation items use Geist Mono (loaded from Google
+     Fonts), informative items use DINish (self-hosted — see @font-face
+     below, needs the actual font file dropped into assets/fonts/). */
+  --font-nav: "Geist Mono", var(--font-mono);
+  --font-info: "DINish", sans-serif;
+
+  --max: 1280px;
+  --gutter: clamp(1.25rem, 4vw, 3rem);
+}
+
+/* DINish isn't on Google Fonts — it's a free (SIL OFL) font by Bert
+   Driehuis, distributed outside any CDN. Download it and drop the file(s)
+   at these paths to activate it; until then --font-info falls back to
+   sans-serif. */
+@font-face {
+  font-family: "DINish";
+  src: url("../assets/fonts/dinish-woff2/DINish-Regular.woff2") format("woff2"),;
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+* { box-sizing: border-box; }
+
+/* Without this, browsers paint the overscroll/canvas area using body's
+   background (the cream --bg) instead of white, since html has none of
+   its own — visible as a wrong-colored strip when scrolling past the top. */
+html {
+  scroll-behavior: smooth;
+  background: #ffffff;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+p { margin: 0; }
+
+a { color: inherit; text-decoration: none; }
+
+ol, ul { margin: 0; padding: 0; list-style: none; }
+
+img { max-width: 100%; display: block; }
+
+button, input, textarea {
+  font-family: var(--font-mono);
+  font-size: inherit;
+  color: inherit;
+}
+
+/* subtle film-grain overlay — industrial/tactile texture */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.site-header {
+  /* Fixed (rather than in normal flow) so the page content — the reveal
+     section especially — starts right at the very top of the document.
+     Otherwise you'd have to scroll past the header's own height before
+     the reveal's sticky pin even reaches the top of the viewport. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 80;
+  background: #ffffff;
+  border-bottom: .5px solid var(--ink);
+
+  /* Tweak these to restyle the header. --header-image-size sets the brand
+     image's height; the +/- toggle is sized as a ratio of it via
+     --header-plus-ratio (1 = same height, 0.5 = half, etc). Both sit in
+     .site-header__row's align-items: center, so their vertical centers
+     always line up regardless of the ratio. */
+  --header-px: clamp(20px, 2.5vw, 28px);
+  --header-pt: 1rem;
+  --header-pb: .5rem;
+  --header-image-size: 28px;
+  --header-plus-ratio: 0.5;
+
+  /* Rubric menu spacing: gap between rubric titles, space from the
+     toggle row down to the first rubric, and space from the last rubric
+     down to the header's bottom border. */
+  --header-rubric-gap: 1.5rem;
+  --header-menu-pt: .75rem;
+  --header-menu-pb: 2rem;
+  --header-kind-gap: 0.5rem;
+}
+
+.site-header__row {
+  max-width: var(--max);
+  margin: 0 auto;
+  /* env(safe-area-inset-top) keeps the logo/toggle clear of the iPhone
+     notch/status bar now that viewport-fit=cover lets the white header
+     background extend all the way up under it. */
+  padding: calc(var(--header-pt) + env(safe-area-inset-top, 0px)) var(--header-px) var(--header-pb);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.site-header__brand {
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+.site-header__brand img {
+  height: var(--header-image-size);
+  width: auto;
+}
+
+/* "+" built from two bars; rotating the vertical one 90° overlaps it onto
+   the horizontal one, turning it into a "-". */
+.menu-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: calc(var(--header-image-size) * var(--header-plus-ratio));
+  height: calc(var(--header-image-size) * var(--header-plus-ratio));
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.menu-toggle__bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: var(--ink);
+}
+.menu-toggle__bar--h {
+  width: 100%;
+  height: 1.5px;
+  transform: translate(-50%, -50%);
+}
+.menu-toggle__bar--v {
+  width: 1.5px;
+  height: 100%;
+  transform: translate(-50%, -50%) rotate(0deg);
+  transition: transform 0.3s ease;
+}
+.menu-toggle.is-open .menu-toggle__bar--v {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+/* Collapsible rubric menu. Positioned absolutely (anchored to .site-header,
+   which is position: relative) so it overlays the page below rather than
+   pushing it down — the header row's own height/border never changes.
+   The 0fr/1fr grid-row still animates the reveal without needing to know
+   the content's height in advance. */
+.site-header__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 80;
+  background: #ffffff;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s ease;
+}
+.site-header__menu.is-open {
+  grid-template-rows: 1fr;
+  border-bottom: .5px solid var(--ink);
+}
+.site-header__menu-inner { overflow: hidden; min-height: 0; }
+
+.site-header__nav {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: var(--header-menu-pt) var(--header-px) var(--header-menu-pb);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--header-rubric-gap);
+}
+.site-header__nav a {
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  /* text-transform: uppercase; */
+  color: var(--ink);
+  /* transition: color 0.2s ease; */
+}
+
+/* The two rubric kinds share every rule above except color: cat items get
+   the site's rust accent, informative items stay the default ink/black. */
+.site-header__nav a.is-cat {
+  font-family: var(--font-nav);
+  color: var(--category-col);
+}
+.site-header__nav a.is-info {
+  font-family: var(--font-info);
+  font-size: 18px;
+}
+
+/* Adds on top of the normal --header-rubric-gap wherever two consecutive
+   rubrics differ in kind, in document order (works regardless of how many
+   rubrics there are or what order they're in). */
+.site-header__nav a.is-cat + a.is-info,
+.site-header__nav a.is-info + a.is-cat {
+  margin-top: var(--header-kind-gap);
+}
+
+/* ==========================================================================
+   Entry reveal — scroll pins the stage for --reveal-scroll-vh, during which
+   js/main.js clips hand_xray.png open from the bottom up over hand_normal.png.
+   ========================================================================== */
+
+.reveal {
+  position: relative;
+  --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
+  --reveal-frontier-height: 16px; /* height of the scanning band; width is always full screen */
+
+  /* Ring placement on the x-ray hand: x/y are the ring's center as a % of
+     the hand image's own width/height (not the viewport), size is the
+     ring's width as a % of the hand image's width, rotation spins it in
+     place around that same center point — tune these four to land it on
+     the right finger at the right angle. */
+  --ring-x: 45.8%;
+  --ring-y: 39%;
+  --ring-size: 5%;
+  --ring-rotation: -2deg;
+
+  height: var(--reveal-scroll-vh);
+}
+
+.reveal__pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.reveal__stage {
+  position: relative;
+  height: 100%;
+}
+
+/* Both images share identical intrinsic dimensions and this exact same
+   sizing/position rule, so they land pixel-for-pixel on top of each other:
+   full pin height, width auto (overflow cropped equally by the centering),
+   flush to the pin's bottom edge. */
+.reveal__img {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  width: auto;
+  max-width: none;
+  display: block;
+}
+
+.reveal__img--normal {
+  /* Starts fully visible; js/main.js clips this away from the bottom by
+     the same amount the x-ray reveals, so the two never overlap. */
+  clip-path: inset(0 0 0 0);
+}
+
+/* Wraps the x-ray image + the ring, sized/positioned identically to
+   .reveal__img above (same intrinsic aspect ratio, so it lands pixel-for-
+   pixel on top of the normal/x-ray images). js/main.js applies the reveal
+   clip-path to THIS wrapper rather than to the x-ray image directly, so
+   the ring reveals in lockstep with the x-ray automatically instead of
+   needing its own separately-synced clip. */
+.reveal__xray-group {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  width: auto;
+  aspect-ratio: 4225 / 2305; /* hand_normal.png / hand_xray.png's intrinsic size */
+  /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
+     the section scrolls, revealing from the bottom edge upward. */
+  clip-path: inset(100% 0 0 0);
+}
+
+.reveal__xray-group .reveal__img--xray {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.reveal__ring {
+  position: absolute;
+  left: var(--ring-x);
+  top: var(--ring-y);
+  width: var(--ring-size);
+  height: auto;
+  /* translate centers the ring on (--ring-x, --ring-y) first; rotate then
+     spins it around that same center point (the default transform-origin)
+     to align with the finger. */
+  transform: translate(-50%, -50%) rotate(var(--ring-rotation));
+  pointer-events: none;
+}
+
+/* The "frontier" scan band. Full screen width, tunable height via
+   --reveal-frontier-height. Starts sitting just below the pin (fully
+   invisible below the viewport). js/main.js drives its `bottom` in two
+   phases: first lifting it up until flush with the pin's bottom edge (=
+   the normal image's bottom), then — once flush — riding it upward in
+   lockstep with the reveal boundary for the rest of the scroll. Inverts
+   whatever's directly behind it via backdrop-filter, rather than painting
+   its own color. */
+.reveal__frontier {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--reveal-frontier-height);
+  bottom: calc(-1 * var(--reveal-frontier-height));
+  z-index: 2;
+  pointer-events: none;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+}
+
+.btn {
+  display: inline-block;
+  margin-top: 2.25rem;
+  padding: 0.85rem 1.6rem;
+  border: 1px solid var(--ink);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.btn:hover { background: var(--ink); color: var(--bg); }
+
+/* ==========================================================================
+   Section heads (shared)
+   ========================================================================== */
+
+.section-head {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.section-head__index {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--line-strong);
+  border-top: 1px solid var(--ink);
+  padding-top: 0.4rem;
+}
+.section-head h2 {
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-weight: 400;
+}
+.section-head__note {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  margin-left: auto;
+}
+.section-head__note code {
+  background: var(--paper);
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--line);
+}
+
+/* ==========================================================================
+   Products
+   ========================================================================== */
+
+.products {
+  padding: clamp(4rem, 10vw, 7rem) 0 clamp(3rem, 8vw, 6rem);
+}
+
+.product-grid {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.product-grid__loading {
+  grid-column: 1 / -1;
+  padding: 3rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.product-card {
+  background: var(--bg);
+  padding: 1.5rem;
+}
+
+.product-card__figure {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  max-width: 530px;
+  margin: 0 auto;
+  padding: 150px;
+  overflow: hidden;
+  border: .5px solid var(--border);
+}
+
+.product-card__figure img,
+.product-card__figure model-viewer {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  --poster-color: transparent;
+}
+
+.product-card__spray {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--spray-bg);
+  overflow: hidden;
+}
+.product-card__spray-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.product-card__spray-ribbon {
+  stroke: none;
+  opacity: 0.9;
+}
+.product-card__spray-ribbon--a { fill: var(--spray-a); }
+.product-card__spray-ribbon--b { fill: var(--spray-b); }
+
+.product-card__label {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Cart / order page
+   ========================================================================== */
+
+.cart-page {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(4rem, 10vw, 7rem) var(--gutter) 6rem;
+  min-height: 55vh;
+}
+
+.cart-empty {
+  border-top: 1px solid var(--line);
+  padding-top: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
+.site-footer {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 2rem var(--gutter) 3rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.site-footer a:hover { color: var(--ink); }
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 640px) {
+  /* .product-card__figure's fixed 150px padding leaves almost no room for
+     the model/image once the card itself is only ~350px wide on a phone —
+     scale it down instead, without touching the desktop 150px look. */
+  .product-card__figure { padding: 8vw; }
+}

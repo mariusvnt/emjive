@@ -1,0 +1,14 @@
+[
+  {
+    "id": "01",
+    "name": "Furcula",
+    "category": "Rings",
+    "price": "€ 420",
+    "material": "Brass",
+    "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
+    "image": "assets/products/furcula_ring/image.svg",
+    "model": "assets/products/furcula_ring/model.glb",
+    "cameraOrbit": "30deg 70deg 105%",
+    "shader": "gold"
+  }
+]

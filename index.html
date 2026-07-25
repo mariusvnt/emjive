@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" />
+<title>em·ji·ve — Objects for the Body</title>
+<meta name="description" content="em·ji·ve — handcrafted rings and jewelry." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,400..500&family=JetBrains+Mono:wght@400;500;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="css/style.css" />
+
+<!-- 3D model viewer (glTF / GLB support) -->
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body id="top">
+
+<div class="grain"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="brush-fade" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="soft" />
+      <feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves="2" seed="9" result="grain" />
+      <feColorMatrix in="grain" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.2 1.2 1.2 0 -0.15" result="grainAlpha" />
+      <feComposite in="soft" in2="grainAlpha" operator="in" result="frayed" />
+      <feGaussianBlur in="frayed" stdDeviation="2" />
+    </filter>
+  </defs>
+</svg>
+
+<header class="site-header">
+  <div class="site-header__row">
+    <a class="site-header__brand" href="#top">
+      <img src="assets/name.png" alt="em&middot;ji&middot;ve" />
+    </a>
+    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
+      <span class="menu-toggle__bar menu-toggle__bar--h"></span>
+      <span class="menu-toggle__bar menu-toggle__bar--v"></span>
+    </button>
+  </div>
+  <div class="site-header__menu" id="siteHeaderMenu">
+    <div class="site-header__menu-inner">
+      <nav class="site-header__nav">
+        <a href="#products" class="is-cat">.ring</a>
+        <a href="#products" class="is-cat">.neck</a>
+        <a href="#products" class="is-cat">.wrist</a>
+        <a href="#contact" class="is-info">About us</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="reveal" id="revealSection">
+    <div class="reveal__pin">
+      <div class="reveal__stage">
+        <img class="reveal__img reveal__img--normal" src="assets/hand_normal.png" alt="" />
+        <div class="reveal__xray-group" id="revealXrayGroup">
+          <img class="reveal__img--xray" src="assets/hand_xray.png" alt="" />
+          <img class="reveal__ring" src="assets/products/furcula_ring/furcula_top_view.png" alt="" />
+        </div>
+      </div>
+      <div class="reveal__frontier" id="revealFrontier"></div>
+    </div>
+  </section>
+
+  <section class="products" id="products">
+    <div class="product-grid" id="productGrid">
+      <!-- Product cards are rendered here by js/main.js from data/products.json -->
+      <p class="product-grid__loading">Loading specimens…</p>
+    </div>
+  </section>
+
+
+</main>
+
+<script src="js/main.js"></script>
+</body>
+</html>
