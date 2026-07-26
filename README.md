@@ -2,8 +2,11 @@
 
 A basic static site for the brand: a product grid that shows each item as
 just its 3D model (glTF/GLB, click-and-drag to rotate — falls back to a
-photo if no model is set yet), plus a Contact section. Plain HTML/CSS/JS,
-no build step.
+photo if no model is set yet), plus a Contact section. Clicking a product's
+name opens its detail page (`product.html?id=...`) — a carousel, a metal
+picker, a description, metal-dependent specs, and a "Select size" flow that
+adds to a real (localStorage-backed) cart, viewable on `cart.html`. Plain
+HTML/CSS/JS, no build step.
 
 ## Running it locally
 
@@ -30,21 +33,56 @@ npx serve .
      a few MB for fast loading.
 3. (Optional) drop in a photo too, e.g. `image.jpg` — only used as a
    fallback if `model` is left empty, or as a poster while the model loads.
-4. Open `data/products.json` and add an entry:
+4. Open `data/products.json` and add an entry to the `"products"` array:
 
 ```json
 {
   "id": "04",
   "name": "Your Ring Name",
+  "category": "ring",
+  "description": "A line or two about the piece — shown on its product page.",
   "image": "assets/products/your-item-name/image.jpg",
-  "model": "assets/products/your-item-name/model.glb"
+  "images": [],
+  "model": "assets/products/your-item-name/model.glb",
+  "cameraOrbit": "0deg 75deg 105%",
+  "metal": "silver",
+  "sizes": ["50", "52", "54", "56", "58", "60"],
+  "metalDetails": {
+    "steel":  { "price": 0, "weight": "", "composition": "" },
+    "silver": { "price": 0, "weight": "", "composition": "" },
+    "bronze": { "price": 0, "weight": "", "composition": "" }
+  }
 }
 ```
 
+`category` should be one of the values listed in the top-level `"categories"`
+array in that same file — that list is the source of truth for what
+categories exist (the header's `.ring`/`.neck`/`.wrist` menu is hand-written
+though, not generated from it, so keep the two in sync by hand if you add a
+new category).
+
 Leave `"model": ""` if there's no 3D file yet — the card will just show the
-`image` instead. The card itself displays nothing but the model/image (no
-name, price, or description shown on the page — `name` is only used as alt
-text). Reload the page and the new card appears automatically.
+`image` instead. The homepage card itself still displays nothing but the
+model/image and a `Name.category` label; `description` and `metalDetails`
+only appear once you click through to the product page. Reload the page and
+the new card appears automatically.
+
+`metalDetails` holds one entry per metal in the top-level `"metals"` list,
+each with `price` (a plain number — `0` renders as "Price on request", so
+leave it `0` until you have a real price rather than inventing one),
+`weight` and `composition` (free-text strings, left `""` until you have real
+values). These are what the product page's Characteristics section shows,
+and they re-render whenever a visitor switches the metal picker.
+
+`images` is extra photography for the product page's carousel, beyond the
+always-present 3D model slide (or the `image` fallback if there's no
+model). Leave it as `[]` until you have real photos — the carousel hides its
+arrows/dots entirely rather than showing a placeholder when there's only one
+slide.
+
+`sizes` is the list offered in the "Select size" popup before an item is
+added to the cart. Leave it empty and the button disables itself
+("No sizes available") instead of opening an empty popup.
 
 ### Setting a model's default view
 
@@ -70,28 +108,44 @@ and convert the returned `{theta, phi, radius}` (radians + meters) into the
 `"Xdeg Ydeg Zm"` string format above. If `cameraOrbit` is omitted, it just
 uses model-viewer's own default framing.
 
-### Choosing a product's shader
+### Choosing a product's metal
 
-Add `"shader"` to a product entry to pick which PBR material preset gets
-applied to every mesh of its 3D model, overriding whatever materials the
-model file itself has:
+Add `"metal"` to a product entry to pick which PBR material preset the
+homepage card (and the product page, by default) applies to every mesh of
+its 3D model, overriding whatever materials the model file itself has:
 
 ```json
-"shader": "gold"
+"metal": "silver"
 ```
 
-Available presets live in `SHADER_PRESETS` in `js/main.js`: `"silver"`
-(the default if `shader` is omitted or unrecognized) and `"gold"`. To add
-another finish (brass, patinated, etc.), add an entry there with its own
-`baseColorFactor` / `metallicFactor` / `roughnessFactor`.
+`metal` should be one of the values listed in the top-level `"metals"`
+array in `products.json` — that list is the source of truth for what
+metals exist, and it's also what the product page's metal-picker swatches
+are generated from. The actual presets live in `METAL_PRESETS` in
+`js/main.js`: `"steel"`, `"silver"` (the default if `metal` is omitted or
+unrecognized) and `"bronze"`. To add another finish, add it to **three**
+places — the `"metals"` list in `products.json`, a matching entry in
+`METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor` /
+`roughnessFactor`, and a swatch color for it in `css/style.css`
+(`.product-metals__option[data-metal="..."]`) — and add a `metalDetails`
+entry for it on every product, since the Characteristics section looks
+values up by metal name.
+
+The model-viewer construction itself (attributes, camera-orbit/reset
+behaviour, and applying `METAL_PRESETS`) lives in one place —
+`buildModelViewer()` in `js/main.js`, exposed as `window.EmjiveModelViewer`
+— shared by both the homepage grid and the product page's carousel, so a
+metal swap on the product page re-tints the same model in place instead of
+reloading it or resetting the camera angle.
 
 ## Header rubrics (nav vs. informative)
 
 Links inside the header's dropdown menu (`.site-header__nav`) come in two
 kinds, styled identically except for font:
 
-- `class="is-nav"` — Geist Mono (loaded from Google Fonts already).
-- `class="is-info"` — DINish.
+- `class="is-cat"` — Geist Mono (loaded from Google Fonts already), used
+  for the category rubrics (`.ring`, `.neck`, `.wrist`).
+- `class="is-info"` — DINish, used for informative links ("About us").
 
 DINish isn't on any font CDN — it's a free (SIL OFL licensed) font by Bert
 Driehuis. Download it (e.g. from Befonts) and drop the files at:
@@ -105,6 +159,16 @@ assets/fonts/DINish-Regular.ttf
 (only `.woff2` is really needed for modern browsers — the others are just
 older-browser fallbacks). Until those files exist, `is-info` text falls
 back to the browser's default sans-serif.
+
+## Cart
+
+Adding an item (from a product page's "Select size" popup) writes to
+`localStorage` via `window.EmjiveCart` (`js/cart.js`) — a real, working
+cart, not a placeholder. `cart.html` (`js/cart-page.js`) reads it back and
+renders line items with a remove button and a running total, falling back
+to the original "Your cart is currently empty" state once it's empty again.
+There's no checkout/payment step wired up yet — this only covers building
+and viewing the cart itself.
 
 ## Contact form
 
@@ -120,9 +184,13 @@ To make it work, wire it to a form backend, e.g.:
 
 ```
 index.html          Main page (hero, products, contact)
-cart.html            Order/cart page (placeholder — no cart logic wired up yet)
+product.html         Product detail page (carousel, metal picker, specs, select/cart)
+cart.html            Order/cart page — renders window.EmjiveCart's contents
 css/style.css        All styling
 js/main.js           Renders products.json into cards (model-viewer or image)
+js/product.js        Product detail page logic
+js/cart.js           Shared localStorage cart (window.EmjiveCart)
+js/cart-page.js       Renders the cart on cart.html
 data/products.json    Product list — edit this to add/remove/change items
 assets/products/...   Per-product images + 3D models
 ```
@@ -131,4 +199,7 @@ assets/products/...   Per-product images + 3D models
 
 This is intentionally a starting skeleton so we can refine the aesthetic
 together — colors, type, layout, animations, real photography, and real 3D
-models can all evolve from here.
+models can all evolve from here. Foramen and Disc still have no photography
+and every product's `metalDetails` is missing real weight/composition data
+(and price, for everything but Furcula's silver) — fill those in as they
+become available.

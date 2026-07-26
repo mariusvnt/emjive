@@ -1,14 +1,61 @@
-[
-  {
-    "id": "01",
-    "name": "Furcula",
-    "category": "Rings",
-    "price": "€ 420",
-    "material": "Brass",
-    "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
-    "image": "assets/products/furcula_ring/image.svg",
-    "model": "assets/products/furcula_ring/model.glb",
-    "cameraOrbit": "30deg 70deg 105%",
-    "shader": "gold"
-  }
-]
+{
+  "categories": ["ring", "neck", "wrist"],
+  "metals": ["steel", "silver", "bronze"],
+  "products": [
+    {
+      "id": "01",
+      "name": "Furcula",
+      "category": "ring",
+      "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
+      "image": "assets/products/furcula_ring/image.svg",
+      "images": [
+        "assets/products/furcula_ring/furcula_top_view.png",
+        "assets/products/furcula_ring/furcula_top_view_black.png",
+        "assets/products/furcula_ring/furcula_top_view_gold.png"
+      ],
+      "model": "assets/products/furcula_ring/model.glb",
+      "cameraOrbit": "30deg 70deg 105%",
+      "metal": "steel",
+      "sizes": ["50", "52", "54", "56", "58", "60"],
+      "metalDetails": {
+        "steel":  { "price": 0,   "weight": "", "composition": "" },
+        "silver": { "price": 420, "weight": "", "composition": "" },
+        "bronze": { "price": 0,   "weight": "", "composition": "" }
+      }
+    },
+    {
+      "id": "02",
+      "name": "Foramen",
+      "category": "ring",
+      "description": "",
+      "image": "",
+      "images": [],
+      "model": "assets/products/foramen_ring/Foramen_gltf.glb",
+      "cameraOrbit": "-30deg 45deg 105%",
+      "metal": "steel",
+      "sizes": ["50", "52", "54", "56", "58", "60"],
+      "metalDetails": {
+        "steel":  { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      }
+    },
+    {
+      "id": "03",
+      "name": "Disc",
+      "category": "ring",
+      "description": "",
+      "image": "",
+      "images": [],
+      "model": "assets/products/disc_ring/disc_gltf.glb",
+      "cameraOrbit": "-115deg 90deg 105%",
+      "metal": "steel",
+      "sizes": ["50", "52", "54", "56", "58", "60"],
+      "metalDetails": {
+        "steel":  { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      }
+    }
+  ]
+}

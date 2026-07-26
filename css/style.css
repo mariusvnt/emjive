@@ -4,36 +4,30 @@
 
 :root {
   --bg: #f8f8f8;
-  --ink: #000000;
-  --ink-soft: #5c594e;
-  --line: #dcd8cd;
-  --line-strong: #b8b3a4;
-  --border: #7a7974;
-  --accent: #8a6a4f;   /* warm metal / rust — industrial */
-  --moss: #6b7a5e;     /* muted organic green, used sparingly */
-  --paper: #e9e2d2;
+  --black: #000000;
+  --white: #ffffff;
   --category-col: #777777;
 
-  --spray-bg: var(--bg);
-  --spray-a: #b0ecf6;
-  --spray-b: #f9a9f3;
+  /* The site's only two typefaces. font-secondary: navigation/mono
+     usages, Geist Mono (loaded from Google Fonts). font-main: everything
+     else, DINish (self-hosted — see @font-face below, needs the actual
+     font file dropped into assets/fonts/). */
+  --font-secondary: "Geist Mono", "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --font-main: "DINish", sans-serif;
 
-  --font-display: "Fraunces", "Iowan Old Style", serif;
-  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --max: 1440px;
+  --gutter: 1.25rem;
 
-  /* Header rubrics: navigation items use Geist Mono (loaded from Google
-     Fonts), informative items use DINish (self-hosted — see @font-face
-     below, needs the actual font file dropped into assets/fonts/). */
-  --font-nav: "Geist Mono", var(--font-mono);
-  --font-info: "DINish", sans-serif;
-
-  --max: 1280px;
-  --gutter: clamp(1.25rem, 4vw, 3rem);
+  /* Global (not scoped to .reveal) because .reveal__extension-crop, which
+     also uses this, lives in .products — a sibling section, not a
+     descendant of .reveal, so a variable defined only there wouldn't be
+     visible here. */
+  --reveal-pin-height: 100vh;
 }
 
 /* DINish isn't on Google Fonts — it's a free (SIL OFL) font by Bert
    Driehuis, distributed outside any CDN. Download it and drop the file(s)
-   at these paths to activate it; until then --font-info falls back to
+   at these paths to activate it; until then --font-main falls back to
    sans-serif. */
 @font-face {
   font-family: "DINish";
@@ -45,27 +39,29 @@
 
 * { box-sizing: border-box; }
 
-/* Without this, browsers paint the overscroll/canvas area using body's
-   background (the cream --bg) instead of white, since html has none of
-   its own — visible as a wrong-colored strip when scrolling past the top. */
+/* Without its own background, html falls back to whatever's visible
+   through/beyond body — matching var(--bg) here (not a separate hardcoded
+   white) keeps every area consistent: the overscroll/bounce region above
+   the top, and any blank canvas below body's actual content height on
+   pages that don't fill the viewport. */
 html {
   scroll-behavior: smooth;
-  background: #ffffff;
+  background: var(--bg);
 }
 
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-mono);
+  color: var(--black);
+  font-family: var(--font-secondary);
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3 {
-  font-family: var(--font-display);
-  font-weight: 500;
+  font-family: var(--font-main);
+  font-weight: 400;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -79,20 +75,9 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 img { max-width: 100%; display: block; }
 
 button, input, textarea {
-  font-family: var(--font-mono);
+  font-family: var(--font-main);
   font-size: inherit;
   color: inherit;
-}
-
-/* subtle film-grain overlay — industrial/tactile texture */
-.grain {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 999;
-  opacity: 0.035;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
 /* ==========================================================================
@@ -109,8 +94,8 @@ button, input, textarea {
   left: 0;
   right: 0;
   z-index: 80;
-  background: #ffffff;
-  border-bottom: .5px solid var(--ink);
+  background: var(--white);
+  border-bottom: .5px solid var(--black);
 
   /* Tweak these to restyle the header. --header-image-size sets the brand
      image's height; the +/- toggle is sized as a ratio of it via
@@ -120,16 +105,16 @@ button, input, textarea {
   --header-px: clamp(20px, 2.5vw, 28px);
   --header-pt: 1rem;
   --header-pb: .5rem;
-  --header-image-size: 28px;
+  --header-image-size: 20px;
   --header-plus-ratio: 0.5;
 
   /* Rubric menu spacing: gap between rubric titles, space from the
      toggle row down to the first rubric, and space from the last rubric
      down to the header's bottom border. */
-  --header-rubric-gap: 1.5rem;
-  --header-menu-pt: .75rem;
-  --header-menu-pb: 2rem;
-  --header-kind-gap: 0.5rem;
+  --header-rubric-gap: 1.75rem;
+  --header-menu-pt: 1.25rem;
+  --header-menu-pb: 2.25rem;
+  --header-kind-gap: .5rem;
 }
 
 .site-header__row {
@@ -171,7 +156,7 @@ button, input, textarea {
   position: absolute;
   top: 50%;
   left: 50%;
-  background: var(--ink);
+  background: var(--black);
 }
 .menu-toggle__bar--h {
   width: 100%;
@@ -199,14 +184,14 @@ button, input, textarea {
   left: 0;
   right: 0;
   z-index: 80;
-  background: #ffffff;
+  background: var(--white);
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.35s ease;
 }
 .site-header__menu.is-open {
   grid-template-rows: 1fr;
-  border-bottom: .5px solid var(--ink);
+  border-bottom: .5px solid var(--black);
 }
 .site-header__menu-inner { overflow: hidden; min-height: 0; }
 
@@ -220,22 +205,22 @@ button, input, textarea {
   gap: var(--header-rubric-gap);
 }
 .site-header__nav a {
-  font-size: 16px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   /* text-transform: uppercase; */
-  color: var(--ink);
+  color: var(--black);
   /* transition: color 0.2s ease; */
 }
 
 /* The two rubric kinds share every rule above except color: cat items get
    the site's rust accent, informative items stay the default ink/black. */
 .site-header__nav a.is-cat {
-  font-family: var(--font-nav);
+  font-family: var(--font-secondary);
   color: var(--category-col);
 }
 .site-header__nav a.is-info {
-  font-family: var(--font-info);
-  font-size: 18px;
+  font-family: var(--font-main);
+  font-size: 14px;
 }
 
 /* Adds on top of the normal --header-rubric-gap wherever two consecutive
@@ -255,6 +240,8 @@ button, input, textarea {
   position: relative;
   --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
   --reveal-frontier-height: 16px; /* height of the scanning band; width is always full screen */
+  /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
+     which also needs it, lives outside .reveal entirely. */
 
   /* Ring placement on the x-ray hand: x/y are the ring's center as a % of
      the hand image's own width/height (not the viewport), size is the
@@ -272,7 +259,7 @@ button, input, textarea {
 .reveal__pin {
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: var(--reveal-pin-height);
   overflow: hidden;
   background: var(--bg);
 }
@@ -322,6 +309,51 @@ button, input, textarea {
   clip-path: inset(100% 0 0 0);
 }
 
+/* A background layer living behind the product grid (not inside
+   .reveal__pin, no scroll/clip-path logic of its own) — this is
+   deliberately the simple half of the split: hand_xray.png used to be
+   one taller file with this appended below it, but making that work with
+   the reveal's sticky/overflow setup kept causing viewport bugs on
+   mobile. Positioned absolutely within .products (which is
+   position: relative), pinned to its top so it continues directly from
+   the hero above, with .product-grid's z-index: 1 keeping it in front —
+   the image shows through in the grid's gaps/margins, like a backdrop.
+   overflow: hidden here only crops horizontally (same reason the hand
+   images need it: wider than the viewport on narrow screens) — safe to
+   do with plain overflow: hidden since unlike .reveal__pin there's no
+   sticky element anywhere in this chain to trigger that WebKit bug. */
+.reveal__extension-crop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  overflow: hidden;
+  /* Explicit height, matching what the absolutely-positioned image below
+     naturally renders at (same derivation as its width calc, applied to
+     hand_xray_extension.png's own 4225:2376 ratio) — needed because that
+     image is taken out of normal flow, so this wrapper has no in-flow
+     content left to size itself by. */
+  height: calc(var(--reveal-pin-height) * 2376 / 2305);
+}
+
+/* Same width formula as .reveal__img (uncapped, cropped by the wrapper
+   above rather than letterboxed) so it lines up edge-to-edge with the
+   hand images' rendered width — no width mismatch at the seam. Centered
+   via left: 50% + transform (not margin: auto) because auto margins
+   collapse to 0 instead of centering once width exceeds the container —
+   the same reason .reveal__img uses this same technique. */
+.reveal__extension {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(var(--reveal-pin-height) * 4225 / 2305);
+  max-width: none;
+  height: 100%;
+  display: block;
+}
+
 .reveal__xray-group .reveal__img--xray {
   position: absolute;
   inset: 0;
@@ -367,7 +399,7 @@ button, input, textarea {
   display: inline-block;
   margin-top: 2.25rem;
   padding: 0.85rem 1.6rem;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--black);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -375,7 +407,7 @@ button, input, textarea {
   background: transparent;
   transition: background 0.2s ease, color 0.2s ease;
 }
-.btn:hover { background: var(--ink); color: var(--bg); }
+.btn:hover { background: var(--black); color: var(--bg); }
 
 /* ==========================================================================
    Section heads (shared)
@@ -395,8 +427,8 @@ button, input, textarea {
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--line-strong);
-  border-top: 1px solid var(--ink);
+  color: var(--black);
+  border-top: 1px solid var(--black);
   padding-top: 0.4rem;
 }
 .section-head h2 {
@@ -405,13 +437,13 @@ button, input, textarea {
 }
 .section-head__note {
   font-size: 0.75rem;
-  color: var(--ink-soft);
+  color: var(--category-col);
   margin-left: auto;
 }
 .section-head__note code {
-  background: var(--paper);
+  background: var(--bg);
   padding: 0.1em 0.4em;
-  border: 1px solid var(--line);
+  border: 1px solid var(--black);
 }
 
 /* ==========================================================================
@@ -419,37 +451,78 @@ button, input, textarea {
    ========================================================================== */
 
 .products {
+  position: relative;
   padding: clamp(4rem, 10vw, 7rem) 0 clamp(3rem, 8vw, 6rem);
 }
 
 .product-grid {
+  position: relative;
+  z-index: 1;
   max-width: var(--max);
   margin: 0 auto;
   padding: 0 var(--gutter);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .product-grid { gap: 8rem; }
 }
 
 .product-grid__loading {
   grid-column: 1 / -1;
   padding: 3rem;
   text-align: center;
-  color: var(--ink-soft);
+  color: var(--category-col);
 }
 
+/* Two even halves, split exactly at the row's (and so the screen's, since
+   the grid itself is centered) horizontal center. The model is pinned to
+   the end of the left half — i.e. its right border sits exactly on that
+   center line — and the label starts flush at the beginning of the right
+   half, regardless of how wide either one is. */
 .product-card {
-  background: var(--bg);
-  padding: 1.5rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  background: transparent;
 }
 
+/* A full-viewport-width divider bar behind each row, doubling as the
+   click target for the row (so clicking anywhere on the bar — not just
+   the model or the product-card__label text — opens the product page).
+   One real <a> instead of a separate decorative pseudo-element + an
+   invisible link layered on top of it. left: 50% + translateX(-50%)
+   re-centers on the card's own midpoint regardless of the card's width,
+   and width: 100vw then overflows evenly past both edges of the
+   (centered, padded) grid out to the true screen edges. z-index: 0 keeps
+   it behind the figure/label (z-index: 1), so those still take priority
+   over their own areas. */
+.product-card__bar-link {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: var(--white);
+  transform: translate(-50%, -50%);
+  width: 100vw;
+  height: 2rem;
+  z-index: 0;
+}
+
+/* Fluid, not a desktop/mobile pair of fixed sizes — same formula at every
+   viewport width so the model shrinks smoothly and the label always stays
+   beside it (never wraps below) instead of the row breaking into a stack
+   on narrow screens. */
 .product-card__figure {
+  grid-column: 1;
+  justify-self: end;
   position: relative;
+  width: clamp(210px, 45vw, 795px);
   aspect-ratio: 1 / 1;
-  max-width: 530px;
-  margin: 0 auto;
-  padding: 150px;
+  padding: clamp(42px, 12vw, 225px);
   overflow: hidden;
-  border: .5px solid var(--border);
 }
 
 .product-card__figure img,
@@ -462,39 +535,27 @@ button, input, textarea {
   --poster-color: transparent;
 }
 
-.product-card__spray {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: var(--spray-bg);
-  overflow: hidden;
-}
-.product-card__spray-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.product-card__spray-ribbon {
-  stroke: none;
-  opacity: 0.9;
-}
-.product-card__spray-ribbon--a { fill: var(--spray-a); }
-.product-card__spray-ribbon--b { fill: var(--spray-b); }
-
+/* Flush against the center line (start of the right half), so it sits
+   right next to the model's border. */
 .product-card__label {
-  position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
-  z-index: 2;
-  font-family: var(--font-mono);
-  font-weight: 700;
+  grid-column: 2;
+  justify-self: start;
+  position: relative;
+  z-index: 1;
+  margin-left: 1rem;
+  white-space: nowrap;
   font-size: 1rem;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink);
-  pointer-events: none;
+  color: var(--black);
 }
-
+.product-card__label-name {
+  font-family: var(--font-main);
+}
+.product-card__label-type {
+  font-family: var(--font-secondary);
+  font-size: 0.7em;
+  color: var(--category-col);
+}
 /* ==========================================================================
    Cart / order page
    ========================================================================== */
@@ -507,15 +568,480 @@ button, input, textarea {
 }
 
 .cart-empty {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--black);
   padding-top: 3rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1.5rem;
-  color: var(--ink-soft);
+  color: var(--category-col);
   font-size: 0.9rem;
 }
+
+.cart-list__items {
+  border-top: 1px solid var(--black);
+  padding-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.cart-item {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto auto;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid var(--black);
+  padding-bottom: 1.25rem;
+}
+.cart-item__thumb {
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+  background: var(--white);
+  border: 1px solid var(--black);
+}
+.cart-item__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+.cart-item__name { font-family: var(--font-main); }
+.cart-item__attrs {
+  font-family: var(--font-secondary);
+  font-size: 0.75rem;
+  color: var(--category-col);
+}
+.cart-item__price { font-size: 0.9rem; white-space: nowrap; }
+.cart-item__remove {
+  border: none;
+  background: none;
+  color: var(--category-col);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cart-item__remove:hover { color: var(--black); }
+.cart-list__total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--black);
+  font-size: 0.95rem;
+}
+.cart-list__continue { margin-top: 2rem; }
+
+/* ==========================================================================
+   Product detail page
+   ========================================================================== */
+
+.product-detail {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(4rem, 10vw, 7rem) var(--gutter) 6rem;
+  min-height: 55vh;
+  background: var(--bg);
+}
+
+.product-detail__loading {
+  color: var(--category-col);
+  padding-top: 3rem;
+}
+.product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
+
+/* Sections 1–4: centered hero cluster (label, carousel, metal picker, CTA),
+   set off from the prose sections below by the same border/padding rhythm
+   .cart-empty already uses elsewhere in the file. */
+.product-detail__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding-bottom: clamp(3rem, 8vw, 5rem);
+  margin-bottom: clamp(3rem, 8vw, 5rem);
+}
+
+/* ---- 1. label ---- */
+/* Row sits on the plain page background, normally colored; a separately
+   rendered 1rem-tall band runs the full width of the screen ON TOP of
+   everything (icon, name label, price) via the same left:50%+translate
+   (-50%) breakout .product-card::before uses. It has no color of its
+   own — backdrop-filter: invert(1) inverts whatever's showing through it
+   instead (same technique as .reveal__frontier's scanner band), so
+   thumbnail/text/price stay their normal colors and just appear inverted
+   wherever the band crosses them. */
+.product-detail__label-bar {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+.product-detail__label-bar::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 100vw;
+  height: 1rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+}
+.product-detail__label-thumb {
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+  background: var(--white);
+}
+.product-detail__label-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-weight: 400;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-detail__label-name {
+  font-family: var(--font-main);
+}
+.product-detail__label-type {
+  font-family: var(--font-secondary);
+  font-size: 0.65em;
+  color: var(--black);
+  margin-left: 0.3em;
+}
+.product-detail__label-price {
+  flex: 0 0 auto;
+  font-family: var(--font-main);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+/* ---- 2. carousel ---- */
+.product-carousel {
+  position: relative;
+  width: 100%;
+  max-width: min(560px, 100%);
+}
+.product-carousel__viewport {
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  background: transparent;
+  cursor: grab;
+  touch-action: pan-y;
+}
+.product-carousel__viewport:active { cursor: grabbing; }
+.product-carousel__track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.4s ease;
+}
+/* 76% width + 4% margin (80% step), rather than a flush 100%, so the
+   active slide sits centered in the viewport with the start of both the
+   previous and next slide peeking in on either side — kept in sync with
+   the 80/12 numbers in js/product.js's goToSlide(). Single-slide products
+   (no extra images[]) get the flush 100% via .product-carousel--single
+   below, since there's nothing to peek at. */
+.product-carousel__slide {
+  flex: 0 0 76%;
+  margin-right: 4%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 8vw, 64px);
+}
+.product-carousel--single .product-carousel__slide {
+  flex: 0 0 100%;
+  margin-right: 0;
+}
+/* object-fit: contain (not cover, unlike .product-card__figure) — these
+   are real product photos, not the grid's zoomed model framing, so
+   nothing should get cropped out. */
+.product-carousel__slide img,
+.product-carousel__slide model-viewer {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  --poster-color: transparent;
+}
+/* Smaller than photo slides on purpose — see js/product.js — so most of
+   the slide is empty space a drag can start from without landing on
+   model-viewer's own camera-controls (which rotates the model instead of
+   paging the carousel). */
+.product-carousel__slide--model model-viewer {
+  width: 55%;
+  height: 55%;
+}
+/* Invisible click zones on the left/right edge of the viewport — the only
+   click-based way to move between slides now that there are no visible
+   arrows (dragging horizontally works everywhere else in the carousel). */
+.product-carousel__rim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18%;
+  z-index: 2;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.product-carousel__rim--left { left: 0; }
+.product-carousel__rim--right { right: 0; }
+/* Single-slide state (no extra photos): rim click zones fully hidden
+   rather than disabled — no placeholder photos are fabricated for
+   products that don't have any yet. */
+.product-carousel--single .product-carousel__rim {
+  display: none;
+}
+
+/* ---- 3. metal selection: horizontal gradient bars (one per swatch),
+   labeled underneath, with a small dot floating above the selected one. ---- */
+.product-metals {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+  /* .product-detail__intro's own flex gap (1.5rem) already adds some
+     space before this — topped up here so the total gap between the
+     carousel and the metal picker is a full 4rem. */
+  margin-top: 2.5rem;
+}
+/* Own fixed height (independent of the bars' own height, so changing
+   that doesn't affect this label's size/box) and vertically centered
+   within it. Always flex: 0 0 auto (unlike .product-metals__options
+   below) so it stays pinned to the left edge regardless of screen width. */
+.product-metals__label {
+  flex: 0 0 auto;
+  height: 1rem;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-main);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  color: var(--black);
+}
+/* Capped at 560px and pushed to the row's right edge via the auto
+   left-margin (rather than the whole .product-metals row being capped/
+   right-anchored) — so past 560px of available width, the bars stop
+   growing and rest on the right edge while the label above stays pinned
+   to the left edge regardless. */
+.product-metals__options {
+  flex: 0 1 560px;
+  margin-left: auto;
+  display: flex;
+}
+.product-metals__option-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+/* The "you are here" dot, rendered as part of the label text itself
+   (rather than absolutely positioned against the wrap/bar) so it sits
+   immediately to the left of "steel"/"silver"/"bronze" regardless of how
+   wide that word is. */
+.product-metals__option-wrap.is-selected .product-metals__option-label::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 0.2rem;
+  height: 0.2rem;
+  margin-right: 0.2rem;
+  border-radius: 50%;
+  background: var(--category-col);
+}
+.product-metals__option {
+  width: 100%;
+  height: 0.75rem;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+.product-metals__option-label {
+  font-family: var(--font-secondary);
+  font-size: 0.5rem;
+  line-height: 1;
+  color: var(--category-col);
+}
+.product-metals__option[data-metal="steel"] {
+  background: linear-gradient(135deg, #7c8288, #cfd3d6 45%, #9aa0a6);
+}
+.product-metals__option[data-metal="silver"] {
+  background: linear-gradient(135deg, #d8d4c8, #f5f3ee 45%, #e9e5d9);
+}
+.product-metals__option[data-metal="bronze"] {
+  background: linear-gradient(135deg, #5e3c19, #c98f4e 45%, #8a5a2b);
+}
+
+/* ---- 4. select button: full-bleed black bar, same technique as the
+   label bar above. ---- */
+.product-detail__select {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  /* .product-detail__intro's own flex gap (1.5rem) already adds some
+     space before this — topped up here so the total gap between the
+     metal picker and this button is a full 8rem. */
+  margin-top: 6.5rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--black);
+  color: var(--white);
+  border: none;
+  padding: 0 var(--gutter);
+  font-family: var(--font-main);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.product-detail__select:hover { background: #1a1a1a; }
+.product-detail__select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---- 5–7. prose sections (description / characteristics / shipping) ---- */
+.product-detail__section {
+  padding-top: 3rem;
+  margin-bottom: clamp(3rem, 8vw, 5rem);
+}
+.product-detail__section:last-child { margin-bottom: 0; }
+/* .section-head normally adds its own max-width/auto-margin/gutter
+   padding (see .section-head above) so it can sit directly in an
+   unpadded page section — .product-detail already provides that gutter
+   itself, so left as-is here the heading would sit indented an extra
+   step past .product-detail__description/__shipping below it. Scoped to
+   the product page only, so cart.html's heading is unaffected. */
+.product-detail__section .section-head {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.product-detail__description,
+.product-detail__shipping {
+  max-width: 640px;
+  color: var(--category-col);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  font-family: var(--font-main);
+}
+.product-detail__shipping { display: flex; flex-direction: column; gap: 1rem; }
+
+.product-specs {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  max-width: 480px;
+  row-gap: 0.75rem;
+  column-gap: 1.5rem;
+}
+.product-specs dt {
+  font-family: var(--font-main);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--category-col);
+}
+.product-specs dd {
+  font-family: var(--font-main);
+  margin: 0;
+  font-size: 0.9rem;
+  padding-bottom: 0.5rem;
+}
+
+/* ---- size-selection modal ---- */
+/* Simple opacity/transform cross-fade — no keyframes, matching the file's
+   transition-only motion language elsewhere. */
+.size-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.size-modal.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
+.size-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+.size-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: calc(100% - 2 * var(--gutter));
+  max-width: 360px;
+  background: var(--bg);
+  border: 1px solid var(--black);
+  padding: 2rem;
+  transform: translateY(12px);
+  transition: transform 0.25s ease;
+}
+.size-modal.is-open .size-modal__panel { transform: translateY(0); }
+.size-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--category-col);
+  cursor: pointer;
+}
+.size-modal__close:hover { color: var(--black); }
+.size-modal__title {
+  font-size: 1.4rem;
+  font-weight: 400;
+  margin-bottom: 0.25rem;
+}
+.size-modal__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 1.5rem 0 2rem;
+}
+.size-modal__option {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--black);
+  background: transparent;
+  font-family: var(--font-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.size-modal__option:hover { border-color: var(--black); }
+.size-modal__option.is-selected {
+  background: var(--black);
+  color: var(--bg);
+  border-color: var(--black);
+}
+.size-modal__confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+body.is-modal-open { overflow: hidden; }
 
 /* ==========================================================================
    Footer
@@ -525,22 +1051,12 @@ button, input, textarea {
   max-width: var(--max);
   margin: 0 auto;
   padding: 2rem var(--gutter) 3rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--black);
   display: flex;
   justify-content: space-between;
   font-size: 0.72rem;
   letter-spacing: 0.04em;
-  color: var(--ink-soft);
+  color: var(--category-col);
 }
-.site-footer a:hover { color: var(--ink); }
+.site-footer a:hover { color: var(--black); }
 
-/* ==========================================================================
-   Responsive
-   ========================================================================== */
-
-@media (max-width: 640px) {
-  /* .product-card__figure's fixed 150px padding leaves almost no room for
-     the model/image once the card itself is only ~350px wide on a phone —
-     scale it down instead, without touching the desktop 150px look. */
-  .product-card__figure { padding: 8vw; }
-}

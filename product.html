@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" />
+<title>em·ji·ve</title>
+<meta name="description" content="em·ji·ve — product detail." />
+<link rel="icon" type="image/png" href="assets/name_compact.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="css/style.css" />
+
+<!-- 3D model viewer (glTF / GLB support) -->
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body>
+
+
+<header class="site-header">
+  <div class="site-header__row">
+    <a class="site-header__brand" href="index.html#top">
+      <img src="assets/name.png" alt="em&middot;ji&middot;ve" />
+    </a>
+    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
+      <span class="menu-toggle__bar menu-toggle__bar--h"></span>
+      <span class="menu-toggle__bar menu-toggle__bar--v"></span>
+    </button>
+  </div>
+  <div class="site-header__menu" id="siteHeaderMenu">
+    <div class="site-header__menu-inner">
+      <nav class="site-header__nav">
+        <!-- These are hand-written, not rendered from data/products.json's
+             "categories" list — that list is the source of truth for what
+             categories exist, so keep this menu in sync with it by hand. -->
+        <a href="index.html#products" class="is-cat">.ring</a>
+        <a href="index.html#products" class="is-cat">.neck</a>
+        <a href="index.html#products" class="is-cat">.wrist</a>
+        <a href="index.html#contact" class="is-info">About us</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main class="product-detail" id="productDetail">
+
+  <p class="product-detail__loading" id="productDetailLoading">Loading…</p>
+
+  <div class="product-detail__content" id="productDetailContent" hidden>
+
+    <div class="product-detail__intro">
+
+      <!-- 1. Product label -->
+      <div class="product-detail__label-bar">
+        <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
+        <h1 class="product-detail__label-text">
+          <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>
+        </h1>
+        <span class="product-detail__label-price" id="productLabelPrice"></span>
+      </div>
+
+      <!-- 2. Carousel: 3D model (always slide 1) + real product photos.
+           No visible arrows/outline — navigate by dragging horizontally
+           or clicking the left/right rim (see js/product.js). -->
+      <div class="product-carousel" id="productCarousel">
+        <div class="product-carousel__viewport">
+          <div class="product-carousel__track" id="productCarouselTrack"></div>
+        </div>
+        <button class="product-carousel__rim product-carousel__rim--left" id="carouselRimLeft" aria-label="Previous photo"></button>
+        <button class="product-carousel__rim product-carousel__rim--right" id="carouselRimRight" aria-label="Next photo"></button>
+      </div>
+
+      <!-- 3. Metal selection -->
+      <div class="product-metals">
+        <span class="product-metals__label">Metal</span>
+        <div class="product-metals__options" id="productMetalOptions"></div>
+      </div>
+
+      <!-- 4. Select button -->
+      <button class="product-detail__select" id="selectButton" type="button">Select</button>
+
+    </div>
+
+    <!-- 5. Item description -->
+    <section class="product-detail__section">
+      <div class="section-head">
+        <h2>Description</h2>
+      </div>
+      <p class="product-detail__description" id="productDescription"></p>
+    </section>
+
+    <!-- 6. Technical characteristics (depends on the chosen metal) -->
+    <section class="product-detail__section">
+      <div class="section-head">
+        <h2>Characteristics</h2>
+      </div>
+      <dl class="product-specs" id="productSpecs"></dl>
+    </section>
+
+    <!-- 7. Shipping & returns (static, same on every product) -->
+    <section class="product-detail__section">
+      <div class="section-head">
+        <h2>Shipping &amp; Returns</h2>
+      </div>
+      <div class="product-detail__shipping">
+        <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
+        <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- Size-selection modal, opened by the Select button -->
+<div class="size-modal" id="sizeModal" aria-hidden="true">
+  <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
+  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-labelledby="sizeModalTitle">
+    <button class="size-modal__close" id="sizeModalClose" type="button" aria-label="Close">×</button>
+    <h3 class="size-modal__title" id="sizeModalTitle">Select a size</h3>
+    <div class="size-modal__options" id="sizeModalOptions"></div>
+    <button class="btn size-modal__confirm" id="sizeModalConfirm" type="button" disabled>Add to cart</button>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script src="js/cart.js"></script>
+<script src="js/product.js"></script>
+</body>
+</html>
