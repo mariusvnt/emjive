@@ -98,9 +98,9 @@
   // top-level "metals" list in products.json — that list is the source
   // of truth for which metal names are valid, so keep the two in sync.
   var METAL_PRESETS = {
-    steel: { baseColorFactor: [0.72, 0.73, 0.75, 1], metallicFactor: 1.0, roughnessFactor: 0.22 },
-    silver: { baseColorFactor: [0.6, 0.62, 0.64, 1], metallicFactor: 1.0, roughnessFactor: 0.28 },
-    bronze: { baseColorFactor: [0.55, 0.36, 0.2, 1], metallicFactor: 0.9, roughnessFactor: 0.35, exposure: "1.05" }
+    steel: { baseColorFactor: [120/255, 120/255, 135/255, 1], metallicFactor: 1.0, roughnessFactor: 0.3 },
+    silver: { baseColorFactor: [240/255, 240/255, 240/255, 1], metallicFactor: 1.0, roughnessFactor: 0.18 },
+    bronze: { baseColorFactor: [255/255, 156/255, 41/255, 1], metallicFactor: 0.95, roughnessFactor: 0.16 }
   };
 
   function el(tag, className, html) {
