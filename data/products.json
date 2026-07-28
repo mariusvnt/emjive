@@ -1,26 +1,46 @@
 {
   "categories": ["ring", "neck", "wrist"],
   "metals": ["steel", "silver", "bronze"],
+  "sizesByCategory": {
+    "ring": ["52", "55", "57", "60", "62"],
+    "neck": [],
+    "wrist": []
+  },
+  "sizeUnits": {
+    "ring": "mm",
+    "neck": "",
+    "wrist": ""
+  },
   "products": [
     {
       "id": "01",
       "name": "Furcula",
       "category": "ring",
       "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
-      "image": "assets/products/furcula_ring/image.svg",
-      "images": [
-        "assets/products/furcula_ring/furcula_top_view.png",
-        "assets/products/furcula_ring/furcula_top_view_black.png",
-        "assets/products/furcula_ring/furcula_top_view_gold.png"
+      "icons": {
+        "steel":  "assets/products/furcula_ring/furcula_icon_steel.webp",
+        "silver": "assets/products/furcula_ring/furcula_icon_silver.webp",
+        "bronze": "assets/products/furcula_ring/furcula_icon_bronze.webp"
+      },
+      "photos": [
+        "assets/products/furcula_ring/Furcula_photo1.png",
+        "assets/products/furcula_ring/Furcula_photo2.png"
       ],
-      "model": "assets/products/furcula_ring/model.glb",
+      "assets": {
+        "xray": "assets/products/furcula_ring/furcula-xray.png",
+        "top-shot": {
+          "steel":  "assets/products/furcula_ring/furcula_top-shot_steel.webp",
+          "silver": "assets/products/furcula_ring/furcula_top-shot_silver.webp",
+          "bronze": "assets/products/furcula_ring/furcula_top-shot_bronze.webp"
+        }
+      },
+      "model": "assets/products/furcula_ring/furcula_gltf.glb",
       "cameraOrbit": "30deg 70deg 105%",
       "metal": "steel",
-      "sizes": ["50", "52", "54", "56", "58", "60"],
       "metalDetails": {
-        "steel":  { "price": 0,   "weight": "", "composition": "" },
-        "silver": { "price": 420, "weight": "", "composition": "" },
-        "bronze": { "price": 0,   "weight": "", "composition": "" }
+        "steel":  { "price": 220,   "weight": "", "composition": "" },
+        "silver": { "price": 350, "weight": "", "composition": "" },
+        "bronze": { "price": 240,   "weight": "", "composition": "" }
       }
     },
     {
@@ -28,12 +48,23 @@
       "name": "Foramen",
       "category": "ring",
       "description": "",
-      "image": "",
-      "images": [],
+      "icons": {
+        "steel":  "assets/products/foramen_ring/foramen_icon_steel.webp",
+        "silver": "assets/products/foramen_ring/foramen_icon_silver.webp",
+        "bronze": "assets/products/foramen_ring/foramen_icon_bronze.webp"
+      },
+      "photos": [],
+      "assets": {
+        "xray": "",
+        "top-shot": {
+          "steel":  "assets/products/foramen_ring/foramen_top-shot_steel.webp",
+          "silver": "assets/products/foramen_ring/foramen_top-shot_silver.webp",
+          "bronze": "assets/products/foramen_ring/foramen_top-shot_bronze.webp"
+        }
+      },
       "model": "assets/products/foramen_ring/Foramen_gltf.glb",
       "cameraOrbit": "-30deg 45deg 105%",
       "metal": "steel",
-      "sizes": ["50", "52", "54", "56", "58", "60"],
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },
         "silver": { "price": 0, "weight": "", "composition": "" },
@@ -45,12 +76,23 @@
       "name": "Disc",
       "category": "ring",
       "description": "",
-      "image": "",
-      "images": [],
+      "icons": {
+        "steel":  "assets/products/disc_ring/disc_icon_steel.webp",
+        "silver": "assets/products/disc_ring/disc_icon_silver.webp",
+        "bronze": "assets/products/disc_ring/disc_icon_bronze.webp"
+      },
+      "photos": [],
+      "assets": {
+        "xray": "",
+        "top-shot": {
+          "steel":  "assets/products/disc_ring/disc_top-shot_steel.webp",
+          "silver": "assets/products/disc_ring/disc_top-shot_silver.webp",
+          "bronze": "assets/products/disc_ring/disc_top-shot_bronze.webp"
+        }
+      },
       "model": "assets/products/disc_ring/disc_gltf.glb",
       "cameraOrbit": "-115deg 90deg 105%",
       "metal": "steel",
-      "sizes": ["50", "52", "54", "56", "58", "60"],
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },
         "silver": { "price": 0, "weight": "", "composition": "" },

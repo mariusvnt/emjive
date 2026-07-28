@@ -149,7 +149,12 @@
   function buildModelViewer(product, metalKey) {
     var mv = document.createElement("model-viewer");
     mv.setAttribute("src", product.model);
-    if (product.image) mv.setAttribute("poster", product.image);
+    // Poster only matters pre-load, so this is fixed to whatever metal the
+    // viewer is being built for — never needs to change after (by the time
+    // a visitor could switch metals in the picker, the real model has
+    // already loaded and the poster is long gone).
+    var posterIcon = product.icons && product.icons[metalKey];
+    if (posterIcon) mv.setAttribute("poster", posterIcon);
     mv.setAttribute("alt", product.name || "");
     mv.setAttribute("camera-controls", "");
     mv.setAttribute("disable-zoom", "");
@@ -285,13 +290,17 @@
     var figure = el("div", "product-card__figure");
     var href = "product.html?id=" + encodeURIComponent(product.id);
 
+    // No metal picker on the homepage grid — always the product's own
+    // default metal (product.metal), same as buildModelViewer's own
+    // material choice just below.
+    var gridIcon = product.icons && product.icons[product.metal];
     if (product.model) {
       var modelHandle = buildModelViewer(product, product.metal);
       wireModelClickNavigation(modelHandle.el, href);
       figure.appendChild(modelHandle.el);
-    } else if (product.image) {
+    } else if (gridIcon) {
       var img = el("img");
-      img.src = product.image;
+      img.src = gridIcon;
       img.alt = product.name || "";
       img.loading = "lazy";
       figure.appendChild(img);

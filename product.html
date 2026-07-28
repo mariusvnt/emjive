@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#ffffff" />
 <title>em·ji·ve</title>
 <meta name="description" content="em·ji·ve — product detail." />
-<link rel="icon" type="image/png" href="assets/name_compact.png" />
+<link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,7 +23,7 @@
 <header class="site-header">
   <div class="site-header__row">
     <a class="site-header__brand" href="index.html#top">
-      <img src="assets/name.png" alt="em&middot;ji&middot;ve" />
+      <img src="assets/logo.svg" alt="em&middot;ji&middot;ve" />
     </a>
     <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
       <span class="menu-toggle__bar menu-toggle__bar--h"></span>
@@ -65,12 +65,15 @@
       <!-- 2. Carousel: 3D model (always slide 1) + real product photos.
            No visible arrows/outline — navigate by dragging horizontally
            or clicking the left/right rim (see js/product.js). -->
-      <div class="product-carousel" id="productCarousel">
-        <div class="product-carousel__viewport">
-          <div class="product-carousel__track" id="productCarouselTrack"></div>
+      <div class="product-carousel-frame" id="productCarouselFrame">
+        <img class="product-carousel__xray" id="productCarouselXray" alt="" hidden />
+        <div class="product-carousel" id="productCarousel">
+          <div class="product-carousel__viewport">
+            <div class="product-carousel__track" id="productCarouselTrack"></div>
+          </div>
+          <button class="product-carousel__rim product-carousel__rim--left" id="carouselRimLeft" aria-label="Previous photo"></button>
+          <button class="product-carousel__rim product-carousel__rim--right" id="carouselRimRight" aria-label="Next photo"></button>
         </div>
-        <button class="product-carousel__rim product-carousel__rim--left" id="carouselRimLeft" aria-label="Previous photo"></button>
-        <button class="product-carousel__rim product-carousel__rim--right" id="carouselRimRight" aria-label="Next photo"></button>
       </div>
 
       <!-- 3. Metal selection -->
@@ -118,15 +121,39 @@
 <div class="size-modal" id="sizeModal" aria-hidden="true">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
   <div class="size-modal__panel" role="dialog" aria-modal="true" aria-labelledby="sizeModalTitle">
-    <button class="size-modal__close" id="sizeModalClose" type="button" aria-label="Close">×</button>
-    <h3 class="size-modal__title" id="sizeModalTitle">Select a size</h3>
-    <div class="size-modal__options" id="sizeModalOptions"></div>
-    <button class="btn size-modal__confirm" id="sizeModalConfirm" type="button" disabled>Add to cart</button>
+    <div class="size-modal__content">
+      <h3 class="size-modal__title" id="sizeModalTitle">Choose a size</h3>
+
+      <div class="size-modal__standard-row" id="sizeModalStandardRow">
+        <span class="size-modal__standard-label">Standard sizes</span>
+        <div class="size-modal__standard-options" id="sizeModalStandardOptions"></div>
+      </div>
+
+      <div class="size-modal__custom-row" id="sizeModalCustomRow">
+        <span class="size-modal__custom-label">Custom size</span>
+        <div class="size-modal__custom-field">
+          <span class="size-modal__custom-underline">
+            <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" />
+            <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
+          </span>
+        </div>
+        <button class="size-modal__size-guide-toggle" id="sizeModalGuideToggle" type="button">Size guide</button>
+      </div>
+
+      <div class="size-modal__size-guide" id="sizeModalGuide">
+        <div class="size-modal__size-guide-inner">
+          <div class="size-modal__size-guide-content" id="sizeModalGuideContent"></div>
+        </div>
+      </div>
+
+      <button class="size-modal__confirm" id="sizeModalConfirm" type="button" disabled>Add to selection</button>
+    </div>
   </div>
 </div>
 
 <script src="js/main.js"></script>
-<script src="js/cart.js"></script>
+<script src="js/selection.js"></script>
 <script src="js/product.js"></script>
+<script src="js/selection-bar.js"></script>
 </body>
 </html>

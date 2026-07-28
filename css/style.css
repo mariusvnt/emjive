@@ -7,6 +7,14 @@
   --black: #000000;
   --white: #ffffff;
   --category-col: #777777;
+  /* 90%-black gray — the shade already used for the select button's own
+     hover state, promoted to a token so the floating selection bar and
+     the size modal's confirm button share exactly the same value. */
+  --black-bg: #1a1a1a;
+  /* Shared by the floating selection bar's own summary-row height and
+     body's reserved bottom padding (see the "Floating selection bar"
+     section) so the two can't drift apart. */
+  --selection-bar-height: 3.5rem;
 
   /* The site's only two typefaces. font-secondary: navigation/mono
      usages, Geist Mono (loaded from Google Fonts). font-main: everything
@@ -16,7 +24,15 @@
   --font-main: "DINish", sans-serif;
 
   --max: 1440px;
-  --gutter: 1.25rem;
+  /* The one horizontal edge-inset value for the whole site — how far any
+     page's content sits from the true screen edge, everywhere from the
+     header down to the footer. Started out scoped to .site-header (hence
+     the shape of the value), then got reused piecemeal by the floating
+     selection bar and the size modal; promoted here and renamed once it
+     became clear it wasn't header-specific at all, and the site's older
+     flat --gutter: 1.25rem token (which only ever matched this at its
+     20px floor, never past it) was retired in favor of this one. */
+  --edge-px: clamp(20px, 2.5vw, 28px);
 
   /* Global (not scoped to .reveal) because .reveal__extension-crop, which
      also uses this, lives in .products — a sibling section, not a
@@ -47,6 +63,26 @@
 html {
   scroll-behavior: smooth;
   background: var(--bg);
+  /* Reserves the vertical scrollbar's track width unconditionally, even
+     on pages/viewport heights short enough not to need a scrollbar right
+     now. Without this, a page just tall enough to scroll (showing a
+     scrollbar) vs. one that isn't renders at a slightly different usable
+     width — and since .selection-bar is position: fixed; left:0; right:0,
+     everything inside it (the icon strip, Order link) would visibly
+     shift a few pixels depending on which page you're on. */
+  scrollbar-gutter: stable;
+  /* Categorically rules out a HORIZONTAL scrollbar ever appearing (the
+     site leans on a lot of width: 100vw breakout tricks — hero images,
+     full-bleed bars, the carousel frame — any one of which overflowing
+     by even a sub-pixel would toggle one on/off). A horizontal scrollbar
+     eats into the same "usable viewport" .selection-bar's left:0;right:0
+     is measured against, on top of the vertical-scrollbar case above —
+     and unlike that one, there's no scrollbar-gutter equivalent for the
+     horizontal axis to reserve against, so the only reliable fix is
+     making sure it can never occur at all. Also protects against the
+     brief mismatch a browser's back/forward cache can show for an
+     instant on back-navigation, before the live page reasserts itself. */
+  overflow-x: hidden;
 }
 
 body {
@@ -54,9 +90,16 @@ body {
   background: var(--bg);
   color: var(--black);
   font-family: var(--font-secondary);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+}
+/* Reserves room for the floating selection bar (fixed to the viewport
+   bottom) so it never sits on top of page content — scoped automatically
+   to only the pages that actually render one via :has(), rather than
+   needing every page's own bottom padding hand-adjusted. */
+body:has(.selection-bar) {
+  padding-bottom: var(--selection-bar-height);
 }
 
 h1, h2, h3 {
@@ -73,6 +116,12 @@ a { color: inherit; text-decoration: none; }
 ol, ul { margin: 0; padding: 0; list-style: none; }
 
 img { max-width: 100%; display: block; }
+
+/* Hides model-viewer's own default loading progress bar everywhere it's
+   used (product grid cards, product page carousel) — one global rule
+   instead of repeating it on every context-specific model-viewer
+   selector. */
+model-viewer { --progress-bar-height: 0px; }
 
 button, input, textarea {
   font-family: var(--font-main);
@@ -101,12 +150,12 @@ button, input, textarea {
      image's height; the +/- toggle is sized as a ratio of it via
      --header-plus-ratio (1 = same height, 0.5 = half, etc). Both sit in
      .site-header__row's align-items: center, so their vertical centers
-     always line up regardless of the ratio. */
-  --header-px: clamp(20px, 2.5vw, 28px);
+     always line up regardless of the ratio. (The header's own edge
+     padding is --edge-px, living on :root — see there.) */
   --header-pt: 1rem;
   --header-pb: .5rem;
-  --header-image-size: 20px;
-  --header-plus-ratio: 0.5;
+  --header-image-size: 2.5rem;
+  --header-plus-ratio: 0.3;
 
   /* Rubric menu spacing: gap between rubric titles, space from the
      toggle row down to the first rubric, and space from the last rubric
@@ -123,7 +172,7 @@ button, input, textarea {
   /* env(safe-area-inset-top) keeps the logo/toggle clear of the iPhone
      notch/status bar now that viewport-fit=cover lets the white header
      background extend all the way up under it. */
-  padding: calc(var(--header-pt) + env(safe-area-inset-top, 0px)) var(--header-px) var(--header-pb);
+  padding: calc(var(--header-pt) + env(safe-area-inset-top, 0px)) var(--edge-px) var(--header-pb);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -198,7 +247,7 @@ button, input, textarea {
 .site-header__nav {
   max-width: var(--max);
   margin: 0 auto;
-  padding: var(--header-menu-pt) var(--header-px) var(--header-menu-pb);
+  padding: var(--header-menu-pt) var(--edge-px) var(--header-menu-pb);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -206,7 +255,6 @@ button, input, textarea {
 }
 .site-header__nav a {
   font-size: 12px;
-  letter-spacing: 0.06em;
   /* text-transform: uppercase; */
   color: var(--black);
   /* transition: color 0.2s ease; */
@@ -239,7 +287,7 @@ button, input, textarea {
 .reveal {
   position: relative;
   --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
-  --reveal-frontier-height: 16px; /* height of the scanning band; width is always full screen */
+  --reveal-frontier-height: 0.75rem; /* height of the scanning band; width is always full screen */
   /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
      which also needs it, lives outside .reveal entirely. */
 
@@ -303,7 +351,7 @@ button, input, textarea {
   transform: translateX(-50%);
   height: 100%;
   width: auto;
-  aspect-ratio: 4225 / 2305; /* hand_normal.png / hand_xray.png's intrinsic size */
+  aspect-ratio: 3840 / 2160; /* hand_normal.png / hand_xray.png's intrinsic size */
   /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
      the section scrolls, revealing from the bottom edge upward. */
   clip-path: inset(100% 0 0 0);
@@ -318,6 +366,9 @@ button, input, textarea {
    position: relative), pinned to its top so it continues directly from
    the hero above, with .product-grid's z-index: 1 keeping it in front —
    the image shows through in the grid's gaps/margins, like a backdrop.
+   Two panels rather than one — hand_xray_extension_1.png then
+   hand_xray_extension_2.png, stacked top to bottom — continuing the
+   lines that run off the bottom of hand_xray.png across both seams.
    overflow: hidden here only crops horizontally (same reason the hand
    images need it: wider than the viewport on narrow screens) — safe to
    do with plain overflow: hidden since unlike .reveal__pin there's no
@@ -329,30 +380,32 @@ button, input, textarea {
   right: 0;
   z-index: 0;
   overflow: hidden;
-  /* Explicit height, matching what the absolutely-positioned image below
-     naturally renders at (same derivation as its width calc, applied to
-     hand_xray_extension.png's own 4225:2376 ratio) — needed because that
-     image is taken out of normal flow, so this wrapper has no in-flow
-     content left to size itself by. */
-  height: calc(var(--reveal-pin-height) * 2376 / 2305);
+  /* Two stacked panels. Both extension images share hand_xray.png's own
+     3840:2160 intrinsic ratio, so each one renders at exactly one
+     pin-height tall (same logic as .reveal__img's height: 100%) — no
+     per-image ratio math needed here, just double the height. */
+  height: calc(var(--reveal-pin-height) * 2);
 }
 
 /* Same width formula as .reveal__img (uncapped, cropped by the wrapper
    above rather than letterboxed) so it lines up edge-to-edge with the
-   hand images' rendered width — no width mismatch at the seam. Centered
+   hand images' rendered width — no width mismatch at the seams. Centered
    via left: 50% + transform (not margin: auto) because auto margins
    collapse to 0 instead of centering once width exceeds the container —
-   the same reason .reveal__img uses this same technique. */
+   the same reason .reveal__img uses this same technique. Each panel is
+   exactly one pin-height tall; the --1/--2 modifiers stack them so the
+   second continues directly where the first leaves off. */
 .reveal__extension {
   position: absolute;
-  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(var(--reveal-pin-height) * 4225 / 2305);
+  width: calc(var(--reveal-pin-height) * 3840 / 2160);
   max-width: none;
-  height: 100%;
+  height: var(--reveal-pin-height);
   display: block;
 }
+.reveal__extension--1 { top: 0; }
+.reveal__extension--2 { top: var(--reveal-pin-height); }
 
 .reveal__xray-group .reveal__img--xray {
   position: absolute;
@@ -400,8 +453,6 @@ button, input, textarea {
   margin-top: 2.25rem;
   padding: 0.85rem 1.6rem;
   border: 1px solid var(--black);
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
   background: transparent;
@@ -416,7 +467,7 @@ button, input, textarea {
 .section-head {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 0 var(--gutter);
+  padding: 0 var(--edge-px);
   display: flex;
   align-items: baseline;
   gap: 1.25rem;
@@ -424,8 +475,7 @@ button, input, textarea {
   margin-bottom: 2.5rem;
 }
 .section-head__index {
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  font-size: 0.75rem;
   text-transform: uppercase;
   color: var(--black);
   border-top: 1px solid var(--black);
@@ -460,7 +510,7 @@ button, input, textarea {
   z-index: 1;
   max-width: var(--max);
   margin: 0 auto;
-  padding: 0 var(--gutter);
+  padding: 0 var(--edge-px);
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
@@ -507,20 +557,30 @@ button, input, textarea {
   background: var(--white);
   transform: translate(-50%, -50%);
   width: 100vw;
-  height: 2rem;
+  height: 1.2rem;
   z-index: 0;
 }
 
 /* Fluid, not a desktop/mobile pair of fixed sizes — same formula at every
    viewport width so the model shrinks smoothly and the label always stays
    beside it (never wraps below) instead of the row breaking into a stack
-   on narrow screens. */
+   on narrow screens.
+   height repeats the same clamp() as width (a square) rather than using
+   aspect-ratio: 1/1 to derive it — Safari has a documented history of
+   grid row-sizing not correctly accounting for an aspect-ratio-derived
+   size on a grid item, which would make .product-card's align-items:
+   center (and so .product-card__bar-link's own top: 50%, which reads
+   .product-card's height independently) center against a height the
+   grid *thinks* the figure has rather than its real rendered height —
+   visible as the model box sitting off from the white band. An explicit
+   height sidesteps that: both numbers are unambiguous before layout
+   even starts, nothing needs to be derived. */
 .product-card__figure {
   grid-column: 1;
   justify-self: end;
   position: relative;
   width: clamp(210px, 45vw, 795px);
-  aspect-ratio: 1 / 1;
+  height: clamp(210px, 45vw, 795px);
   padding: clamp(42px, 12vw, 225px);
   overflow: hidden;
 }
@@ -542,7 +602,7 @@ button, input, textarea {
   justify-self: start;
   position: relative;
   z-index: 1;
-  margin-left: 1rem;
+  padding-left: 12vw;
   white-space: nowrap;
   font-size: 1rem;
   letter-spacing: 0.05em;
@@ -553,21 +613,21 @@ button, input, textarea {
 }
 .product-card__label-type {
   font-family: var(--font-secondary);
-  font-size: 0.7em;
+  font-size: 0.75em;
   color: var(--category-col);
 }
 /* ==========================================================================
-   Cart / order page
+   Selection / order page
    ========================================================================== */
 
-.cart-page {
+.selection-page {
   max-width: var(--max);
   margin: 0 auto;
-  padding: clamp(4rem, 10vw, 7rem) var(--gutter) 6rem;
+  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
   min-height: 55vh;
 }
 
-.cart-empty {
+.selection-empty {
   border-top: 1px solid var(--black);
   padding-top: 3rem;
   display: flex;
@@ -575,17 +635,16 @@ button, input, textarea {
   align-items: flex-start;
   gap: 1.5rem;
   color: var(--category-col);
-  font-size: 0.9rem;
 }
 
-.cart-list__items {
+.selection-list__items {
   border-top: 1px solid var(--black);
   padding-top: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
-.cart-item {
+.selection-item {
   display: grid;
   grid-template-columns: 4rem 1fr auto auto;
   align-items: center;
@@ -593,45 +652,40 @@ button, input, textarea {
   border-bottom: 1px solid var(--black);
   padding-bottom: 1.25rem;
 }
-.cart-item__thumb {
+.selection-item__thumb {
   width: 4rem;
   height: 4rem;
   object-fit: contain;
   background: var(--white);
   border: 1px solid var(--black);
 }
-.cart-item__meta {
+.selection-item__meta {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  font-size: 0.85rem;
 }
-.cart-item__name { font-family: var(--font-main); }
-.cart-item__attrs {
+.selection-item__name { font-family: var(--font-main); }
+.selection-item__attrs {
   font-family: var(--font-secondary);
-  font-size: 0.75rem;
   color: var(--category-col);
 }
-.cart-item__price { font-size: 0.9rem; white-space: nowrap; }
-.cart-item__remove {
+.selection-item__price { white-space: nowrap; }
+.selection-item__remove {
   border: none;
   background: none;
   color: var(--category-col);
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
 }
-.cart-item__remove:hover { color: var(--black); }
-.cart-list__total {
+.selection-item__remove:hover { color: var(--black); }
+.selection-list__total {
   display: flex;
   justify-content: space-between;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--black);
-  font-size: 0.95rem;
 }
-.cart-list__continue { margin-top: 2rem; }
+.selection-list__continue { margin-top: 2rem; }
 
 /* ==========================================================================
    Product detail page
@@ -640,9 +694,18 @@ button, input, textarea {
 .product-detail {
   max-width: var(--max);
   margin: 0 auto;
-  padding: clamp(4rem, 10vw, 7rem) var(--gutter) 6rem;
+  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
   min-height: 55vh;
   background: var(--bg);
+  /* Single source of truth for every vertical gap on this page (between
+     label/carousel/metals/select-button, and between the prose sections
+     below them) — was previously a mix of .product-detail__intro's own
+     1.5rem flex gap plus ad-hoc per-element "top-up" margins (2.5rem,
+     6.5rem) layered on top to reach different totals (4rem, 8rem) in
+     different places, plus yet another clamp() value for the gap before
+     the prose sections — normalized to one value, used directly
+     everywhere instead. */
+  --section-gap: 15vh;
 }
 
 .product-detail__loading {
@@ -651,27 +714,36 @@ button, input, textarea {
 }
 .product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
 
-/* Sections 1–4: centered hero cluster (label, carousel, metal picker, CTA),
-   set off from the prose sections below by the same border/padding rhythm
-   .cart-empty already uses elsewhere in the file. */
+/* Sections 1–4: centered hero cluster (label, carousel, metal picker, CTA).
+   gap spaces the four of them evenly at --section-gap each; margin-bottom
+   sets off the whole cluster from the prose sections below by that same
+   amount (was a redundant padding-bottom + margin-bottom pair set to the
+   same clamp() — just the one margin now). */
 .product-detail__intro {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
-  padding-bottom: clamp(3rem, 8vw, 5rem);
-  margin-bottom: clamp(3rem, 8vw, 5rem);
+  gap: var(--section-gap);
+  margin-bottom: var(--section-gap);
 }
 
 /* ---- 1. label ---- */
 /* Row sits on the plain page background, normally colored; a separately
-   rendered 1rem-tall band runs the full width of the screen ON TOP of
+   rendered 1.2rem-tall band runs the full width of the screen ON TOP of
    everything (icon, name label, price) via the same left:50%+translate
    (-50%) breakout .product-card::before uses. It has no color of its
    own — backdrop-filter: invert(1) inverts whatever's showing through it
    instead (same technique as .reveal__frontier's scanner band), so
    thumbnail/text/price stay their normal colors and just appear inverted
-   wherever the band crosses them. */
+   wherever the band crosses them.
+   ::after sits at the same spot but *behind* the row's own content
+   (z-index: -1, vs. ::before's 2), painted in #e5e5e5 — chosen so
+   inverting it (255 - 26 per channel) lands exactly on var(--black-bg)'s
+   #1a1a1a (26). Without it, ::before would be inverting whatever's
+   actually behind the band at each point (the page background in the
+   gaps, or slivers of the thumbnail/text), which varies; with it, the
+   band reads as a consistent solid --black-bg everywhere it doesn't
+   cross the label's own content. */
 .product-detail__label-bar {
   position: relative;
   width: 100%;
@@ -687,18 +759,30 @@ button, input, textarea {
   top: 50%;
   left: 50%;
   width: 100vw;
-  height: 1rem;
+  height: 1.2rem;
   transform: translate(-50%, -50%);
   pointer-events: none;
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
+}
+.product-detail__label-bar::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: 100vw;
+  height: 1.2rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: #e5e5e5;
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
   width: 3rem;
   height: 3rem;
   object-fit: contain;
-  background: var(--white);
+  background: transparent;
 }
 .product-detail__label-text {
   flex: 1;
@@ -726,43 +810,109 @@ button, input, textarea {
   white-space: nowrap;
 }
 
-/* ---- 2. carousel ---- */
+/* ---- 2. carousel ----
+   A free-drag filmstrip (no snapping — see js/product.js), not a
+   one-slide-at-a-time paginator: every image is square, and the tile size
+   (--tile, used as both width and height throughout) is capped at 560px
+   but shrinks on narrower containers so the viewport always exceeds one
+   tile by >= 4rem — since js/product.js rests on (and rubber-bands
+   dragging past) the first/last tile CENTERED rather than flush to an
+   edge, that reservation splits into a >= 2rem peek on each side, not
+   just one.
+   The viewport stays full width and the carousel stays scrollable even
+   when every tile would technically fit at once (e.g. few photos on a
+   wide screen) — it always rests on the first tile centered rather than
+   collapsing to a static "show everything, hug the content" layout.
+   width: 100vw (rather than 100%) breaks the frame out of .product-detail's
+   centered/padded column to span the full viewport edge-to-edge —
+   .product-detail__intro's own align-items: center then centers this
+   wider-than-its-container box the same way it would a narrower one, no
+   separate breakout trick needed (unlike the left:50%+translateX(-50%)
+   technique .product-card__bar-link/.product-detail__label-bar::before use
+   elsewhere, which is only for absolutely-positioned overlays, not a
+   normal-flow box like this one that needs to reserve its own real layout
+   height).
+   --tile and container-type live on this outer frame, not .product-carousel
+   itself, so .product-carousel__xray below — a sibling of .product-carousel,
+   not a descendant — can size itself off var(--tile) too: nesting it inside
+   .product-carousel directly put it inside that inline-size containment,
+   which was quietly constraining its height to fit rather than letting it
+   bleed past the carousel's own box the way a plain sibling can. */
+.product-carousel-frame {
+  position: relative;
+  width: 100vw;
+  container-type: inline-size;
+  --tile: min(560px, 100cqw - 4rem);
+}
+/* No peek to reserve space for when there's nothing to peek at. */
+.product-carousel-frame.product-carousel--single {
+  --tile: min(560px, 100cqw);
+}
+/* Behind .product-carousel (z-index: 1, below) — a static, non-scrolling
+   x-ray backdrop for the product. Real product x-ray source images have a
+   fair amount of transparent padding baked in around the actual artwork
+   (same as the hand x-ray renders elsewhere on the site), so sizing this
+   at exactly --tile made the bleed technically real but visually
+   unnoticeable — the box overflowed the filmstrip's height, but the
+   visible artwork inside it didn't reach far enough to show. Scaled up
+   past the tile size instead (1.75x, floored at 512px so it stays
+   substantial even for a small --tile on narrow screens) — tune
+   --xray-width's multiplier/floor directly if that's still too
+   subtle/too much. Still 3:4 (taller than wide), still centered on the
+   filmstrip. See js/product.js for the per-product src/hidden toggle
+   (product.assets.xray). */
+.product-carousel__xray {
+  --xray-width: max(512px, calc(var(--tile) * 1.66));
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  transform: translate(-50%, -50%);
+  width: var(--xray-width);
+  height: calc(var(--xray-width) * 4 / 3);
+  object-fit: cover;
+  pointer-events: none;
+}
 .product-carousel {
   position: relative;
+  /* Own stacking context (position + z-index together) so this whole
+     component paints as one unit above .product-carousel__xray, rather
+     than the individual z-indexes inside it (.product-carousel__viewport,
+     .product-carousel__rim) being compared against the xray directly. */
+  z-index: 1;
   width: 100%;
-  max-width: min(560px, 100%);
 }
 .product-carousel__viewport {
+  position: relative;
+  z-index: 1;
   overflow: hidden;
-  aspect-ratio: 1 / 1;
+  height: var(--tile);
+  width: 100%;
   background: transparent;
   cursor: grab;
   touch-action: pan-y;
 }
+.product-carousel--single .product-carousel__viewport {
+  cursor: default;
+}
 .product-carousel__viewport:active { cursor: grabbing; }
+.product-carousel--single .product-carousel__viewport:active {
+  cursor: default;
+}
+/* Honest total width (slideCount * tile), no flex-shrink:0-overflow
+   trick — js/product.js reads it straight off getBoundingClientRect(). */
 .product-carousel__track {
   display: flex;
   height: 100%;
-  transition: transform 0.4s ease;
+  width: max-content;
 }
-/* 76% width + 4% margin (80% step), rather than a flush 100%, so the
-   active slide sits centered in the viewport with the start of both the
-   previous and next slide peeking in on either side — kept in sync with
-   the 80/12 numbers in js/product.js's goToSlide(). Single-slide products
-   (no extra images[]) get the flush 100% via .product-carousel--single
-   below, since there's nothing to peek at. */
 .product-carousel__slide {
-  flex: 0 0 76%;
-  margin-right: 4%;
+  flex: 0 0 var(--tile);
+  width: var(--tile);
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(24px, 8vw, 64px);
-}
-.product-carousel--single .product-carousel__slide {
-  flex: 0 0 100%;
-  margin-right: 0;
 }
 /* object-fit: contain (not cover, unlike .product-card__figure) — these
    are real product photos, not the grid's zoomed model framing, so
@@ -774,6 +924,15 @@ button, input, textarea {
   object-fit: contain;
   --poster-color: transparent;
 }
+/* Belt-and-suspenders against the browser's native image-drag gesture
+   (see js/product.js's img.draggable = false and the dragstart guard in
+   wireCarouselNav, which are the real fix) — also blocks the text-select
+   cursor/selection a fast drag can otherwise leave behind. */
+.product-carousel__slide img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
 /* Smaller than photo slides on purpose — see js/product.js — so most of
    the slide is empty space a drag can start from without landing on
    model-viewer's own camera-controls (which rotates the model instead of
@@ -782,25 +941,33 @@ button, input, textarea {
   width: 55%;
   height: 55%;
 }
-/* Invisible click zones on the left/right edge of the viewport — the only
-   click-based way to move between slides now that there are no visible
-   arrows (dragging horizontally works everywhere else in the carousel). */
+/* Click/drag zones flush against the left/right edge of the viewport —
+   short tap pages by one tile, a real drag scrolls freely, same as
+   dragging directly on the filmstrip (see js/product.js's
+   wireCarouselNav, which wires the same pointer handling to these as to
+   the viewport). left/right: 0 anchors each one to the screen edge;
+   updateRims() drives the actual width (inline style, overriding the one
+   below) to cover the full run of empty space out to whichever tile is
+   currently centered, not just a fixed strip — the clamp() here is only
+   what's visible for the instant before that first runs. touch-action:
+   pan-y matches the viewport, so a touch drag starting on a rim scrolls
+   the filmstrip instead of triggering the browser's own page gestures. */
 .product-carousel__rim {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 18%;
+  width: clamp(2rem, 6cqw, 4rem);
   z-index: 2;
   border: none;
   background: transparent;
   padding: 0;
   cursor: pointer;
+  touch-action: pan-y;
 }
 .product-carousel__rim--left { left: 0; }
 .product-carousel__rim--right { right: 0; }
 /* Single-slide state (no extra photos): rim click zones fully hidden
-   rather than disabled — no placeholder photos are fabricated for
-   products that don't have any yet. */
+   rather than disabled — nothing to page to. */
 .product-carousel--single .product-carousel__rim {
   display: none;
 }
@@ -810,12 +977,19 @@ button, input, textarea {
 .product-metals {
   display: flex;
   align-items: flex-start;
+  /* The 90px floor on each swatch below (.product-metals__option) can
+     exceed what's left next to the label on narrow screens. Rather than
+     wrapping to a second line (which would drop the bars off the
+     label's row), the row stays put and .product-metals__options scrolls
+     horizontally instead — see its own overflow-x below. */
+  flex-wrap: nowrap;
   gap: 1rem;
   width: 100%;
-  /* .product-detail__intro's own flex gap (1.5rem) already adds some
-     space before this — topped up here so the total gap between the
-     carousel and the metal picker is a full 4rem. */
-  margin-top: 2.5rem;
+  /* Establishes what the swatch widths below are sized against (via
+     cqw) — this element's own width is a plain 100% of its parent, not
+     derived from its children, so this doesn't create the circular
+     sizing container queries would otherwise forbid. */
+  container-type: inline-size;
 }
 /* Own fixed height (independent of the bars' own height, so changing
    that doesn't affect this label's size/box) and vertically centered
@@ -831,22 +1005,27 @@ button, input, textarea {
   letter-spacing: 0.06em;
   color: var(--black);
 }
-/* Capped at 560px and pushed to the row's right edge via the auto
-   left-margin (rather than the whole .product-metals row being capped/
-   right-anchored) — so past 560px of available width, the bars stop
-   growing and rest on the right edge while the label above stays pinned
-   to the left edge regardless. */
+/* Sized to its content (the swatches, each individually clamped below)
+   rather than stretched — pushed to the row's right edge via the auto
+   left-margin (rather than the whole .product-metals row being
+   right-anchored) so the label above stays pinned to the left edge
+   regardless. No gap: the swatches stay edge-to-edge, like one
+   continuous strip split into selectable segments. */
 .product-metals__options {
-  flex: 0 1 560px;
   margin-left: auto;
   display: flex;
+  /* Lets this item shrink below its children's combined width instead of
+     forcing .product-metals to wrap or overflow the page — the swatches
+     themselves stay full-size (flex-shrink: 0 below) and scroll within
+     this box instead of shrinking or wrapping to a new row. */
+  overflow-x: auto;
 }
 .product-metals__option-wrap {
   position: relative;
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  flex-shrink: 0;
 }
 /* The "you are here" dot, rendered as part of the label text itself
    (rather than absolutely positioned against the wrap/bar) so it sits
@@ -856,14 +1035,17 @@ button, input, textarea {
   content: "";
   display: inline-block;
   vertical-align: middle;
-  width: 0.2rem;
-  height: 0.2rem;
+  width: 0.25rem;
+  height: 0.25rem;
   margin-right: 0.2rem;
   border-radius: 50%;
   background: var(--category-col);
 }
+/* 90px–180px, scaling smoothly with .product-metals's own width (18cqw)
+   in between — floors at 90px below a ~500px container, caps at 180px
+   past ~1000px. */
 .product-metals__option {
-  width: 100%;
+  width: clamp(90px, 18cqw, 180px);
   height: 0.75rem;
   padding: 0;
   border: none;
@@ -875,14 +1057,23 @@ button, input, textarea {
   line-height: 1;
   color: var(--category-col);
 }
+/* Real renders of each metal's actual PBR material (see METAL_PRESETS in
+   js/main.js) under the same studio HDRI the 3D models use — a close
+   crop of the disc ring's own surface, not a hand-picked gradient — so
+   the swatch is a faithful preview of the finish, not just an
+   approximation. Produced (and reproduced whenever METAL_PRESETS changes)
+   by `npm run auto-render` — see README.md. background-size: cover crops
+   it down to whatever sliver fits this thin a bar; the source render
+   (assets/metal-sample_*.webp) is a fully-filled square, so there's no
+   letterboxing at any width. */
 .product-metals__option[data-metal="steel"] {
-  background: linear-gradient(135deg, #7c8288, #cfd3d6 45%, #9aa0a6);
+  background: url("../assets/metal-sample_steel.webp") center / cover;
 }
 .product-metals__option[data-metal="silver"] {
-  background: linear-gradient(135deg, #d8d4c8, #f5f3ee 45%, #e9e5d9);
+  background: url("../assets/metal-sample_silver.webp") center / cover;
 }
 .product-metals__option[data-metal="bronze"] {
-  background: linear-gradient(135deg, #5e3c19, #c98f4e 45%, #8a5a2b);
+  background: url("../assets/metal-sample_bronze.webp") center / cover;
 }
 
 /* ---- 4. select button: full-bleed black bar, same technique as the
@@ -891,18 +1082,14 @@ button, input, textarea {
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
-  /* .product-detail__intro's own flex gap (1.5rem) already adds some
-     space before this — topped up here so the total gap between the
-     metal picker and this button is a full 8rem. */
-  margin-top: 6.5rem;
   height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--black);
+  background: var(--black-bg);
   color: var(--white);
   border: none;
-  padding: 0 var(--gutter);
+  padding: 0 var(--edge-px);
   font-family: var(--font-main);
   font-size: 1rem;
   letter-spacing: 0.08em;
@@ -910,13 +1097,13 @@ button, input, textarea {
   cursor: pointer;
   transition: background 0.2s ease;
 }
-.product-detail__select:hover { background: #1a1a1a; }
+.product-detail__select:hover { background: var(--black); }
 .product-detail__select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---- 5–7. prose sections (description / characteristics / shipping) ---- */
 .product-detail__section {
   padding-top: 3rem;
-  margin-bottom: clamp(3rem, 8vw, 5rem);
+  margin-bottom: var(--section-gap);
 }
 .product-detail__section:last-child { margin-bottom: 0; }
 /* .section-head normally adds its own max-width/auto-margin/gutter
@@ -924,7 +1111,7 @@ button, input, textarea {
    unpadded page section — .product-detail already provides that gutter
    itself, so left as-is here the heading would sit indented an extra
    step past .product-detail__description/__shipping below it. Scoped to
-   the product page only, so cart.html's heading is unaffected. */
+   the product page only, so launch-order.html's heading is unaffected. */
 .product-detail__section .section-head {
   max-width: none;
   margin-left: 0;
@@ -985,60 +1172,207 @@ button, input, textarea {
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
 }
+/* The panel itself stays full-bleed (like .selection-bar) — only its
+   content is capped/padded, via .size-modal__content below, mirroring
+   .site-header (full-bleed) + .site-header__row (capped/padded content)
+   and .selection-bar (full-bleed) + .selection-bar__summary/__row (same). */
 .size-modal__panel {
   position: relative;
   z-index: 1;
-  width: calc(100% - 2 * var(--gutter));
-  max-width: 360px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
   background: var(--bg);
-  border: 1px solid var(--black);
-  padding: 2rem;
   transform: translateY(12px);
   transition: transform 0.25s ease;
 }
 .size-modal.is-open .size-modal__panel { transform: translateY(0); }
-.size-modal__close {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  width: 1.75rem;
-  height: 1.75rem;
+/* max-width/margin/padding mirror .site-header__row and
+   .selection-bar__summary/__row exactly — same --max cap, same
+   --edge-px edge padding — so the modal's rows line up with the
+   header/bar's content at every viewport width, while .size-modal__panel
+   above stays a plain full-bleed sheet. */
+.size-modal__content {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 2rem var(--edge-px);
+}
+.size-modal__title {
+  text-align: center;
+  font-weight: 400;
+  margin-bottom: 2rem;
+}
+
+/* ---- standard sizes: one plain-text line, no boxes ---- */
+.size-modal__standard-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.size-modal__standard-label {
+  flex: 0 0 auto;
+  font-family: var(--font-main);
+}
+.size-modal__standard-options {
+  display: flex;
+  gap: 1rem;
+  /* Flushes the whole options group to the row's right edge, leaving
+     .size-modal__standard-label alone at the left — same technique as
+     .product-metals__options. */
+  margin-left: auto;
+  /* Six-plus sizes staying on one line (per the design) rather than
+     wrapping to a second row — scrolls horizontally on narrow screens
+     instead, same fix already applied to the product page's metal
+     picker (.product-metals__options). */
+  overflow-x: auto;
+}
+.size-modal__standard-option {
+  flex: 0 0 auto;
   border: none;
   background: none;
-  font-size: 1.25rem;
-  line-height: 1;
+  padding: 0;
+  font-family: var(--font-secondary);
   color: var(--category-col);
   cursor: pointer;
 }
-.size-modal__close:hover { color: var(--black); }
-.size-modal__title {
-  font-size: 1.4rem;
-  font-weight: 400;
-  margin-bottom: 0.25rem;
-}
-.size-modal__options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin: 1.5rem 0 2rem;
-}
-.size-modal__option {
-  min-width: 2.75rem;
-  height: 2.75rem;
-  padding: 0 0.5rem;
-  border: 1px solid var(--black);
+/* Same dot used to mark the selected metal on the product page
+   (.product-metals__option-wrap.is-selected .product-metals__option-label
+   ::before) — identical dimensions, reused here for the selected size.
+   Rendered on *every* standard option, not just the selected one — only
+   its background toggles below — so the reserved space is always there
+   and the number itself never shifts horizontally when a dot appears. */
+.size-modal__standard-option::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
   background: transparent;
+}
+.size-modal__standard-option.is-selected::before {
+  background: var(--category-col);
+}
+/* For the custom row it sits right before the input field itself (not
+   the "Custom size" label) — .size-modal__custom-field is a flex
+   container, so this ::before renders as its first flex item, right
+   before .size-modal__custom-underline. It deliberately renders on
+   .size-modal__custom-field rather than .size-modal__custom-underline
+   itself, so the dot sits outside the underlined section instead of
+   looking underlined. Unlike the standard options above, this one only
+   exists once selected — there's no sibling text next to it that would
+   visibly shift when it appears. */
+.size-modal__custom-row.is-selected .size-modal__custom-field::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
+  background: var(--category-col);
+}
+
+/* ---- custom size: label + underline input + unit + size guide ---- */
+/* container-type here (on the row, not a nested wrapper) is what
+   .size-modal__custom-input's cqw-based width below scales against —
+   same placement as .product-metals' own container-type: inline-size
+   for its swatches' cqw sizing. */
+.size-modal__custom-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  container-type: inline-size;
+}
+.size-modal__custom-label {
+  flex: 0 0 auto;
+  font-family: var(--font-main);
+}
+/* flex: 0 0 auto (not 1) — the field hugs just its own content (input +
+   unit) rather than stretching the underline across empty row space;
+   margin-left: auto then flushes this compact field (and the "Size
+   guide" toggle right after it) to the row's right edge, leaving
+   .size-modal__custom-label alone at the left. The border-bottom
+   "underline" itself lives on .size-modal__custom-underline (input+unit
+   only), not here — this outer wrapper is where the ::before dot below
+   renders, so it sits just before the underlined section instead of
+   appearing to be underlined itself. */
+.size-modal__custom-field {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+}
+.size-modal__custom-underline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--category-col);
+}
+.size-modal__custom-input {
+  flex: 0 0 auto;
+  /* Floors at 1rem, caps at 3rem — reaches the cap once the row (itself
+     capped at --max) is roughly 600px wide. */
+  width: clamp(1rem, 8cqw, 3rem);
+  border: none;
+  background: none;
+  padding: 0.3rem 0;
   font-family: var(--font-secondary);
-  font-size: 0.85rem;
+  color: var(--category-col);
+}
+.size-modal__custom-unit {
+  flex: 0 0 auto;
+  padding-bottom: 0.3rem;
+  font-family: var(--font-secondary);
+  color: var(--category-col);
+}
+.size-modal__size-guide-toggle {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: var(--font-main);
+  color: var(--black);
+  text-decoration: underline;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-.size-modal__option:hover { border-color: var(--black); }
-.size-modal__option.is-selected {
-  background: var(--black);
-  color: var(--bg);
-  border-color: var(--black);
+
+/* ---- size guide: same 0fr/1fr reveal as .site-header__menu ---- */
+.size-modal__size-guide {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
 }
+.size-modal__size-guide.is-open { grid-template-rows: 1fr; }
+.size-modal__size-guide-inner { overflow: hidden; min-height: 0; }
+.size-modal__size-guide-content {
+  padding-top: 1rem;
+  font-family: var(--font-main);
+  color: var(--category-col);
+}
+
+/* ---- confirm: same recipe as .product-detail__select, including the
+   same 100vw + calc(50% - 50vw) breakout — .size-modal__panel is a plain
+   full-bleed sheet (== the true viewport width) again, so this reaches
+   its real edges rather than just .size-modal__content's capped ones. ---- */
+.size-modal__confirm {
+  width: 100vw;
+  margin: 2rem calc(50% - 50vw) 0;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--black-bg);
+  color: var(--white);
+  border: none;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.size-modal__confirm:hover { background: var(--black); }
 .size-modal__confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 
 body.is-modal-open { overflow: hidden; }
@@ -1050,13 +1384,277 @@ body.is-modal-open { overflow: hidden; }
 .site-footer {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 2rem var(--gutter) 3rem;
+  padding: 2rem var(--edge-px) 3rem;
   border-top: 1px solid var(--black);
   display: flex;
   justify-content: space-between;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
+  font-size: 0.75rem;
   color: var(--category-col);
 }
 .site-footer a:hover { color: var(--black); }
+
+/* ==========================================================================
+   Floating selection bar
+   Built entirely in js/selection-bar.js — present on every page except
+   launch-order.html (that script simply isn't included there; see
+   body:has(.selection-bar) near the base body rule for the reserved
+   bottom padding this relies on). Fixed to the viewport bottom, height is
+   intrinsic (drawer + summary stacked in a column, drawer first so it
+   appears above the summary row) — the bar grows upward as the drawer
+   opens rather than needing any top/height math.
+   ========================================================================== */
+
+.selection-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  background: var(--black-bg);
+  font-family: var(--font-main);
+  /* Promotes this to its own compositor layer instead of being repainted
+     on the main thread in lockstep with scroll — without this, fixed-
+     position elements are prone to visibly lagging/wobbling a few pixels
+     behind during active scrolling on some browsers (WebKit/mobile
+     especially). translateZ(0) is a no-op transform on its own, purely
+     there to trigger that promotion. */
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* ---- summary row: always visible ---- */
+/* max-width/margin/padding mirror .site-header__row exactly. The header's
+   own edge distance isn't a flat --edge-px — past --max width it caps
+   and centers, so the *effective* gap grows with the screen. Matching
+   that whole recipe (not just the --edge-px value in isolation) is
+   what keeps the bar's icons/Order link lined up with the header's
+   logo/menu-toggle at every viewport width, including past --max.
+   width: 100% is required here and .site-header__row doesn't need the
+   equivalent: that's a plain block (width: auto already means "fill
+   available width, then clamp to max-width"), but this is a flex item —
+   cross-axis margin: auto on a flex item shrinks it to its own content
+   width first and lets the margins absorb the rest, rather than
+   stretching to fill, so without an explicit width it never reaches
+   max-width to be clamped in the first place. */
+/* position: relative — .selection-bar__empty-label below is positioned
+   relative to *this*, not .selection-bar__toggle, specifically so it can
+   reach the bar's true right edge (matching where "Order (N)" itself
+   sits) rather than stopping short at the toggle's own edge, which is
+   narrowed by Order's own reserved flex space (even while Order is
+   invisible — see the crossfade note below). */
+.selection-bar__summary {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--selection-bar-height);
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--edge-px);
+  display: flex;
+  align-items: stretch;
+}
+/* position: relative — .selection-bar__icons and .selection-bar__empty-label
+   are absolutely positioned within this (see both below) so the two can
+   overlay exactly the same spot and crossfade via opacity, rather than
+   sitting side by side in normal flex flow where the invisible one would
+   still claim its own width + gap and shove the visible one over. */
+.selection-bar__toggle {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--white);
+  cursor: pointer;
+}
+/* No gap here on purpose — each icon carries its own margin-right instead,
+   so it (and that spacing) can collapse to zero together on removal. See
+   .selection-bar__icon--exit below. margin-left: auto keeps the whole
+   stack flush against the toggle's right edge (right next to the Order
+   link) rather than hugging the left. js/selection-bar.js builds the
+   strip newest-first in DOM (plain row, no reverse) — normal flex flow
+   then lands DOM child 0 (newest) at the *left* end of the group and the
+   last DOM child (oldest) at its right end, next to Order: the oldest
+   pick stays anchored there, and each newer pick joins further left. */
+.selection-bar__icons {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+}
+/* Same [hidden]-vs-display: flex precedence issue as .selection-bar__order
+   above — harmless today since this is always empty whenever it's
+   hidden, but restated for correctness regardless. */
+.selection-bar__icons[hidden] { display: none; }
+.selection-bar__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-right: 0.5rem;
+  object-fit: contain;
+  background: transparent;
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              margin-right 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 0.25s ease,
+              transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* The visually-rightmost icon (oldest pick, next to Order) is the last
+   DOM child under this plain (non-reversed) row. */
+.selection-bar__icon:last-child { margin-right: 0; }
+/* Entrance itself is driven entirely by js/selection-bar.js's
+   playEnterAnimation() — the slide distance depends on where the icon
+   actually lands (icon count, viewport width), so it's computed per
+   element via getBoundingClientRect() and played as an inline-style
+   transition rather than a fixed @keyframes. */
+/* Exit: collapses the icon's entire footprint (width + its own margin) so
+   the remaining icons slide smoothly into the freed space as a side
+   effect of flex recalculating layout every transition frame — no
+   FLIP/JS position math needed. js/selection-bar.js adds this class first
+   and only removes the item from data once the transition finishes. */
+.selection-bar__icon--exit {
+  width: 0;
+  margin-right: 0;
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+}
+/* Positioned relative to .selection-bar__summary (not .selection-bar__toggle
+   — see its own comment above) so it reaches the bar's true right edge.
+   That puts it outside the toggle button's own box for part of its
+   width, so it needs its own click handling to open the drawer (wired in
+   js/selection-bar.js) rather than relying on being a descendant of that
+   button — cursor: pointer signals that. pointer-events: none only once
+   hidden, so it doesn't intercept clicks meant for Order once that's the
+   visible one occupying this same spot. */
+.selection-bar__empty-label {
+  position: absolute;
+  top: 0;
+  right: var(--edge-px);
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  color: var(--white);
+  opacity: 1;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+.selection-bar__empty-label.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+/* No [hidden] here — .selection-bar__empty-label and .selection-bar__order
+   swap via an opacity crossfade (both stay in the layout, taking their
+   normal space, rather than being removed with display: none) so going
+   from "No selected item" to "Order (1)" (and back, unselecting the last
+   item) fades smoothly instead of popping instantly. */
+.selection-bar__order {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--white);
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.selection-bar__order.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.selection-bar__order-chevron { line-height: 1; }
+
+/* ---- drawer: item list. Height is driven by js/selection-bar.js setting
+   max-height inline (in px, measured off .selection-bar__drawer-inner's
+   own rendered height) rather than the grid-template-rows 0fr/1fr trick
+   used for .site-header__menu — that trick only animates between two
+   fixed states (open/closed), not between two different *open* heights,
+   so removing a row while the drawer is already open wouldn't animate
+   the drawer shrinking to match. Measuring real pixel heights and
+   transitioning max-height between them covers both cases with one
+   mechanism. Capped at two-thirds of the viewport height with its own
+   scroll once the selection gets long — .selection-bar__drawer-inner's
+   own max-height below still enforces that regardless of what this
+   outer element's inline max-height is set to. ---- */
+.selection-bar__drawer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.selection-bar__drawer-inner {
+  min-height: 0;
+  max-height: 66vh;
+  overflow: hidden auto;
+}
+.selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
+/* No background of its own — shows the drawer's ambient var(--black-bg)
+   (inherited straight through .selection-bar__drawer/-inner/rows, none of
+   which set one) — and no divider border between rows either; the row's
+   own vertical padding is the only separation. Same alignment recipe as
+   .selection-bar__summary (see its own comment for why width: 100% is
+   required alongside max-width/margin: auto here — same flex-item
+   auto-margin subtlety applies). */
+.selection-bar__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0.75rem var(--edge-px);
+}
+/* Full-viewport-width inverting band, vertically centered on the row —
+   same left:50%+translate(-50%,-50%) breakout and backdrop-filter:invert(1)
+   technique as .product-detail__label-bar::before/.reveal__frontier
+   elsewhere on the site. left:50% is relative to the row itself (its
+   nearest positioned ancestor, via position:relative above), but since
+   the row is centered on the page (margin:0 auto), that's the same point
+   as the true viewport center — so this reaches the actual screen edges
+   correctly whether the row is at its --max cap or full-bleed. z-index:2
+   paints it above the row's own content (thumb/text/button), inverting
+   whatever it overlaps; pointer-events:none keeps that content clickable
+   underneath it. */
+.selection-bar__row::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 100vw;
+  height: 1.2rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+}
+.selection-bar__row-thumb {
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+  background: transparent;
+}
+.selection-bar__row-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--white);
+}
+.selection-bar__row-name { font-family: var(--font-main); }
+.selection-bar__row-attrs {
+  font-family: var(--font-secondary);
+  font-size: 0.75rem;
+  color: var(--category-col);
+}
+.selection-bar__row-unselect {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  font-family: var(--font-main);
+  color: var(--category-col);
+  cursor: pointer;
+}
+.selection-bar__row-unselect:hover { color: var(--white); }
+.selection-bar__row-unselect:disabled { opacity: 0.4; cursor: not-allowed; }
 
