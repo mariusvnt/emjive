@@ -8,11 +8,14 @@ specs, and a "Select size" flow that adds to a real, localStorage-backed
 selection you can review on a dedicated order page, with a floating
 selection bar following you around everywhere else.
 
-Plain HTML, CSS, and vanilla JavaScript — no framework, no bundler required
-to ship it. [Vite](https://vitejs.dev) is used as the local dev server. 3D
-rendering is a custom [three.js](https://threejs.org) scene with free,
-pole-crossing rotation (`js/three-viewer.js`) — Vite is what resolves that
-module's imports, so it's required to run the site locally, not optional.
+Plain HTML, CSS, and vanilla JavaScript — no framework. [Vite](https://vitejs.dev)
+is used as the local dev server. 3D rendering is a custom [three.js](https://threejs.org)
+scene with free, pole-crossing rotation (`js/three-viewer.js`) — Vite is
+what resolves that module's `import "three"`, so it's required to run the
+site locally, not optional. It's also required to *deploy* the site: a
+plain static host serving the raw files can't resolve that import either,
+so shipping this anywhere real means running `npm run build` first — see
+"Deploying" below.
 
 ## Getting started
 
@@ -25,9 +28,58 @@ Then open the URL it prints. You can't just double-click `index.html` —
 the product grid loads its data via `fetch`, which browsers block on
 `file://`.
 
+## Deploying
+
+`npm run build` produces a real, portable `dist/` folder — a plain
+`vite build` isn't enough on its own for this site, so `vite.config.js`
+adds two things on top of Vite's defaults:
+
+- **Multi-page entries** — Vite only treats `index.html` as a build entry
+  by default; `product.html` and `launch-order.html` are listed explicitly
+  too, so all three get their imports resolved.
+- **A copy step for `js/`, `assets/`, `data/`** — Vite's build can only
+  see paths it can trace statically (`<script type="module">`,
+  `url()` in CSS, that kind of thing). It can't bundle *classic*
+  `<script src>` tags at all (so `js/main.js` etc. would silently vanish
+  from the build without help), and it has no visibility into paths that
+  only exist as runtime string data — `data/products.json`'s icon/model
+  paths, or the HDRI path in `js/three-viewer.js`. Copying those three
+  folders verbatim sidesteps tracing every case individually.
+
+### The current setup: GitHub Pages (interim)
+
+`.github/workflows/deploy.yml` runs that build on every push to `main`
+and publishes `dist/` to GitHub Pages. `vite.config.js` also sets
+`base: "/emjive/"`, because a GitHub Pages *project* page
+(`mariusvnt.github.io/emjive/`) is served from a subpath rather than a
+domain root — every built `<script>`/`<link>` reference needs that
+prefix to resolve. **This is explicitly a stopgap** for the current URL,
+not the intended long-term home for the site.
+
+### Moving to a real domain
+
+Most static hosts (Netlify, Vercel, Cloudflare Pages, …) run the build
+themselves once you point them at the repo — build command `npm run build`,
+publish directory `dist`, no GitHub Actions involved. Two things actually
+need to change when that happens:
+
+1. In `vite.config.js`, change `base: "/emjive/"` to `base: "/"` (or just
+   delete the line — `/` is Vite's default). This is the one setting
+   that's specifically about GitHub's subpath, not about deploying in
+   general — everything else in `vite.config.js` (the multi-page entries,
+   the copy step) stays, since any host running a real Vite build has the
+   same underlying limitations to work around.
+2. Delete `.github/workflows/deploy.yml` — it's GitHub-Pages-specific CI,
+   superseded by the new host's own build pipeline.
+
+If you also want `mariusvnt.github.io/emjive/` to stop resolving
+afterward, that's a manual step in this repo's GitHub Settings → Pages
+(switch the source away from "GitHub Actions", or disable Pages
+entirely) — not something committing code here can do.
+
 ## Structure, at a glance
 
-```
+```text
 index.html, product.html, launch-order.html   The three pages
 css/style.css                                  All styling, one file
 js/                                             Vanilla JS + the three.js viewer module

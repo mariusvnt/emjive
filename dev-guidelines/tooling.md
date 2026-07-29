@@ -6,7 +6,15 @@
 "dev": "vite", "build": "vite build", "preview": "vite preview", "auto-render": "node scripts/auto-render.js"
 ```
 
-No `vite.config.*` in the repo — Vite runs on its defaults. `dev`/`build`/`preview` are genuinely wired up and work; `npm run dev` is the documented way to run the site locally (see `procedures.md`) and is required specifically for `js/three-viewer.js`'s bare-specifier imports (`three`, `three/addons/...`) — this is a real, live-site file (loaded as `<script type="module">`), not a dev-only one, so Vite is a hard requirement to run the site at all now, not an optional convenience. `three` is a real runtime `dependencies` entry (not just a devDependency) since `three-viewer.js` imports it directly; `puppeteer-core`/`sharp` are `devDependencies`, used only by `auto-render.js`.
+`dev`/`build`/`preview` are genuinely wired up and work; `npm run dev` is the documented way to run the site locally (see `procedures.md`) and is required specifically for `js/three-viewer.js`'s bare-specifier imports (`three`, `three/addons/...`) — this is a real, live-site file (loaded as `<script type="module">`), not a dev-only one, so Vite is a hard requirement to run the site at all now, not an optional convenience. `three` is a real runtime `dependencies` entry (not just a devDependency) since `three-viewer.js` imports it directly; `puppeteer-core`/`sharp` are `devDependencies`, used only by `auto-render.js`.
+
+## `vite.config.js`
+
+Exists specifically because `npm run build`'s output needs to be *deployable*, not just correct in dev — a plain `vite build` with no config silently produces a broken `dist/` for this site (confirmed by inspecting the output directly): Vite only treats `index.html` as a build entry by default (`product.html`/`launch-order.html` would ship unprocessed, with the same unresolved bare-specifier `three` import that breaks on any plain static host), and it can't bundle or copy classic `<script src>` tags at all (so `js/main.js`, `js/product.js`, and the other classic scripts vanish from the build entirely — not just left unbundled, actually absent) or trace paths that only exist as runtime string data (`data/products.json`'s icon/model paths, the HDRI path in `three-viewer.js`). Two things fix this: `build.rollupOptions.input` lists all three real HTML pages explicitly, and a small inline `closeBundle` plugin copies `js/`, `assets/`, and `data/` into `dist/` verbatim after the real build runs. Also sets `base: "/emjive/"` — GitHub Pages project-page-specific, see below and `README.md`'s "Deploying" section for why and when to change it.
+
+## `.github/workflows/deploy.yml`
+
+Builds and publishes to GitHub Pages on every push to `main` (standard `actions/upload-pages-artifact` + `actions/deploy-pages` pattern). This is explicitly a stopgap for the current `mariusvnt.github.io/emjive/` URL, not the site's intended long-term host — see `README.md`'s "Deploying" section for the full picture, including exactly what to change/delete when the site moves to its own domain.
 
 ## `scripts/auto-render.js` (~570 lines)
 
@@ -25,4 +33,5 @@ Renders per-metal product icons, "top shot" images, and metal-sample swatches vi
 
 - Usage / when to run this: `procedures.md`
 - The JSON fields it writes: `data.md`
+- Deployment (what `vite.config.js`/`deploy.yml` are for, and how to remove them when the site moves off GitHub Pages): `README.md`'s "Deploying" section
 - Where the files it writes end up: `assets.md`
