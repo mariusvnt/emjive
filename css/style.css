@@ -117,16 +117,60 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 img { max-width: 100%; display: block; }
 
-/* Hides model-viewer's own default loading progress bar everywhere it's
-   used (product grid cards, product page carousel) — one global rule
-   instead of repeating it on every context-specific model-viewer
-   selector. */
-model-viewer { --progress-bar-height: 0px; }
-
 button, input, textarea {
   font-family: var(--font-main);
   font-size: inherit;
   color: inherit;
+}
+
+/* ==========================================================================
+   Shared 3D viewer (js/three-viewer.js) — the wrapper js/three-viewer.js's
+   buildThreeViewer() returns as `el`. Width/height of the wrapper itself
+   is set per context below (product grid card, carousel slide); the
+   canvas inside always exactly fills it (the module's own ResizeObserver
+   keeps the renderer's pixel size matched), so there's no cover/contain
+   framing to emulate here the way model-viewer's old poster-color/
+   object-fit rules needed.
+   ========================================================================== */
+.emjive-3d-viewer {
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+}
+.emjive-3d-viewer__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Shown until the model has loaded, framed, and painted one frame — see
+   buildThreeViewer()'s GLTFLoader callback — then fades out and stops
+   accepting pointer events immediately (not only after the transition
+   ends) so it can't swallow the first post-load drag. */
+.emjive-3d-viewer__poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.3s ease;
+}
+/* Idle "this is draggable" hint — position/opacity driven per-frame from
+   JS (see the nudgeActive branch in buildThreeViewer()'s animate loop),
+   this rule only supplies the resting anchor/look and the opacity
+   transition. The source SVG is solid black, which reads fine as-is
+   against these light product-card/carousel backgrounds — no invert
+   filter needed (unlike the dark test-harness panel it was designed for
+   originally). */
+.emjive-3d-viewer__nudge-hand {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
 }
 
 /* ==========================================================================
@@ -585,14 +629,15 @@ button, input, textarea {
   overflow: hidden;
 }
 
-.product-card__figure img,
-.product-card__figure model-viewer {
+.product-card__figure > img,
+.product-card__figure .emjive-3d-viewer {
   position: relative;
   z-index: 1;
   width: 100%;
   height: 100%;
+}
+.product-card__figure > img {
   object-fit: cover;
-  --poster-color: transparent;
 }
 
 /* Flush against the center line (start of the right half), so it sits
@@ -917,27 +962,28 @@ button, input, textarea {
 /* object-fit: contain (not cover, unlike .product-card__figure) — these
    are real product photos, not the grid's zoomed model framing, so
    nothing should get cropped out. */
-.product-carousel__slide img,
-.product-carousel__slide model-viewer {
+.product-carousel__slide > img,
+.product-carousel__slide .emjive-3d-viewer {
   width: 100%;
   height: 100%;
+}
+.product-carousel__slide > img {
   object-fit: contain;
-  --poster-color: transparent;
 }
 /* Belt-and-suspenders against the browser's native image-drag gesture
    (see js/product.js's img.draggable = false and the dragstart guard in
    wireCarouselNav, which are the real fix) — also blocks the text-select
    cursor/selection a fast drag can otherwise leave behind. */
-.product-carousel__slide img {
+.product-carousel__slide > img {
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
 }
 /* Smaller than photo slides on purpose — see js/product.js — so most of
-   the slide is empty space a drag can start from without landing on
-   model-viewer's own camera-controls (which rotates the model instead of
+   the slide is empty space a drag can start from without landing on the
+   viewer's own TrackballControls (which rotates the model instead of
    paging the carousel). */
-.product-carousel__slide--model model-viewer {
+.product-carousel__slide--model .emjive-3d-viewer {
   width: 55%;
   height: 55%;
 }

@@ -14,8 +14,8 @@
 
 <link rel="stylesheet" href="css/style.css" />
 
-<!-- 3D model viewer (glTF / GLB support) -->
-<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+<!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) -->
+<script type="module" src="js/three-viewer.js"></script>
 </head>
 <body>
 
@@ -151,9 +151,20 @@
   </div>
 </div>
 
-<script src="js/main.js"></script>
+<!-- defer on main.js/product.js: js/three-viewer.js (a module, loaded in
+     <head>) executes on the same deferred queue as defer'd classic
+     scripts, in document order — since the module tag comes first, it's
+     guaranteed to have already set window.EmjiveModelViewer by the time
+     these run. Without defer, these would run inline as soon as the
+     parser reached them, which can race ahead of the module (its own
+     fetch("data/products.json") can resolve before the module has
+     finished loading "three"). selection.js/selection-bar.js don't touch
+     window.EmjiveModelViewer, so they're left as plain synchronous
+     scripts — selection.js still runs (and sets window.EmjiveSelection)
+     before the deferred pair below, same as today. -->
+<script src="js/main.js" defer></script>
 <script src="js/selection.js"></script>
-<script src="js/product.js"></script>
+<script src="js/product.js" defer></script>
 <script src="js/selection-bar.js"></script>
 </body>
 </html>

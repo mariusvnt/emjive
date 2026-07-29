@@ -148,12 +148,13 @@
 
     var slideSources = [];
     if (product.model) {
-      // window.EmjiveModelViewer is exposed by js/main.js — reused here so
-      // the model-viewer setup/material logic lives in exactly one place.
+      // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused
+      // here so the viewer construction/material logic lives in exactly
+      // one place.
       state.modelHandle = window.EmjiveModelViewer(product, state.selectedMetal);
       // Smaller than the photo slides on purpose — leaves generous empty
       // space around the model to drag/swipe the carousel from without
-      // that drag landing on model-viewer's own camera-controls instead.
+      // that drag landing on the viewer's own TrackballControls instead.
       var modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
       modelSlide.appendChild(state.modelHandle.el);
       track.appendChild(modelSlide);
@@ -163,8 +164,8 @@
       if (fallbackIconSrc) {
         var iconSlide = buildImageSlide(fallbackIconSrc, product.name);
         // Kept so onMetalSelect can swap its src on a metal switch — this
-        // slide isn't rebuilt then, only the model-viewer path re-tints
-        // live, so a static image needs its own explicit update.
+        // slide isn't rebuilt then, only the 3D viewer path re-tints live,
+        // so a static image needs its own explicit update.
         state.iconFallbackImg = iconSlide.querySelector("img");
         track.appendChild(iconSlide);
         slideSources.push("icon");
@@ -317,7 +318,7 @@
     // don't trigger it), which fights with the custom pointer-drag scroll
     // below. img.draggable = false (set in buildImageSlide) covers real
     // <img> slides; this covers anything else a browser might still try
-    // to drag (e.g. the model-viewer's poster image while it's loading).
+    // to drag (e.g. the 3D viewer's poster image while it's loading).
     surfaces.forEach(function (surface) {
       surface.addEventListener("dragstart", function (e) { e.preventDefault(); });
     });
@@ -347,8 +348,9 @@
 
     function onPointerDown(e) {
       // A drag that starts on the 3D model slide should rotate the model
-      // (model-viewer's own camera-controls), not page the carousel.
-      if (state.slideCount <= 1 || e.target.closest("model-viewer")) return;
+      // (the viewer's own TrackballControls, js/three-viewer.js), not page
+      // the carousel.
+      if (state.slideCount <= 1 || e.target.closest(".emjive-3d-viewer")) return;
       dragBounds = computeBounds();
       dragging = true;
       dragSurface = e.currentTarget;

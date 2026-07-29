@@ -91,18 +91,6 @@
 
   var grid = document.getElementById("productGrid");
 
-  // PBR material presets applied to every mesh of a product's 3D model,
-  // regardless of the model's own original materials/textures. Pick one
-  // per product via the "metal" field in products.json (defaults to
-  // "steel" if omitted or unrecognized). Keys here should match the
-  // top-level "metals" list in products.json — that list is the source
-  // of truth for which metal names are valid, so keep the two in sync.
-  var METAL_PRESETS = {
-    steel: { baseColorFactor: [120/255, 120/255, 135/255, 1], metallicFactor: 1.0, roughnessFactor: 0.3 },
-    silver: { baseColorFactor: [240/255, 240/255, 240/255, 1], metallicFactor: 1.0, roughnessFactor: 0.18 },
-    bronze: { baseColorFactor: [255/255, 156/255, 41/255, 1], metallicFactor: 0.95, roughnessFactor: 0.16 }
-  };
-
   function el(tag, className, html) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -110,162 +98,13 @@
     return node;
   }
 
-  // Once the visitor has actually dragged/rotated any one model — on this
-  // page or any earlier one this session (e.g. the grid, then a product
-  // page, then back to the grid) — every model-viewer's idle "wiggle"
-  // hint gets turned off. They've already learned it's draggable, no
-  // need to keep nudging them. sessionStorage (not localStorage) so it's
-  // remembered for revisits within the same browsing session but doesn't
-  // permanently disable it for a brand new visit days later.
-  var INTERACTION_PROMPT_SEEN_KEY = "emjive_model_interacted";
-  var interactionPromptSuppressed = false;
-  try {
-    interactionPromptSuppressed = sessionStorage.getItem(INTERACTION_PROMPT_SEEN_KEY) === "1";
-  } catch (e) {
-    // sessionStorage unavailable (private browsing, etc.) — just falls
-    // back to per-page-load behavior instead of remembering across nav.
-  }
-  var allModelViewers = [];
-
-  function suppressInteractionPromptEverywhere() {
-    interactionPromptSuppressed = true;
-    allModelViewers.forEach(function (viewer) {
-      viewer.setAttribute("interaction-prompt", "none");
-    });
-    try {
-      sessionStorage.setItem(INTERACTION_PROMPT_SEEN_KEY, "1");
-    } catch (e) {
-      // Ignore — worst case it just won't be remembered on the next page.
-    }
-  }
-
-  // Builds a <model-viewer> for a product and returns a handle so callers
-  // (the homepage grid, and the product detail page's carousel) can swap
-  // its metal finish later without reloading the .glb or losing whatever
-  // camera angle the visitor left it at. Shared here (rather than
-  // duplicated in js/product.js) so there's exactly one place that knows
-  // the model-viewer attributes/material logic — exposed as
-  // window.EmjiveModelViewer at the bottom of this file.
-  function buildModelViewer(product, metalKey) {
-    var mv = document.createElement("model-viewer");
-    mv.setAttribute("src", product.model);
-    // Poster only matters pre-load, so this is fixed to whatever metal the
-    // viewer is being built for — never needs to change after (by the time
-    // a visitor could switch metals in the picker, the real model has
-    // already loaded and the poster is long gone).
-    var posterIcon = product.icons && product.icons[metalKey];
-    if (posterIcon) mv.setAttribute("poster", posterIcon);
-    mv.setAttribute("alt", product.name || "");
-    mv.setAttribute("camera-controls", "");
-    mv.setAttribute("disable-zoom", "");
-    mv.setAttribute("shadow-intensity", "0");
-    // model-viewer's built-in "wiggle" hint (nudges the camera to show the
-    // model is draggable) defaults to appearing after only 3s idle, and
-    // re-appears often — bumped up since it was showing too frequently.
-    mv.setAttribute("interaction-prompt-threshold", "5000");
-    if (interactionPromptSuppressed) mv.setAttribute("interaction-prompt", "none");
-    allModelViewers.push(mv);
-    // Detected via our own pointer tracking (not model-viewer's
-    // camera-change event) so it doesn't depend on that event's detail
-    // shape matching what we expect — a real drag (movement past a small
-    // threshold while the pointer is down) means the visitor rotated it.
-    var dragStartX = null;
-    var dragStartY = null;
-    mv.addEventListener("pointerdown", function (e) {
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-    });
-    mv.addEventListener("pointermove", function (e) {
-      if (interactionPromptSuppressed || dragStartX === null) return;
-      var dx = e.clientX - dragStartX;
-      var dy = e.clientY - dragStartY;
-      if (Math.sqrt(dx * dx + dy * dy) > 6) suppressInteractionPromptEverywhere();
-    });
-    mv.addEventListener("pointerup", function () {
-      dragStartX = null;
-      dragStartY = null;
-    });
-    // A real studio HDRI instead of model-viewer's flat built-in
-    // "neutral" IBL — metals are mostly just reflecting the environment,
-    // so this matters more than the material numbers for getting a rich,
-    // Blender-like result. Downscaled + converted from the original
-    // 8k/300MB EXR source (assets/studio_kontrast_04_8k.exr) to a
-    // web-friendly 1024px-wide .hdr — three.js's EXR loader rejected the
-    // re-encoded EXR outright, Radiance .hdr worked without issue.
-    mv.setAttribute("environment-image", "assets/hdri/studio_kontrast_04_1k.hdr");
-
-    // Default view: falls back to model-viewer's own default framing
-    // ("0deg 75deg 105%") if the product doesn't specify one.
-    var defaultOrbit = product.cameraOrbit || "0deg 75deg 105%";
-    var dragDecay = "200";   // snappy while the user is actively rotating
-    var returnDecay = "1000"; // slow ease-back once they let go
-    mv.setAttribute("camera-orbit", defaultOrbit);
-    mv.setAttribute("interpolation-decay", dragDecay);
-    if (product.cameraTarget) mv.setAttribute("camera-target", product.cameraTarget);
-
-    // currentMetal is read by the "load" listener below, and also by
-    // applyMetal() once the model has already loaded — this is what lets
-    // a metal switch after load re-run the same material assignment.
-    var currentMetal = metalKey;
-    var modelLoaded = false;
-
-    function applyToModel() {
-      var metal = METAL_PRESETS[currentMetal] || METAL_PRESETS.steel;
-      mv.setAttribute("exposure", metal.exposure || "1");
-      mv.model.materials.forEach(function (material) {
-        material.pbrMetallicRoughness.setBaseColorFactor(metal.baseColorFactor);
-        material.pbrMetallicRoughness.setMetallicFactor(metal.metallicFactor);
-        material.pbrMetallicRoughness.setRoughnessFactor(metal.roughnessFactor);
-      });
-    }
-
-    mv.setAttribute("exposure", (METAL_PRESETS[currentMetal] || METAL_PRESETS.steel).exposure || "1");
-    mv.addEventListener("load", function () {
-      modelLoaded = true;
-      applyToModel();
-    });
-
-    // Wait a second after release before easing back to the default view
-    // (then switch interpolation back to snappy for the next drag). If the
-    // user grabs the model again before that second is up, the pending
-    // reset is cancelled instead of fighting the new drag.
-    var resetTimeoutId = null;
-
-    mv.addEventListener("pointerdown", function () {
-      if (resetTimeoutId) {
-        clearTimeout(resetTimeoutId);
-        resetTimeoutId = null;
-      }
-    });
-
-    mv.addEventListener("pointerup", function () {
-      if (resetTimeoutId) clearTimeout(resetTimeoutId);
-      resetTimeoutId = setTimeout(function () {
-        resetTimeoutId = null;
-        mv.setAttribute("interpolation-decay", returnDecay);
-        mv.cameraOrbit = defaultOrbit;
-        setTimeout(function () {
-          mv.setAttribute("interpolation-decay", dragDecay);
-        }, 1200);
-      }, 1000);
-    });
-
-    return {
-      el: mv,
-      applyMetal: function (newMetalKey) {
-        currentMetal = newMetalKey;
-        if (modelLoaded) applyToModel();
-      }
-    };
-  }
-
   // A real click (near-zero pointer movement between down and up) opens
-  // href; a drag past DRAG_THRESHOLD is left alone since that's
-  // model-viewer's own camera-controls rotating the model. Distance-based
-  // rather than a plain "click" listener because a click still fires at
-  // the end of a rotate-drag as long as the pointer lifts over the same
-  // element, which would otherwise navigate away every time someone just
-  // wanted to spin the model.
+  // href; a drag past DRAG_THRESHOLD is left alone since that's the
+  // viewer's own TrackballControls rotating the model (js/three-viewer.js).
+  // Distance-based rather than a plain "click" listener because a click
+  // still fires at the end of a rotate-drag as long as the pointer lifts
+  // over the same element, which would otherwise navigate away every time
+  // someone just wanted to spin the model.
   function wireModelClickNavigation(mv, href) {
     var DRAG_THRESHOLD = 6;
     var startX = 0;
@@ -291,11 +130,12 @@
     var href = "product.html?id=" + encodeURIComponent(product.id);
 
     // No metal picker on the homepage grid — always the product's own
-    // default metal (product.metal), same as buildModelViewer's own
-    // material choice just below.
+    // default metal (product.metal). window.EmjiveModelViewer is exposed
+    // by js/three-viewer.js — reused here so the viewer construction/
+    // material logic lives in exactly one place.
     var gridIcon = product.icons && product.icons[product.metal];
     if (product.model) {
-      var modelHandle = buildModelViewer(product, product.metal);
+      var modelHandle = window.EmjiveModelViewer(product, product.metal);
       wireModelClickNavigation(modelHandle.el, href);
       figure.appendChild(modelHandle.el);
     } else if (gridIcon) {
@@ -333,8 +173,6 @@
 
     return card;
   }
-
-  window.EmjiveModelViewer = buildModelViewer;
 
   function renderProducts(products) {
     grid.innerHTML = "";

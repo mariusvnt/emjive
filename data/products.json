@@ -35,7 +35,7 @@
         }
       },
       "model": "assets/products/furcula_ring/furcula_gltf.glb",
-      "cameraOrbit": "30deg 70deg 105%",
+      "cameraOrbit": "30deg 70deg 80%",
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 220,   "weight": "", "composition": "" },
@@ -63,7 +63,7 @@
         }
       },
       "model": "assets/products/foramen_ring/Foramen_gltf.glb",
-      "cameraOrbit": "-30deg 45deg 105%",
+      "cameraOrbit": "-30deg 45deg 80%",
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },
@@ -91,7 +91,7 @@
         }
       },
       "model": "assets/products/disc_ring/disc_gltf.glb",
-      "cameraOrbit": "-115deg 90deg 105%",
+      "cameraOrbit": "-115deg 90deg 80%",
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },
