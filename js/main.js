@@ -35,8 +35,9 @@
   var revealXrayGroup = document.getElementById("revealXrayGroup");
   var revealNormal = revealSection ? revealSection.querySelector(".reveal__img--normal") : null;
   var revealFrontier = document.getElementById("revealFrontier");
+  var revealScanHint = document.getElementById("revealScanHint");
 
-  if (revealSection && revealXrayGroup && revealNormal && revealFrontier) {
+  if (revealSection && revealXrayGroup && revealNormal && revealFrontier && revealScanHint) {
     var revealTicking = false;
 
     function updateReveal() {
@@ -61,6 +62,7 @@
         revealFrontier.style.bottom = "calc(" + (-(1 - liftFraction)) + " * var(--reveal-frontier-height))";
         revealXrayGroup.style.clipPath = "inset(100% 0 0 0)";
         revealNormal.style.clipPath = "inset(0 0 0 0)";
+        revealScanHint.style.clipPath = "inset(0 0 0 0)";
       } else {
         var wipeProgress = Math.min(1, (scrolled - liftDistance) / wipeDistance);
         var revealedPct = wipeProgress * 100;
@@ -72,6 +74,41 @@
         // the x-ray image.
         revealXrayGroup.style.clipPath = "inset(" + (100 - revealedPct) + "% 0 0 0)";
         revealNormal.style.clipPath = "inset(0 0 " + revealedPct + "% 0)";
+
+        // "Scroll to scan" sits fixed at the pin's vertical middle (see
+        // .reveal__scan-hint's top: 50%) — erase it from its own bottom
+        // edge upward in lockstep with the SAME boundary revealing the
+        // x-ray beneath it, over the scroll range where that boundary is
+        // actually crossing the text's own height, rather than a plain
+        // opacity fade or an arbitrary cutoff. getBoundingClientRect()
+        // gives its layout box, unaffected by clip-path, so top/bottom
+        // stay stable across frames even as it progressively clips away.
+        //
+        // Driven by the frontier band's own TOP edge (revealedPct plus
+        // its height), not revealedPct (its bottom edge) directly: the
+        // band has real thickness, and using its bottom edge left a
+        // persistent gap the width of that thickness where the
+        // still-visible text and the band's backdrop-filter both applied
+        // to the same pixels — .reveal__frontier's invert(1) on top of
+        // .reveal__scan-hint's own mix-blend-mode: difference, compounding
+        // into a double-inversion instead of a single clean one. Erasing
+        // ahead of the band's leading edge means nothing is left for the
+        // band to double-invert by the time it actually reaches a given
+        // pixel.
+        var hintRect = revealScanHint.getBoundingClientRect();
+        var hintTopPct = ((window.innerHeight - hintRect.top) / window.innerHeight) * 100;
+        var hintBottomPct = ((window.innerHeight - hintRect.bottom) / window.innerHeight) * 100;
+        var frontierHeightPct = (revealFrontier.getBoundingClientRect().height / window.innerHeight) * 100;
+        var frontierLeadingPct = revealedPct + frontierHeightPct;
+        var hintErasedPct;
+        if (frontierLeadingPct <= hintBottomPct) {
+          hintErasedPct = 0;
+        } else if (frontierLeadingPct >= hintTopPct) {
+          hintErasedPct = 100;
+        } else {
+          hintErasedPct = ((frontierLeadingPct - hintBottomPct) / (hintTopPct - hintBottomPct)) * 100;
+        }
+        revealScanHint.style.clipPath = "inset(0 0 " + hintErasedPct + "% 0)";
       }
     }
 

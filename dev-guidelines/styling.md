@@ -1,6 +1,6 @@
 # Styling
 
-One file, `css/style.css` (~1706 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
+One file, `css/style.css` (~1751 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
 
 ## Design tokens (`:root`, lines 5–47)
 
@@ -10,45 +10,46 @@ One file, `css/style.css` (~1706 lines), plain CSS — no preprocessor, no CSS-i
 | `--black` / `--white` | `#000` / `#fff` | Primary ink/light colors |
 | `--category-col` | `#777777` | Secondary/muted text — category labels, metadata, prose |
 | `--black-bg` | `#1a1a1a` | "Near-black" dark surface, shared exactly by the select button's hover state, the size modal's confirm button, and the floating selection bar |
-| `--selection-bar-height` | `3.5rem` | Used by exactly two rules that must stay in sync: `.selection-bar__summary`'s own height (line 1450) and `body`'s reserved bottom padding (line 102, via `body:has(.selection-bar)`) — a CSS-internal contract, not read from JS |
+| `--selection-bar-height` | `3.5rem` | Used by exactly two rules that must stay in sync: `.selection-bar__summary`'s own height and `body`'s reserved bottom padding (via `body:has(.selection-bar)`) — a CSS-internal contract, not read from JS |
 | `--font-secondary` | Geist Mono (Google Fonts) | Nav category rubrics and other mono usages |
-| `--font-main` | "DINish", sans-serif fallback | Everything else — see the `@font-face` note below, this can silently fail to load |
+| `--font-main` | "DINish", sans-serif fallback | Everything else — two weights registered (400/700, lines 48–64), see below |
 | `--max` | `1440px` | Site-wide content max-width cap |
 | `--edge-px` | `clamp(20px, 2.5vw, 28px)` | The single horizontal edge-inset used everywhere content is padded away from the true screen edge — header, selection bar, size modal, section heads, product grid, footer, product detail all share this one token |
 | `--reveal-pin-height` | `100vh` | Root-scoped (not scoped to `.reveal`) because `.reveal__extension-crop` in the sibling `.products` section also needs it |
 
-## Known issue: `@font-face` (line 48) is malformed
+## `@font-face` (lines 48–64) — two DINish weights
 
-```css
-src: url("../assets/fonts/dinish-woff2/DINish-Regular.woff2") format("woff2"),;
-```
-
-Trailing comma with nothing after it — invalid CSS. Depending on the browser's error recovery this can cause the whole `src` declaration (and possibly the whole rule) to be dropped, meaning DINish may silently never load even though the file exists at exactly the path referenced. Verified by reading the file directly; not fixed as part of this documentation pass — if you're investigating "why does `--font-main` text look like fallback sans-serif," start here before assuming it's a missing/misplaced font file (see `assets.md` and `procedures.md` for where the file actually lives).
+Regular (400, lines 48–54) and Bold (700, lines 58–64, added for `.reveal__scan-hint`'s "SCROLL TO SCAN" hint — see below). Regular's `src` used to have a trailing-comma syntax error (`format("woff2"),;`) that could make browsers drop the whole declaration, silently falling back to sans-serif even with the font file present at exactly the right path — fixed; if `--font-main` text ever looks like fallback sans-serif again, that bug class is exactly where to look first (see `assets.md`/`procedures.md` for where the font files live).
 
 ## Section map
 
 | Lines | Section |
 |---|---|
-| 56–125 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below |
-| 126–175 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
-| 176–325 | Header |
-| 326–506 | Entry reveal (homepage hero) |
-| 507–542 | Section heads (shared component) |
-| 543–663 | Products (homepage grid) |
-| 664–734 | Selection / order page |
-| 735–1425 | Product detail page (by far the largest — sub-map below) |
-| 1426–1441 | Footer |
-| 1442–1706 | Floating selection bar |
+| 66–135 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below |
+| 136–185 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
+| 186–335 | Header |
+| 336–551 | Entry reveal (homepage hero — includes `.reveal__scan-hint`, see below) |
+| 552–587 | Section heads (shared component) |
+| 588–708 | Products (homepage grid) |
+| 709–779 | Selection / order page |
+| 780–1470 | Product detail page (by far the largest — sub-map below) |
+| 1471–1486 | Footer |
+| 1487–1751 | Floating selection bar |
 
 **Product detail sub-map** (matches the numbered comments in both this file and `product.html`):
-- 775 — label bar
-- 858 — carousel
-- 1021 — metal selection
-- 1125 — select button
-- 1149 — prose sections (description / characteristics / shipping)
-- 1200 — size-selection modal (1252 standard sizes, 1324 custom size, 1389 size guide, 1403 confirm button)
 
-**Floating selection bar sub-map**: 1473 — summary row (always visible), 1614 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
+- 820 — label bar
+- 903 — carousel
+- 1066 — metal selection
+- 1170 — select button
+- 1194 — prose sections (description / characteristics / shipping)
+- 1245 — size-selection modal (1297 standard sizes, 1369 custom size, 1434 size guide, 1448 confirm button)
+
+**Floating selection bar sub-map**: 1518 — summary row (always visible), 1659 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
+
+## `.reveal__scan-hint` (lines 521–538) — the hero's "SCROLL TO SCAN" hint
+
+Static text ("Scroll to scan" in the markup, `text-transform: uppercase` here), centered on the pinned viewport (`top/left: 50%` + translate, inside `.reveal__pin` — unlike `.reveal__frontier`, its position isn't scroll-driven). Bold DINish, `color: #fff` + `mix-blend-mode: difference` — difference-blending white against a backdrop is mathematically the same `255 - channel` formula `invert(1)` uses, so it reads as inverting whatever's behind it (the x-ray hand), letter-shaped, with no color of its own anywhere it actually renders. This is *not* the same mechanism as `.reveal__frontier`'s `backdrop-filter: invert(1)` (see the recurring-technique list below) — `backdrop-filter` doesn't clip to a text glyph's shape via `background-clip: text` the way the `background` property does; that combination was tried first and produced a solid inverted rectangle with fully invisible text (confirmed by screenshotting it) before switching to `mix-blend-mode`.
 
 ## Shared 3D viewer (`.emjive-3d-viewer`, lines 126–175)
 

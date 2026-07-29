@@ -19,12 +19,12 @@ The single shared construction path for every 3D product view on the site (homep
 
 **Exposes**: `window.EmjiveModelViewer = buildThreeViewer` — consumed by `main.js`'s grid and `product.js`'s carousel. Also `window.EmjiveModelViewer.buildMaterialSwatch` — a harness-only second export, see above.
 
-## `js/main.js` (~213 lines)
+## `js/main.js` (~250 lines)
 
 Loads on all three real pages. Owns:
 
 - The header hamburger menu toggle (shared everywhere).
-- The homepage's scroll-driven hero reveal (`updateReveal()`) — no-ops if `#revealSection` isn't on the page.
+- The homepage's scroll-driven hero reveal (`updateReveal()`) — no-ops if `#revealSection` isn't on the page. As of the boundary revealing the x-ray, `#revealScanHint` ("SCROLL TO SCAN", see `styling.md`) gets progressively `clip-path`-erased from its own bottom edge upward, over the scroll range where the reveal boundary crosses the text's own height (measured via `getBoundingClientRect()`, stable across frames since `clip-path` doesn't affect layout) — the same directional wipe the hand images themselves use, not an opacity fade, so it reads as the scan physically erasing the text rather than it just fading out.
 - `wireModelClickNavigation(el, href)` — the 6px drag-distance-threshold click-vs-drag disambiguation, attached to a viewer's wrapper element so rotating a model doesn't accidentally navigate.
 - The homepage grid rendering (`buildCard`/`renderProducts`) — fetches `data/products.json`, builds one card per product, calling `window.EmjiveModelViewer(product, product.metal)` (from `js/three-viewer.js`) for any product with a `model` set.
 - A guarded contact-form stub (`getElementById("contactForm")`) — currently a no-op since no page has that element yet (see `pages.md`'s known-gap note).

@@ -264,7 +264,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     var nudgeHandEl = document.createElement("img");
     nudgeHandEl.className = "emjive-3d-viewer__nudge-hand";
-    nudgeHandEl.src = "assets/hand-pointer-placeholder.svg";
+    nudgeHandEl.src = "assets/hand-pointer-thumb-opened.svg";
     nudgeHandEl.alt = "";
     wrapper.appendChild(nudgeHandEl);
 
@@ -597,7 +597,11 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         var handTo = HAND_OFFSETS[(nudgePhase + 1) % 3];
         var handOffsetPx = handFrom + (handTo - handFrom) * neased;
         nudgeHandEl.style.opacity = "1";
-        nudgeHandEl.style.transform = "translate(-50%, -50%) translateX(" + handOffsetPx + "px)";
+        // The source art's index-fingertip isn't at the image's own center
+        // (it's the pointer's *tip* that needs to land on the model's
+        // center, not the icon's bounding-box middle) — a fixed 40px
+        // downward nudge past the normal center-anchor closes that gap.
+        nudgeHandEl.style.transform = "translate(-50%, -50%) translateY(20px) translateX(" + handOffsetPx + "px)";
 
         if (nt >= 1) {
           nudgePhase++;

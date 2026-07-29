@@ -47,8 +47,18 @@
    sans-serif. */
 @font-face {
   font-family: "DINish";
-  src: url("../assets/fonts/dinish-woff2/DINish-Regular.woff2") format("woff2"),;
+  src: url("../assets/fonts/dinish-woff2/DINish-Regular.woff2") format("woff2");
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+/* Added alongside the hero's "scroll to scan" hint, which needs a real
+   bold face rather than the browser's synthetic-bold fallback (the
+   family only had Regular registered before). */
+@font-face {
+  font-family: "DINish";
+  src: url("../assets/fonts/dinish-woff2/DINish-Bold.woff2") format("woff2");
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -490,6 +500,46 @@ button, input, textarea {
   pointer-events: none;
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
+}
+
+/* Static (not scroll-driven, unlike .reveal__frontier above), centered on
+   the pinned viewport for the whole reveal. Same "invert whatever's
+   behind it, rather than painting its own color" intent as
+   .reveal__frontier, but shaped to the glyphs instead of a full-width
+   band — which rules out backdrop-filter itself: background-clip: text
+   only clips the `background` property, not a backdrop-filter's
+   composited output, so combining the two (tried first) just produced a
+   solid inverted rectangle with fully invisible text, not glyph-shaped
+   inversion (confirmed by screenshotting it). mix-blend-mode: difference
+   with a white foreground is a mathematically exact stand-in for
+   invert(1) — difference's |source - backdrop| against white (255) is
+   just 255 - backdrop, the same formula invert(1) uses — and it's
+   naturally clipped to the text's own glyph coverage, since it's a
+   normal paint blend rather than a filter needing separate clipping.
+   The "white" is never actually visible as white anywhere: wherever this
+   renders, the output is entirely a function of what's behind it. */
+.reveal__scan-hint {
+  position: absolute;
+  /* Not dead-center of the viewport — centered on the hand's palm, which
+     (fingers taking up the top portion of the frame) sits lower than
+     that. js/main.js's erase logic reads this element's actual rendered
+     position at scroll time rather than assuming 50%, so it doesn't need
+     a matching update here. */
+  top: 60%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  margin: 0;
+  font-family: var(--font-main);
+  font-weight: 700;
+  font-size: clamp(1rem, 2.4vw, 1.5rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  color: #fff;
+  mix-blend-mode: difference;
 }
 
 .btn {
