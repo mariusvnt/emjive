@@ -20,3 +20,7 @@ Before/after pushing, map the diff's changed paths to the doc(s) that cover them
 - **Behavioral/content drift**: changes that don't touch file structure at all (a config default changing, a new npm script, a section added to a page) but still make some doc's description inaccurate.
 
 Do a full sweep — every `dev-guidelines/*.md` file plus `README.md` and `CLAUDE.md` — only periodically (e.g. before a release, or roughly every 10 pushes) rather than after each one. That's what catches drift the targeted check would miss; running it every push makes the doc-sync cost fixed and full-repo-sized regardless of how small the change was, which isn't worth paying that often.
+
+## Never attribute commits to the coding agent
+
+Commit messages should read as if the user wrote them. Don't add a `Co-Authored-By` trailer, a "Generated with ..." line, or any other mention of an AI/agent's involvement — to the commit message, the PR description, or anywhere else in the commit itself. This holds regardless of how much of the change the agent actually authored.

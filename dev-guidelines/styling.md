@@ -1,6 +1,6 @@
 # Styling
 
-One file, `css/style.css` (~1660 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
+One file, `css/style.css` (~1706 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
 
 ## Design tokens (`:root`, lines 5–47)
 
@@ -38,7 +38,7 @@ Trailing comma with nothing after it — invalid CSS. Depending on the browser's
 | 664–734 | Selection / order page |
 | 735–1425 | Product detail page (by far the largest — sub-map below) |
 | 1426–1441 | Footer |
-| 1442–1660 | Floating selection bar |
+| 1442–1706 | Floating selection bar |
 
 **Product detail sub-map** (matches the numbered comments in both this file and `product.html`):
 - 775 — label bar

@@ -245,8 +245,9 @@ list, if none are given):
   it — saved as `assets/metal-sample_<metal>.webp` (240×240). **Not** a
   render of any actual product — `js/three-viewer.js`'s
   `buildMaterialSwatch(metalKey, sizePx)` builds a plain cylinder instead
-  (its own dedicated scene: same `METAL_PRESETS` material + shared HDRI,
-  but no GLTF, no product-relative camera-orbit framing). This replaced an
+  (its own dedicated scene: same `METAL_PRESETS` material + the same HDRI
+  file loaded via `loadEnvironment()`, but no GLTF, no product-relative
+  camera-orbit framing). This replaced an
   earlier version that rendered a close-up crop of the Disc ring's own
   curve: a torus viewed edge-on is always a thin diagonal band in a square
   frame, leaving empty corners at any zoom (its silhouette never exceeds a

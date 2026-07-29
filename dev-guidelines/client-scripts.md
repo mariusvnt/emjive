@@ -6,7 +6,7 @@
 
 `selection.js` always loads before anything that touches `window.EmjiveSelection`. `three-viewer.js` (a module, in `<head>`) always finishes before `main.js`/`product.js` (both `defer`), which are the only two classic scripts that touch `window.EmjiveModelViewer`. Order on each page: `index.html` → three-viewer (module), main (defer), selection, selection-bar. `product.html` → three-viewer (module), main (defer), selection, product (defer), selection-bar. `launch-order.html` → main, selection, selection-page (no 3D content, no `three-viewer.js` at all).
 
-## `js/three-viewer.js` (~640 lines) — the 3D viewer
+## `js/three-viewer.js` (~750 lines) — the 3D viewer
 
 The single shared construction path for every 3D product view on the site (homepage grid cards, the product-detail carousel) and for `scripts/auto-render.js`'s render pipeline — see `tooling.md`. A raw three.js scene per instance, driven by the `TrackballControls` addon (free, pole-crossing rotation — unlike the polar-angle-limited orbit a `<model-viewer>`-based approach would have), with a substantial amount of hand-tuned polish layered on top. Exports (all module-internal except the one exposed global):
 
@@ -39,7 +39,7 @@ The cart/selection data layer — a thin `localStorage` wrapper. `STORAGE_KEY = 
 
 **Item shape**: `{ productId, name, category, metal, size, price, image }` — a deliberately self-contained snapshot, so `launch-order.html` never has to re-fetch or join against `data/products.json` to render itself.
 
-## `js/product.js` (632 lines) — the largest file
+## `js/product.js` (634 lines) — the largest file
 
 Owns `product.html` end to end. Resolves `?id=` against `data/products.json`, then renders (by the file's own numbered section comments):
 
