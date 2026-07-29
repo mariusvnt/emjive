@@ -363,9 +363,39 @@ async function writeWebp(sharpInstance, outPath) {
   await sharpInstance.webp({ quality: 92, alphaQuality: 100 }).toFile(outPath);
 }
 
+// How much of the final square an icon's actual rendered content (its
+// trimmed alpha bbox) occupies along its longer edge, once centered.
+// frameCamera() in js/three-viewer.js sizes the camera off each model's
+// bounding-SPHERE (a crude, shape-agnostic stand-in for its true 2D
+// silhouette), at that product's own cameraOrbit angle — so the same
+// nominal radius-% lands at very different actual on-screen fill per
+// product (an anisotropic/thin ring viewed at a shallow angle produces a
+// far more lopsided bounding sphere than a stockier one viewed near
+// level). Trimming to the real rendered content and re-centering it at a
+// fixed fraction of its LONGER edge normalizes that scale inconsistency
+// away, and guarantees left/right margins symmetric WITHIN each single
+// icon (fit: "contain" centers on both axes) — but two products with
+// different width/height proportions still end up with different margin
+// WIDTHS from one another (a squatter ring's trimmed content is wider
+// relative to its own height than a slender one's), which this alone
+// can't fix without either distorting the ring or leaving inconsistent
+// top/bottom margins instead.
+const ICON_CONTENT_FRACTION = 0.8;
+
+function normalizeIconFraming(sharpPipeline, sizePx) {
+  const inner = Math.round(sizePx * ICON_CONTENT_FRACTION);
+  const padLeft = Math.floor((sizePx - inner) / 2);
+  const padRight = sizePx - inner - padLeft;
+  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
+  return sharpPipeline
+    .trim({ threshold: 10 })
+    .resize(inner, inner, { fit: "contain", background: transparent })
+    .extend({ top: padLeft, bottom: padRight, left: padLeft, right: padRight, background: transparent });
+}
+
 async function renderIcon(page, product, metalKey, outPath) {
   const buffer = await captureTarget(page, ICON_SIZE, product, metalKey);
-  await writeWebp(sharp(buffer).resize(ICON_SIZE, ICON_SIZE), outPath);
+  await writeWebp(normalizeIconFraming(sharp(buffer), ICON_SIZE), outPath);
 }
 
 async function captureTopShotTarget(page, cssSizePx, product, metalKey) {

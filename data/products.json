@@ -63,7 +63,7 @@
         }
       },
       "model": "assets/products/foramen_ring/Foramen_gltf.glb",
-      "cameraOrbit": "-30deg 45deg 80%",
+      "cameraOrbit": "-30deg 45deg 75%",
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },

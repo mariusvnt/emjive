@@ -1567,13 +1567,15 @@ body.is-modal-open { overflow: hidden; }
 }
 /* No gap here on purpose — each icon carries its own margin-right instead,
    so it (and that spacing) can collapse to zero together on removal. See
-   .selection-bar__icon--exit below. margin-left: auto keeps the whole
-   stack flush against the toggle's right edge (right next to the Order
-   link) rather than hugging the left. js/selection-bar.js builds the
-   strip newest-first in DOM (plain row, no reverse) — normal flex flow
-   then lands DOM child 0 (newest) at the *left* end of the group and the
-   last DOM child (oldest) at its right end, next to Order: the oldest
-   pick stays anchored there, and each newer pick joins further left. */
+   .selection-bar__icon--exit below. position: absolute + right: 0 keeps
+   the whole stack flush against the toggle's right edge rather than
+   hugging the left. js/selection-bar.js builds the strip newest-first in
+   DOM (plain row, no reverse) — normal flex flow then lands DOM child 0
+   (newest) at the *left* end of the group and the last DOM child (oldest)
+   at its right end, closest to Order (with its own margin-right gap
+   before it, same as any other icon — see .selection-bar__icon below):
+   the oldest pick stays anchored there, and each newer pick joins further
+   left. */
 .selection-bar__icons {
   position: absolute;
   top: 0;
@@ -1597,9 +1599,6 @@ body.is-modal-open { overflow: hidden; }
               opacity 0.25s ease,
               transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* The visually-rightmost icon (oldest pick, next to Order) is the last
-   DOM child under this plain (non-reversed) row. */
-.selection-bar__icon:last-child { margin-right: 0; }
 /* Entrance itself is driven entirely by js/selection-bar.js's
    playEnterAnimation() — the slide distance depends on where the icon
    actually lands (icon count, viewport width), so it's computed per
