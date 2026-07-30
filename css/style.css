@@ -103,6 +103,19 @@ html {
      brief mismatch a browser's back/forward cache can show for an
      instant on back-navigation, before the live page reasserts itself. */
   overflow-x: hidden;
+  /* overflow-x: hidden above stops actual horizontal scrolling, but not
+     this: on touch devices (and trackpads on some desktop browsers) a
+     left/right drag past the document's own edge still triggers the
+     browser's own rubber-band/bounce feedback regardless of whether
+     there's anything to scroll to — a separate, OS/browser-level gesture
+     response, not a CSS overflow concern, and one narrow screens make
+     easy to trigger by accident (barely any vertical content is needed
+     before a mostly-horizontal swipe reads as "drag the page" instead of
+     "scroll it"). Scoped to -x only — vertical overscroll bounce is left
+     alone (see html's own background-color comment just above, which
+     exists specifically to make that vertical bounce region look
+     correct, not to eliminate it). */
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -113,6 +126,10 @@ body {
   font-size: 16px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  /* See html's own overscroll-behavior-x comment above — repeated here
+     since some browsers key this off body rather than (or in addition
+     to) html for the root document's own scroll boundary. */
+  overscroll-behavior-x: none;
 }
 /* Reserves room for the floating selection bar (fixed to the viewport
    bottom) so it never sits on top of page content — scoped automatically
