@@ -62,6 +62,16 @@
   font-style: normal;
   font-display: swap;
 }
+/* One step past Bold, for .reveal__scan-hint's font-weight: 900 — a real
+   heavier face rather than the browser synthesizing extra weight on top
+   of the Bold face above. */
+@font-face {
+  font-family: "DINish";
+  src: url("../assets/fonts/dinish-woff2/DINish-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 * { box-sizing: border-box; }
 
@@ -335,25 +345,32 @@ button, input, textarea {
 
 /* ==========================================================================
    Entry reveal — scroll pins the stage for --reveal-scroll-vh, during which
-   js/main.js clips hand_xray.png open from the bottom up over hand_normal.png.
+   js/main.js clips hand_xray.webp open from the bottom up over
+   hand-rings-under-flesh_4k.webp.
    ========================================================================== */
 
 .reveal {
   position: relative;
   --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
-  --reveal-frontier-height: 0.75rem; /* height of the scanning band; width is always full screen */
+  --reveal-frontier-height: clamp(0.4875rem, 1.3vw, 0.75rem); /* height of the scanning band (narrow-screen floor is 30% taller than it once was); width is always full screen */
   /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
      which also needs it, lives outside .reveal entirely. */
 
-  /* Ring placement on the x-ray hand: x/y are the ring's center as a % of
+  /* Ring placement on the x-ray hand: x/y are a ring's center as a % of
      the hand image's own width/height (not the viewport), size is the
      ring's width as a % of the hand image's width, rotation spins it in
-     place around that same center point — tune these four to land it on
-     the right finger at the right angle. */
-  --ring-x: 45.8%;
-  --ring-y: 39%;
-  --ring-size: 5%;
-  --ring-rotation: -2deg;
+     place around that same center point. These four are only the
+     fallback values, inherited by a .reveal__ring <img> if nothing more
+     specific overrides them — js/main.js's updateHeroRings() creates one
+     .reveal__ring per product whose data/products.json "onHand.visible"
+     is true, each with these same four set inline (from that product's
+     own onHand.x/y/scale/rotation) directly on that specific <img>, so
+     several rings on screen at once don't all read the one shared set
+     defined here. */
+  --ring-x: 58.5%;
+  --ring-y: 51%;
+  --ring-size: 6%;
+  --ring-rotation: 0deg;
 
   height: var(--reveal-scroll-vh);
 }
@@ -405,7 +422,7 @@ button, input, textarea {
   transform: translateX(-50%);
   height: 100%;
   width: auto;
-  aspect-ratio: 3840 / 2160; /* hand_normal.png / hand_xray.png's intrinsic size */
+  aspect-ratio: 3840 / 2160; /* same 16:9 as hand_xray.webp (3840x2160) and hand-rings-under-flesh_4k.webp (5760x3240) */
   /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
      the section scrolls, revealing from the bottom edge upward. */
   clip-path: inset(100% 0 0 0);
@@ -413,16 +430,16 @@ button, input, textarea {
 
 /* A background layer living behind the product grid (not inside
    .reveal__pin, no scroll/clip-path logic of its own) — this is
-   deliberately the simple half of the split: hand_xray.png used to be
+   deliberately the simple half of the split: hand_xray.webp used to be
    one taller file with this appended below it, but making that work with
    the reveal's sticky/overflow setup kept causing viewport bugs on
    mobile. Positioned absolutely within .products (which is
    position: relative), pinned to its top so it continues directly from
    the hero above, with .product-grid's z-index: 1 keeping it in front —
    the image shows through in the grid's gaps/margins, like a backdrop.
-   Two panels rather than one — hand_xray_extension_1.png then
-   hand_xray_extension_2.png, stacked top to bottom — continuing the
-   lines that run off the bottom of hand_xray.png across both seams.
+   Two panels rather than one — hand_xray_extension_1.webp then
+   hand_xray_extension_2.webp, stacked top to bottom — continuing the
+   lines that run off the bottom of hand_xray.webp across both seams.
    overflow: hidden here only crops horizontally (same reason the hand
    images need it: wider than the viewport on narrow screens) — safe to
    do with plain overflow: hidden since unlike .reveal__pin there's no
@@ -434,7 +451,7 @@ button, input, textarea {
   right: 0;
   z-index: 0;
   overflow: hidden;
-  /* Two stacked panels. Both extension images share hand_xray.png's own
+  /* Two stacked panels. Both extension images share hand_xray.webp's own
      3840:2160 intrinsic ratio, so each one renders at exactly one
      pin-height tall (same logic as .reveal__img's height: 100%) — no
      per-image ratio math needed here, just double the height. */
@@ -498,6 +515,7 @@ button, input, textarea {
   bottom: calc(-1 * var(--reveal-frontier-height));
   z-index: 2;
   pointer-events: none;
+  border: 0;
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
 }
@@ -531,9 +549,9 @@ button, input, textarea {
   z-index: 2;
   margin: 0;
   font-family: var(--font-main);
-  font-weight: 700;
-  font-size: clamp(1rem, 2.4vw, 1.5rem);
-  letter-spacing: 0.2em;
+  font-weight: 900;
+  font-size: clamp(0.75rem, 2vw, 1.25rem);
+  letter-spacing: clamp(0.2rem, 0.53vw, 0.4rem);
   text-transform: uppercase;
   text-align: center;
   white-space: nowrap;

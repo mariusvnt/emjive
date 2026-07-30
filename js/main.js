@@ -124,6 +124,42 @@
     updateReveal();
   }
 
+  // Product image(s) riding the x-ray hand (inside revealXrayGroup, so
+  // each reveals in lockstep with the wipe above) — built once
+  // data/products.json loads, from the same fetch the grid below already
+  // makes. Not a single fixed element: any number of products can have
+  // "onHand.visible": true at once, so this creates one <img
+  // class="reveal__ring"> per visible product rather than assuming
+  // there's only ever one. Each one's position/size/rotation comes from
+  // that SAME product's own onHand.x/y/scale/rotation (a % of the hand
+  // image's own width/height, and degrees) — set as inline custom
+  // properties on that specific <img>, not shared globally, so multiple
+  // rings on screen at once don't fight over one set of values the way
+  // css/style.css's --ring-x/--ring-y/--ring-size/--ring-rotation
+  // (fallback-only now, see their own comment) would if applied to all
+  // of them at once.
+  function updateHeroRings(products) {
+    if (!revealXrayGroup) return;
+    revealXrayGroup.querySelectorAll(".reveal__ring").forEach(function (existing) {
+      existing.remove();
+    });
+    products.forEach(function (product) {
+      var onHand = product.onHand;
+      if (!onHand || !onHand.visible) return;
+      var topShot = product.assets && product.assets["top-shot"] && product.assets["top-shot"][product.metal];
+      if (!topShot) return;
+      var ring = document.createElement("img");
+      ring.className = "reveal__ring";
+      ring.alt = "";
+      ring.src = topShot;
+      ring.style.setProperty("--ring-x", onHand.x + "%");
+      ring.style.setProperty("--ring-y", onHand.y + "%");
+      ring.style.setProperty("--ring-size", onHand.scale + "%");
+      ring.style.setProperty("--ring-rotation", onHand.rotation + "deg");
+      revealXrayGroup.appendChild(ring);
+    });
+  }
+
   /* ---- product grid ------------------------------------------------------ */
 
   var grid = document.getElementById("productGrid");
@@ -230,6 +266,7 @@
       })
       .then(function (data) {
         renderProducts(data.products || []);
+        updateHeroRings(data.products || []);
       })
       .catch(function (err) {
         grid.innerHTML = "";

@@ -495,6 +495,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     function cancelNudge() {
       nudgeActive = false;
       clearIdleTimer();
+      nudgeHandEl.style.opacity = "0";
     }
     allCancelNudgeFns.push(cancelNudge);
 

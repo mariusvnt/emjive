@@ -34,7 +34,13 @@
      three.js's own stand-in for a neutral studio IBL — deliberately NOT
      the studio HDRI every other render here uses) plus a soft contact
      shadow, rather than the flat/shadowless cutout look of the icons.
-     Saved as 1024x1024 WebP at
+     Also includes an invisible "finger" occluder (see scanFingerHole/
+     addFingerOccluder below) — with no hand model in these renders, a
+     straight-down shot of a ring's hole would otherwise show whatever
+     real geometry sits under the visible top surface (the band's own
+     inner wall, or worse, a glimpse through a gap in the shank); this
+     hides that the same way a real finger would once the shot is
+     composited onto a hand image. Saved as 1024x1024 WebP at
      assets/products/<folder>/<name>_top-shot_<metal>.webp, indexed in
      data/products.json under that product's "assets.top-shot" object
      (keyed by metal), mirroring how "icons" is keyed and updated.
@@ -241,10 +247,22 @@ const HARNESS_HTML = `<!doctype html>
     return new THREE.CanvasTexture(c);
   }
 
-  function addShadowPlane(scene) {
-    var box = new THREE.Box3().setFromObject(scene);
+  function addShadowPlane(scene, box) {
     var sphere = box.getBoundingSphere(new THREE.Sphere());
-    var size = sphere.radius * 3;
+    // The gradient's own fade-to-transparent completes exactly at this
+    // plane's edge (makeShadowTexture's canvas maps its whole 0-1 UV range
+    // to the gradient's r=0..128, i.e. center to canvas edge) — too large
+    // a multiplier here means the captured frame's OWN edge (bounded by
+    // the camera framing, not this plane) falls well short of that, so
+    // real but faint non-zero alpha (confirmed directly: ~40/255 at a
+    // frame edge midpoint, ~10/255 near a corner) still reaches all the
+    // way to the image's own border. Invisible at native size against a
+    // plain background, but this render now also gets composited small
+    // (the hero's ring-on-hand overlay) — at that scale a resurviving
+    // haze across the whole frame reads as a visible translucent
+    // rectangle instead of a soft circular vignette. Small enough that
+    // the gradient is fully zero well inside the captured frame.
+    var size = sphere.radius * 1.4;
     var plane = new THREE.Mesh(
       new THREE.PlaneGeometry(size, size),
       new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false })
@@ -252,6 +270,67 @@ const HARNESS_HTML = `<!doctype html>
     plane.rotation.x = -Math.PI / 2;
     plane.position.set(sphere.center.x, sphere.center.y - sphere.radius, sphere.center.z);
     scene.add(plane);
+    return plane;
+  }
+
+  // Every product here is a ring, always shot with nothing actually
+  // inside it (no hand/finger model exists) — so looking straight down
+  // shows whatever real geometry lies under the visible top surface: the
+  // band's own inner wall descending into the hole, or, worse, a glimpse
+  // of the far side entirely (e.g. Furcula's split shank, whose two
+  // halves don't fully close, opens a sightline straight through to
+  // geometry that should read as "under the finger"). A real finger
+  // would hide all of that; since none is modeled, this fakes the same
+  // occlusion with an invisible flat plane standing in for one, cutting
+  // the model at the vertical midpoint of its own bounding box — only
+  // the top half ever renders. Its material writes depth but not color
+  // (colorWrite false) — it can never leave a visible trace in the
+  // screenshot no matter how far it overlaps the model's own geometry.
+  //
+  // Tried confining this to a radius-fitted cylinder first (so untouched
+  // geometry outside the "hole" would be provably safe from clipping
+  // regardless of cutoff height): a shared circle left Furcula's
+  // elongated shank only partly hidden, and letting each angle keep its
+  // own detected radius (to hug the shank more closely) clipped a
+  // visible chunk out of Foramen's genuinely decorative loop instead.
+  // Settled on a plain global half — no radius fit at all, every product
+  // cut at exactly the same 50% of its own bounding-box height — as a
+  // deliberate simplicity trade-off: it fully hides Furcula's shank (the
+  // one product with an actual reported defect) and leaves Foramen
+  // untouched, but does cut into Disc's own lower, genuinely-visible
+  // band surface, since Disc's decorative material happens to start
+  // lower (relative to its own bounding box) than the other two. Accepted
+  // rather than chasing a per-product height, which is its own can of
+  // worms — an earlier, fancier version of this that derived a cutoff
+  // straight from the model's geometry (raycasting for the nearest real
+  // surface) failed in a different way, since the first surface found
+  // outward from the center isn't reliably "the rim" at all — for
+  // Furcula specifically, it's the shank itself, i.e. exactly the thing
+  // meant to be hidden.
+  //
+  // renderOrder -1 forces this to draw before the model regardless of
+  // THREE's own distance-sorted opaque render order — without that
+  // guarantee, a farther-side fragment could render (and win the depth
+  // test) before the occluder ever got a chance to stake its claim on
+  // the depth buffer.
+  function addFingerOccluder(scene, box) {
+    var size = new THREE.Vector3();
+    box.getSize(size);
+    var center = new THREE.Vector3();
+    box.getCenter(center);
+    var cutY = box.min.y + size.y * 0.5;
+    // Generously oversized — harmless given colorWrite is off, and
+    // guarantees the cut reaches every corner of the model regardless of
+    // its footprint shape.
+    var planeSize = Math.max(size.x, size.z) * 4;
+    var mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(planeSize, planeSize),
+      new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, depthTest: true, side: THREE.DoubleSide })
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(center.x, cutY, center.z);
+    mesh.renderOrder = -1;
+    scene.add(mesh);
   }
 
   // Still built via window.EmjiveModelViewer first — same METAL_PRESETS
@@ -276,8 +355,41 @@ const HARNESS_HTML = `<!doctype html>
       static: true,
       onReady: function () {
         handle.scene.environment = getRoomEnvironment(handle.renderer);
-        addShadowPlane(handle.scene);
-        handle.setCameraOrbit("0deg 0deg " + radius);
+        // Measured before anything else is added to the scene — both
+        // addFingerOccluder and addShadowPlane need the model's own
+        // bounding box, not one inflated by each other.
+        var modelBox = new THREE.Box3().setFromObject(handle.scene);
+
+        // The finger occluder has to draw before the model within a
+        // single, ordinary opaque render pass (see addFingerOccluder's
+        // comment) — but the shadow plane can't share that same pass:
+        // tried directly, the occluder winning the depth test against
+        // the shadow (drawn later, in the transparent pass) erased the
+        // shadow's own color wherever it did, punching a visible hole in
+        // the gradient at exactly the "finger" location. So this renders
+        // in two passes instead — the model hidden on its own layer for
+        // the first, so the shadow plane (still transparent, blending
+        // normally) draws alone against a genuinely empty canvas. Then,
+        // for the second pass, the shadow plane specifically is hidden
+        // right back again (tried leaving it visible for both passes: it
+        // redrew a second time everywhere the occluder wasn't there to
+        // block its depth test, double-blending that whole area a shade
+        // darker than the occluder-covered patch and leaving an equally
+        // visible — just lower-contrast — disc behind) while the model
+        // and the new occluder render on top without clearing: wherever
+        // the occluder wins the depth test, colorWrite:false leaves the
+        // first pass's shadow color untouched instead of erasing it.
+        handle.scene.traverse(function (obj) { obj.layers.set(1); });
+        var shadowMesh = addShadowPlane(handle.scene, modelBox);
+        handle.setCameraOrbit("0deg 0deg " + radius); // pass 1: shadow alone
+
+        handle.scene.traverse(function (obj) { obj.layers.set(0); });
+        shadowMesh.layers.set(1); // hide it again — only the model + occluder render this pass
+        addFingerOccluder(handle.scene, modelBox);
+        handle.renderer.autoClear = false;
+        handle.renderer.render(handle.scene, handle.camera); // pass 2: model + occluder, over the shadow
+        handle.renderer.autoClear = true;
+
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             window.__renderReady = true;

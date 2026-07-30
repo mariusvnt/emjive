@@ -34,6 +34,7 @@
           "bronze": "assets/products/furcula_ring/furcula_top-shot_bronze.webp"
         }
       },
+      "onHand": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
       "model": "assets/products/furcula_ring/furcula_gltf.glb",
       "cameraOrbit": "30deg 70deg 80%",
       "metal": "steel",
@@ -62,6 +63,7 @@
           "bronze": "assets/products/foramen_ring/foramen_top-shot_bronze.webp"
         }
       },
+      "onHand": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
       "model": "assets/products/foramen_ring/Foramen_gltf.glb",
       "cameraOrbit": "-30deg 45deg 75%",
       "metal": "steel",
@@ -90,6 +92,7 @@
           "bronze": "assets/products/disc_ring/disc_top-shot_bronze.webp"
         }
       },
+      "onHand": { "visible": true, "x": 59.3, "y": 48, "scale": 5, "rotation": 19 },
       "model": "assets/products/disc_ring/disc_gltf.glb",
       "cameraOrbit": "-115deg 90deg 80%",
       "metal": "steel",
