@@ -12,9 +12,11 @@ The one difference: `index.html`'s links use bare anchors (`#top`, `#products`, 
 
 ## `index.html` — homepage
 
-Hero (`#revealSection`) — a scroll-driven x-ray reveal effect over a hand image, animated by `js/main.js`'s `updateReveal()` via `clip-path`. Then `#productGrid`, empty in the markup and populated client-side by `js/main.js` from `data/products.json` (shows "Loading specimens…" until then, and a fallback message if the fetch fails — e.g. if you open the file directly instead of via a server).
+Hero (`#revealSection`) — a scroll-driven x-ray reveal effect over a hand image, animated by `js/main.js`'s `updateReveal()` via `clip-path`. `#revealXrayGroup` (the x-ray layer) also holds zero or more `.reveal__ring` `<img>`s — one per product whose `data/products.json` `onHand.visible` is `true`, inserted by `updateHeroRings()` and positioned/sized/rotated from that same product's `onHand.x`/`y`/`scale`/`rotation` — so they reveal in lockstep with the x-ray wipe automatically (see `data.md`/`styling.md`). Then `#productGrid`, empty in the markup and populated client-side by `js/main.js` from `data/products.json` (shows "Loading specimens…" until then, and a fallback message if the fetch fails — e.g. if you open the file directly instead of via a server).
 
 `<head>` loads `js/three-viewer.js` as an ES module (`<script type="module">`) — see the load-order note below. Body scripts, in order: `main.js` (`defer`), `selection.js`, `selection-bar.js`.
+
+**The floating selection bar here specifically** (present on `product.html` too, see below) doesn't just sit fixed at the bottom — on this page only, `js/main.js`'s `updateReveal()` also drives its entrance directly off scroll position, continuing straight out of the hero's own wipe animation rather than a separate threshold/transition (see `styling.md`'s "Floating selection bar" section for the mechanics). It's still always in the DOM/markup; the hero-only hiding is scroll math, not conditional rendering.
 
 ## `product.html` — product detail
 

@@ -19,12 +19,13 @@ The single shared construction path for every 3D product view on the site (homep
 
 **Exposes**: `window.EmjiveModelViewer = buildThreeViewer` — consumed by `main.js`'s grid and `product.js`'s carousel. Also `window.EmjiveModelViewer.buildMaterialSwatch` — a harness-only second export, see above.
 
-## `js/main.js` (~250 lines)
+## `js/main.js` (~345 lines)
 
 Loads on all three real pages. Owns:
 
 - The header hamburger menu toggle (shared everywhere).
-- The homepage's scroll-driven hero reveal (`updateReveal()`) — no-ops if `#revealSection` isn't on the page. As of the boundary revealing the x-ray, `#revealScanHint` ("SCROLL TO SCAN", see `styling.md`) gets progressively `clip-path`-erased from its own bottom edge upward, over the scroll range where the reveal boundary crosses the text's own height (measured via `getBoundingClientRect()`, stable across frames since `clip-path` doesn't affect layout) — the same directional wipe the hand images themselves use, not an opacity fade, so it reads as the scan physically erasing the text rather than it just fading out.
+- The homepage's scroll-driven hero reveal (`updateReveal()`) — no-ops if `#revealSection` isn't on the page. As of the boundary revealing the x-ray, `#revealScanHint` ("SCROLL TO SCAN", see `styling.md`) gets progressively `clip-path`-erased from its own bottom edge upward, over the scroll range where the reveal boundary crosses the text's own height (measured via `getBoundingClientRect()`, stable across frames since `clip-path` doesn't affect layout) — the same directional wipe the hand images themselves use, not an opacity fade, so it reads as the scan physically erasing the text rather than it just fading out. The same function also drives the floating selection bar's entrance (see the dedicated point below) and, once `data/products.json` loads, `updateHeroRings()` inserts one `.reveal__ring` `<img>` into `#revealXrayGroup` per product with `onHand.visible: true` (see `data.md`), each positioned/sized/rotated via inline custom properties (`--ring-x`/`--ring-y`/`--ring-size`/`--ring-rotation`) set straight from that product's own `onHand` object — not shared globally, so multiple rings on screen at once don't fight over one set of values.
+- **The floating selection bar's scroll-driven entrance** (homepage only — see `pages.md`): `updateReveal()` measures `.selection-bar__summary`'s real height and the fixed `.site-header`'s real height, then sets `.selection-bar`'s `transform` directly (no CSS transition) from how far the visitor has scrolled past the point where the hero's frontier band would pass behind the header — continuing the exact same scroll motion that finishes the x-ray wipe, reversible in both directions. See `styling.md`'s "Floating selection bar" section for what this looks like from the CSS side.
 - `wireModelClickNavigation(el, href)` — the 6px drag-distance-threshold click-vs-drag disambiguation, attached to a viewer's wrapper element so rotating a model doesn't accidentally navigate.
 - The homepage grid rendering (`buildCard`/`renderProducts`) — fetches `data/products.json`, builds one card per product, calling `window.EmjiveModelViewer(product, product.metal)` (from `js/three-viewer.js`) for any product with a `model` set.
 - A guarded contact-form stub (`getElementById("contactForm")`) — currently a no-op since no page has that element yet (see `pages.md`'s known-gap note).
@@ -53,11 +54,13 @@ All page state lives in one `state` object (product, metals, selected metal/size
 
 **Notable gotchas** (from the file's own comments): rims need the same drag handling as the viewport since they sit on top of it (`z-index: 2`) and would otherwise swallow `pointerdown`; a `suppressClick` flag works around desktop browsers still firing a native click after pointerup regardless of drag distance (touch doesn't have this problem); `img.draggable = false` + `dragstart` prevention stops the browser's native image-drag gesture from fighting the custom pointer-drag scroll; release momentum is deliberately capped small (a gentle coast, not a mobile-style flick).
 
-## `js/selection-bar.js` (295 lines)
+## `js/selection-bar.js` (~300 lines)
 
 The floating bar shown on `index.html` and `product.html` only (not `launch-order.html` — that page isn't in its script list at all, plus it self-guards with `if (!window.EmjiveSelection) return;`). Builds its whole DOM programmatically and appends to `<body>`.
 
 Shows either "No selected item" or a thumbnail strip + "Order ›" link; clicking the bar (not the Order link) opens a drawer with per-item "Unselect" rows. The drawer's `max-height` is set to a real measured pixel value in JS (not a CSS trick) — this is the piece `styling.md`'s drawer note points back to — specifically so it can animate smoothly both on open/close *and* on shrinking while already open (removing a row).
+
+This file itself has no notion of which page it's on or of scroll position — the homepage's hero-only hiding/scroll-driven entrance (see `js/main.js` above) is entirely someone else's job, driven by `updateReveal()` and `css/style.css`'s `body:has(#revealSection)` scoping. Kept that way deliberately: `product.html`'s bar (no hero on that page) needs zero special-casing here as a result.
 
 Listens for `window.addEventListener("emjive:selection-changed", render)` — this is how it stays live-in-sync with additions from `product.js` or removals from its own drawer.
 

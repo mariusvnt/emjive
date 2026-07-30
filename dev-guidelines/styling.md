@@ -1,8 +1,8 @@
 # Styling
 
-One file, `css/style.css` (~1751 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
+One file, `css/style.css` (~1813 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
 
-## Design tokens (`:root`, lines 5–47)
+## Design tokens (`:root`, lines 5–42)
 
 | Token | Value | Purpose |
 |---|---|---|
@@ -10,31 +10,31 @@ One file, `css/style.css` (~1751 lines), plain CSS — no preprocessor, no CSS-i
 | `--black` / `--white` | `#000` / `#fff` | Primary ink/light colors |
 | `--category-col` | `#777777` | Secondary/muted text — category labels, metadata, prose |
 | `--black-bg` | `#1a1a1a` | "Near-black" dark surface, shared exactly by the select button's hover state, the size modal's confirm button, and the floating selection bar |
-| `--selection-bar-height` | `3.5rem` | Used by exactly two rules that must stay in sync: `.selection-bar__summary`'s own height and `body`'s reserved bottom padding (via `body:has(.selection-bar)`) — a CSS-internal contract, not read from JS |
+| `--selection-bar-height` | `3.5rem` | Used by exactly two CSS rules that must stay in sync: `.selection-bar__summary`'s own height and `body`'s reserved bottom padding (via `body:has(.selection-bar)`) — a CSS-internal contract, not read from JS. `js/main.js`'s scroll-driven bar entrance (see "Floating selection bar" below) measures `.selection-bar__summary`'s real rendered height instead of this variable's value, so it stays correct even if the two ever drift apart, but in practice they should always agree |
 | `--font-secondary` | Geist Mono (Google Fonts) | Nav category rubrics and other mono usages |
-| `--font-main` | "DINish", sans-serif fallback | Everything else — two weights registered (400/700, lines 48–64), see below |
+| `--font-main` | "DINish", sans-serif fallback | Everything else — three weights registered (400/700/900, lines 44–76), see below |
 | `--max` | `1440px` | Site-wide content max-width cap |
 | `--edge-px` | `clamp(20px, 2.5vw, 28px)` | The single horizontal edge-inset used everywhere content is padded away from the true screen edge — header, selection bar, size modal, section heads, product grid, footer, product detail all share this one token |
 | `--reveal-pin-height` | `100vh` | Root-scoped (not scoped to `.reveal`) because `.reveal__extension-crop` in the sibling `.products` section also needs it |
 
-## `@font-face` (lines 48–64) — two DINish weights
+## `@font-face` (lines 44–76) — three DINish weights
 
-Regular (400, lines 48–54) and Bold (700, lines 58–64, added for `.reveal__scan-hint`'s "SCROLL TO SCAN" hint — see below). Regular's `src` used to have a trailing-comma syntax error (`format("woff2"),;`) that could make browsers drop the whole declaration, silently falling back to sans-serif even with the font file present at exactly the right path — fixed; if `--font-main` text ever looks like fallback sans-serif again, that bug class is exactly where to look first (see `assets.md`/`procedures.md` for where the font files live).
+Regular (400), Bold (700, added for `.reveal__scan-hint`'s "SCROLL TO SCAN" hint), and Black (900, one step past Bold — a real heavier face for that same hint rather than the browser synthesizing extra weight on top of Bold). Regular's `src` used to have a trailing-comma syntax error (`format("woff2"),;`) that could make browsers drop the whole declaration, silently falling back to sans-serif even with the font file present at exactly the right path — fixed; if `--font-main` text ever looks like fallback sans-serif again, that bug class is exactly where to look first (see `assets.md`/`procedures.md` for where the font files live).
 
 ## Section map
 
 | Lines | Section |
 |---|---|
-| 66–135 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below |
-| 136–185 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
-| 186–335 | Header |
-| 336–551 | Entry reveal (homepage hero — includes `.reveal__scan-hint`, see below) |
-| 552–587 | Section heads (shared component) |
-| 588–708 | Products (homepage grid) |
-| 709–779 | Selection / order page |
-| 780–1470 | Product detail page (by far the largest — sub-map below) |
-| 1471–1486 | Footer |
-| 1487–1751 | Floating selection bar |
+| 77–162 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below |
+| 163–212 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
+| 213–362 | Header |
+| 363–591 | Entry reveal (homepage hero — includes `.reveal__scan-hint` and the ring-on-hand overlay, see below) |
+| 592–627 | Section heads (shared component) |
+| 628–748 | Products (homepage grid) |
+| 749–819 | Selection / order page |
+| 820–1510 | Product detail page (by far the largest — sub-map below, not re-verified as part of this pass since untouched by it — re-check if it's drifted) |
+| 1511–1526 | Footer |
+| 1527–1813 | Floating selection bar |
 
 **Product detail sub-map** (matches the numbered comments in both this file and `product.html`):
 
@@ -45,13 +45,17 @@ Regular (400, lines 48–54) and Bold (700, lines 58–64, added for `.reveal__s
 - 1194 — prose sections (description / characteristics / shipping)
 - 1245 — size-selection modal (1297 standard sizes, 1369 custom size, 1434 size guide, 1448 confirm button)
 
-**Floating selection bar sub-map**: 1518 — summary row (always visible), 1659 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
+**Floating selection bar sub-map**: 1601 — summary row (always visible in the DOM/markup sense — see the scroll-driven entrance note below for the one page where it isn't always *shown*), 1721 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
 
-## `.reveal__scan-hint` (lines 521–538) — the hero's "SCROLL TO SCAN" hint
+## `.reveal__scan-hint` (lines 556–577) — the hero's "SCROLL TO SCAN" hint
 
-Static text ("Scroll to scan" in the markup, `text-transform: uppercase` here), centered on the pinned viewport (`top/left: 50%` + translate, inside `.reveal__pin` — unlike `.reveal__frontier`, its position isn't scroll-driven). Bold DINish, `color: #fff` + `mix-blend-mode: difference` — difference-blending white against a backdrop is mathematically the same `255 - channel` formula `invert(1)` uses, so it reads as inverting whatever's behind it (the x-ray hand), letter-shaped, with no color of its own anywhere it actually renders. This is *not* the same mechanism as `.reveal__frontier`'s `backdrop-filter: invert(1)` (see the recurring-technique list below) — `backdrop-filter` doesn't clip to a text glyph's shape via `background-clip: text` the way the `background` property does; that combination was tried first and produced a solid inverted rectangle with fully invisible text (confirmed by screenshotting it) before switching to `mix-blend-mode`.
+Static text ("Scroll to scan" in the markup, `text-transform: uppercase` here), positioned on the pinned viewport at `left: 50%` (centered) but `top: 60%`, not `50%` — centered on the hand's palm specifically, which sits lower than dead-center once the fingers' own space at the top of the frame is accounted for; `js/main.js`'s erase logic reads this element's actual rendered position at scroll time rather than assuming any particular `%`, so it doesn't need a matching update if this ever moves again. Black-weight (900) DINish, `color: #fff` + `mix-blend-mode: difference` — difference-blending white against a backdrop is mathematically the same `255 - channel` formula `invert(1)` uses, so it reads as inverting whatever's behind it (the x-ray hand), letter-shaped, with no color of its own anywhere it actually renders. This is *not* the same mechanism as `.reveal__frontier`'s `backdrop-filter: invert(1)` (see the recurring-technique list below) — `backdrop-filter` doesn't clip to a text glyph's shape via `background-clip: text` the way the `background` property does; that combination was tried first and produced a solid inverted rectangle with fully invisible text (confirmed by screenshotting it) before switching to `mix-blend-mode`.
 
-## Shared 3D viewer (`.emjive-3d-viewer`, lines 126–175)
+## `.reveal__ring` (lines 387–390 for the `--ring-*` fallbacks, 506–516 for the rule itself) — ring-on-hand overlay
+
+`.reveal__ring` positions a product's top-shot image on the x-ray hand: `left`/`top` from `--ring-x`/`--ring-y` (a % of the hand image's own width/height), `width` from `--ring-size` (a % of the same), `transform: translate(-50%,-50%) rotate(--ring-rotation)` to center on that point then spin in place. The four `--ring-*` custom properties declared on `.reveal` (lines 387–390) are fallback values only, inherited if nothing more specific overrides them — `js/main.js`'s `updateHeroRings()` sets all four inline, per `<img class="reveal__ring">` it creates, straight from that product's own `data/products.json` `onHand` object (see `data.md`), so several rings on screen at once each get their own values instead of fighting over one shared set. There's no `<img>` for this in the markup at all — every one is created and inserted into `#revealXrayGroup` by that same function, one per product with `onHand.visible: true` (zero, one, or several).
+
+## Shared 3D viewer (`.emjive-3d-viewer`, lines 172–212)
 
 The wrapper `js/three-viewer.js`'s `buildThreeViewer()` returns as `el` — see `client-scripts.md`. `.emjive-3d-viewer` itself just sets `position:relative` (so the poster/nudge-hand overlays below can be absolutely positioned against it) plus `touch-action:none; cursor:grab;`. `.emjive-3d-viewer__canvas` fills it at `width/height:100%` — the module's own `ResizeObserver` keeps the renderer's pixel buffer matched to whatever size this resolves to, so there's no `object-fit`/cover-vs-contain concept needed here the way the old `<model-viewer>` tag selectors used (both real contexts, the grid card and the carousel slide, are always square anyway). `.emjive-3d-viewer__poster` and `.emjive-3d-viewer__nudge-hand` are both `position:absolute` overlays — the poster fades out via JS once the model's first frame has rendered, the nudge hand's position/opacity are driven per-frame from JS during the idle-nudge hint (only the opacity gets a CSS transition; position is hard-set every frame to stay in sync with the 3D camera nudge — see `client-scripts.md`).
 
@@ -60,7 +64,14 @@ Per-context sizing of the wrapper itself lives with each context instead (`.prod
 ## Base-rule gotchas worth knowing before touching layout
 
 - `html { scrollbar-gutter: stable; overflow-x: hidden; }` — reserves vertical scrollbar space unconditionally and forbids horizontal scroll, specifically so the fixed `.selection-bar`'s `left:0; right:0` stays consistent across pages.
+- `html`/`body { overscroll-behavior-x: none; }` — a separate concern from the `overflow-x: hidden` above: that stops actual horizontal scrolling, but browsers still show a rubber-band bounce for a left/right drag at the document edge regardless of whether there's anything to scroll to (narrow screens make that gesture easy to trigger by accident). Vertical overscroll bounce is deliberately left alone — scoped to `-x` only.
 - `body:has(.selection-bar) { padding-bottom: var(--selection-bar-height); }` — `:has()` auto-scopes the bottom-padding reservation to only the pages that actually render the bar (not `launch-order.html`).
+
+## Floating selection bar (lines 1527–1813) — scroll-driven on the homepage only
+
+`.selection-bar` itself (line 1538) is visible (`transform: translateY(0)`) by default, with no `transition` on `transform` at all — deliberately, see below. `body:has(#revealSection) .selection-bar` (line 1577) overrides that to hidden (`translateY(100%)`) purely to cover the instant between the bar being appended (`js/selection-bar.js` runs synchronously, before `js/main.js`'s deferred code) and that page's first real scroll-computed position landing a moment later; it isn't the thing actually driving the entrance.
+
+The actual entrance is `js/main.js`'s `updateReveal()` (see `client-scripts.md`), which sets `.selection-bar`'s `transform` directly, every scroll frame, as a continuous function of scroll position — continuing straight out of the hero's own x-ray wipe rather than switching to a separate, time-based animation once some threshold is crossed. That's exactly why there's no CSS `transition` here: one would lag behind the live scroll-computed value instead of tracking it exactly, undermining the "same physical scroll motion" effect. Pages with no `#revealSection` (`product.html`) never match that `:has()` override, so the bar there is just always visible — `js/main.js`'s reveal code (and this whole mechanic) never runs at all in that case.
 
 ## Recurring non-obvious techniques
 

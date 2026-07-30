@@ -44,6 +44,7 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
     "xray": "",
     "top-shot": { "steel": "", "silver": "", "bronze": "" }
   },
+  "onHand": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
   "model": "assets/products/your-item-name/model.glb",
   "cameraOrbit": "0deg 75deg 105%",
   "metal": "silver",
@@ -91,6 +92,18 @@ slide.
 `xray` (a single path, used as the carousel's backdrop — leave `""` until
 you have one) and `top-shot` (one entry per metal, same shape as `icons` —
 `npm run auto-render` fills these in too, same as icons).
+
+`onHand` controls whether/how this product's `assets.top-shot[metal]`
+image appears overlaid on the homepage hero's x-ray hand. Leave
+`"visible": false` (with any placeholder `x`/`y`/`scale`/`rotation`) until
+you've actually positioned it — `x`/`y` are the image's center as a % of
+the hand image's own width/height, `scale` its width as a % of the same,
+`rotation` in degrees. There's no live-preview tool for this the way
+`cameraOrbit` at least has "drag it, read the values back"; easiest way
+in practice is to open the homepage, guess-and-check by editing these
+four and reloading, the same trial-and-error `cameraOrbit` itself
+recommends just below. Any number of products can have `"visible": true`
+at once — each gets its own independently-positioned overlay.
 
 Sizes offered in the "Choose a size" popup before an item is added to the
 selection aren't set per-product — they're looked up from two top-level
@@ -237,10 +250,16 @@ list, if none are given):
   shadow (a radial-gradient texture generated on the fly with a 2D canvas,
   not a static asset, on a plane positioned at the model's bounding-sphere
   floor), rather than the flat, shadow-free cutout look of the icons.
-  Saved as a 1024×1024 WebP named `<productname>_top-shot_<metal>.webp`
-  next to the product's model, and `data/products.json`'s
-  `assets.top-shot` object for that product is updated in place the same
-  way `"icons"` is.
+  Also includes an invisible "finger" occluder plane, so the ring's own
+  geometry that a real finger would hide (the band's inner wall, or a
+  gap in an open shank) doesn't show through once the shot is composited
+  onto a hand image — see `tooling.md`'s `scripts/auto-render.js` section
+  for the mechanics and its known trade-off. Saved as a 1024×1024 WebP
+  named `<productname>_top-shot_<metal>.webp` next to the product's
+  model, and `data/products.json`'s `assets.top-shot` object for that
+  product is updated in place the same way `"icons"` is — and read live
+  by the homepage hero's ring-on-hand overlay, see the product's own
+  `onHand` field (`data.md`) and `pages.md`'s `index.html` section.
 - **One metal sample bar**, regardless of whether any product defaults to
   it — saved as `assets/metal-sample_<metal>.webp` (240×240). **Not** a
   render of any actual product — `js/three-viewer.js`'s

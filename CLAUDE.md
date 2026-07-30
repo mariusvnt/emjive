@@ -7,8 +7,6 @@ This file is an index into `dev-guidelines/`, the full agent-facing documentatio
 ## Known issues
 
 - The header's "About us" link points at `#contact` on every page, but no page actually has a `#contact` section — it's a dangling link, and the matching JS contact-form handler is a guarded no-op waiting for a form that doesn't exist yet → [`dev-guidelines/pages.md`](dev-guidelines/pages.md)
-- `data/products.json`'s `assets.top-shot` images are fully generated for every product but not read by any live JS or CSS yet → [`dev-guidelines/data.md`](dev-guidelines/data.md)
-- `index.html`'s hero references `assets/products/furcula_ring/furcula_top_view.png`, which doesn't exist (the actual generated files are `furcula_top-shot_<metal>.webp`) — 404s on every load → [`dev-guidelines/pages.md`](dev-guidelines/pages.md)
 
 ## Where to look
 
