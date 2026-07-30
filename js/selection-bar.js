@@ -7,6 +7,14 @@
    window.EmjiveSelection, plus an "Order ›" link straight to
    launch-order.html. Clicking the bar itself (not the Order link) opens a
    drawer listing the selected items, each removable via "Unselect".
+
+   Always visible here in the DOM/JS sense — the one exception (sliding
+   in as a direct continuation of the homepage hero's own scroll-driven
+   reveal, and back out again in either direction) is driven entirely by
+   js/main.js's updateReveal(), which sets this element's transform
+   straight off scroll position on pages that have a hero to continue
+   from (see its own comment) — this script has no notion of which page
+   it's running on, or of scroll position at all.
    ========================================================================== */
 
 (function () {

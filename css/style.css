@@ -1528,14 +1528,37 @@ body.is-modal-open { overflow: hidden; }
   flex-direction: column;
   background: var(--black-bg);
   font-family: var(--font-main);
-  /* Promotes this to its own compositor layer instead of being repainted
-     on the main thread in lockstep with scroll — without this, fixed-
+  /* Visible (translateY(0)) by default. No transition on transform here
+     deliberately — on a page with a homepage hero, js/main.js drives
+     this bar's entrance directly off scroll position every frame (see
+     updateReveal()'s own comment), continuing straight out of the hero's
+     wipe animation; a CSS transition would fight that by lagging behind
+     the live scroll-computed value instead of tracking it exactly.
+     translateZ(0) rides along in the same transform (rather than as its
+     own declaration, which would just overwrite this one) purely to
+     promote this to its own compositor layer instead of being repainted
+     on the main thread in lockstep with scroll — without it, fixed-
      position elements are prone to visibly lagging/wobbling a few pixels
      behind during active scrolling on some browsers (WebKit/mobile
-     especially). translateZ(0) is a no-op transform on its own, purely
-     there to trigger that promotion. */
+     especially); it's a no-op on its own otherwise. */
   will-change: transform;
-  transform: translateZ(0);
+  transform: translateY(0) translateZ(0);
+}
+/* Pages with a homepage hero (#revealSection) start hidden instead of
+   using the default above — purely to cover the brief instant between
+   this bar being appended (js/selection-bar.js runs synchronously,
+   before js/main.js's deferred code) and updateReveal()'s first real,
+   scroll-position-computed inline transform landing a moment later;
+   without this, a page load starting at the very top of the hero would
+   flash the bar visible for a frame before JS hides it. That first
+   inline style (computed from scroll position 0) resolves to this exact
+   same hidden transform, so there's nothing to visibly jump between the
+   two. Scoped with :has() rather than in js/selection-bar.js itself so
+   that script stays page-agnostic (see its own comment) — pages with no
+   hero at all (product.html) never match this selector, so the bar
+   there is just always visible, no scroll dependency whatsoever. */
+body:has(#revealSection) .selection-bar {
+  transform: translateY(100%) translateZ(0);
 }
 
 /* ---- summary row: always visible ---- */
