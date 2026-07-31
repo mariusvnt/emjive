@@ -23,6 +23,15 @@
   --font-secondary: "Geist Mono", "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   --font-main: "DINish", sans-serif;
 
+  /* Shared text recipe for on-page buttons: DINish (--font-main) Black
+     (900), 0.75rem, uppercase, with extra letter-spacing versus body
+     copy. 900 exactly matches a registered DINish face (see @font-face
+     below) rather than relying on the browser's nearest-weight fallback. */
+  --button-font-weight: 900;
+  --button-font-size: 0.75rem;
+  --button-letter-spacing: 0.05rem;
+  --button-text-transform: uppercase;
+
   --max: 1440px;
   /* The one horizontal edge-inset value for the whole site — how far any
      page's content sits from the true screen edge, everywhere from the
@@ -52,9 +61,6 @@
   font-style: normal;
   font-display: swap;
 }
-/* Added alongside the hero's "scroll to scan" hint, which needs a real
-   bold face rather than the browser's synthetic-bold fallback (the
-   family only had Regular registered before). */
 @font-face {
   font-family: "DINish";
   src: url("../assets/fonts/dinish-woff2/DINish-Bold.woff2") format("woff2");
@@ -62,9 +68,8 @@
   font-style: normal;
   font-display: swap;
 }
-/* One step past Bold, for .reveal__scan-hint's font-weight: 900 — a real
-   heavier face rather than the browser synthesizing extra weight on top
-   of the Bold face above. */
+/* --button-font-weight is 900 site-wide — a real heavier face rather than
+   the browser synthesizing extra weight on top of the Bold face above. */
 @font-face {
   font-family: "DINish";
   src: url("../assets/fonts/dinish-woff2/DINish-Black.woff2") format("woff2");
@@ -537,55 +542,20 @@ button, input, textarea {
   backdrop-filter: invert(1);
 }
 
-/* Static (not scroll-driven, unlike .reveal__frontier above), centered on
-   the pinned viewport for the whole reveal. Same "invert whatever's
-   behind it, rather than painting its own color" intent as
-   .reveal__frontier, but shaped to the glyphs instead of a full-width
-   band — which rules out backdrop-filter itself: background-clip: text
-   only clips the `background` property, not a backdrop-filter's
-   composited output, so combining the two (tried first) just produced a
-   solid inverted rectangle with fully invisible text, not glyph-shaped
-   inversion (confirmed by screenshotting it). mix-blend-mode: difference
-   with a white foreground is a mathematically exact stand-in for
-   invert(1) — difference's |source - backdrop| against white (255) is
-   just 255 - backdrop, the same formula invert(1) uses — and it's
-   naturally clipped to the text's own glyph coverage, since it's a
-   normal paint blend rather than a filter needing separate clipping.
-   The "white" is never actually visible as white anywhere: wherever this
-   renders, the output is entirely a function of what's behind it. */
-.reveal__scan-hint {
-  position: absolute;
-  /* Not dead-center of the viewport — centered on the hand's palm, which
-     (fingers taking up the top portion of the frame) sits lower than
-     that. js/main.js's erase logic reads this element's actual rendered
-     position at scroll time rather than assuming 50%, so it doesn't need
-     a matching update here. */
-  top: 60%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 2;
-  margin: 0;
-  font-family: var(--font-main);
-  font-weight: 900;
-  font-size: clamp(0.75rem, 2vw, 1.25rem);
-  letter-spacing: clamp(0.2rem, 0.53vw, 0.4rem);
-  text-transform: uppercase;
-  text-align: center;
-  white-space: nowrap;
-  pointer-events: none;
-  color: #fff;
-  mix-blend-mode: difference;
-}
-
 .btn {
   display: inline-block;
   margin-top: 2.25rem;
   padding: 0.85rem 1.6rem;
   border: 1px solid var(--black);
-  text-transform: uppercase;
   cursor: pointer;
   background: transparent;
   transition: background 0.2s ease, color 0.2s ease;
+  /* Shared button text recipe — see --button-* tokens at :root. */
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
 }
 .btn:hover { background: var(--black); color: var(--bg); }
 
@@ -804,8 +774,12 @@ button, input, textarea {
   border: none;
   background: none;
   color: var(--category-col);
-  text-transform: uppercase;
   cursor: pointer;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
 }
 .selection-item__remove:hover { color: var(--black); }
 .selection-list__total {
@@ -873,9 +847,20 @@ button, input, textarea {
    actually behind the band at each point (the page background in the
    gaps, or slivers of the thumbnail/text), which varies; with it, the
    band reads as a consistent solid --black-bg everywhere it doesn't
-   cross the label's own content. */
+   cross the label's own content.
+   isolation: isolate below is load-bearing, not decorative: position:
+   relative alone doesn't give this row its own stacking context, so
+   ::after's z-index: -1 was resolving against the page's root stacking
+   context instead of being scoped locally — it ended up painting behind
+   body's own plain background (var(--bg)) rather than just behind this
+   row's content, so ::before was inverting var(--bg) (#f8f8f8 → #070707)
+   instead of ::after's #e5e5e5 (→ #1a1a1a) wherever the band didn't cross
+   the thumb/text/price. isolation: isolate forces a local stacking
+   context so ::before/::after only ever compare against each other and
+   this row's own children, matching the intent. */
 .product-detail__label-bar {
   position: relative;
+  isolation: isolate;
   width: 100%;
   display: flex;
   align-items: center;
@@ -1222,8 +1207,10 @@ button, input, textarea {
   border: none;
   padding: 0 var(--edge-px);
   font-family: var(--font-main);
-  font-size: 1rem;
-  letter-spacing: 0.08em;
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
   text-align: center;
   cursor: pointer;
   transition: background 0.2s ease;
@@ -1296,6 +1283,23 @@ button, input, textarea {
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.25s ease;
+  /* Unlike the rest of the site, the modal's own content column narrows
+     well before --max instead of only freezing there, so on wide screens
+     it reads as a centered dialog bound to the middle third of the
+     viewport rather than as wide as the page's full content. Below 800px
+     the calc() branch evaluates above the viewport width itself, so it's
+     non-binding and content just fills the available width as normal
+     (unaffected, same as everywhere else on the site). From 800px it
+     ramps linearly down, reaching exactly 100vw/3 at 1920px. Past 1920px
+     the calc() branch keeps falling (eventually negative), so clamp's
+     lower bound (100vw/3, the literal center third) takes over and holds
+     for any wider viewport. var(--max) is just a non-binding safety
+     ceiling here — the calc() branch never approaches it. */
+  --size-modal-max: clamp(
+    calc(100vw / 3),
+    calc((6400px - 100vw) / 7),
+    var(--max)
+  );
 }
 .size-modal.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
 .size-modal__backdrop {
@@ -1318,13 +1322,15 @@ button, input, textarea {
   transition: transform 0.25s ease;
 }
 .size-modal.is-open .size-modal__panel { transform: translateY(0); }
-/* max-width/margin/padding mirror .site-header__row and
-   .selection-bar__summary/__row exactly — same --max cap, same
-   --edge-px edge padding — so the modal's rows line up with the
-   header/bar's content at every viewport width, while .size-modal__panel
-   above stays a plain full-bleed sheet. */
+/* margin/padding mirror .site-header__row and .selection-bar__summary/__row
+   — same --edge-px edge padding, so the modal's rows line up with the
+   header/bar's content at narrow/mobile widths, while .size-modal__panel
+   above stays a plain full-bleed sheet. The max-width itself is
+   --size-modal-max (set on .size-modal above), not --max directly — it
+   starts narrowing past 800px, unlike the header/bar, which stay at --max
+   until the true viewport edge. */
 .size-modal__content {
-  max-width: var(--max);
+  max-width: var(--size-modal-max);
   margin: 0 auto;
   padding: 2rem var(--edge-px);
 }
@@ -1364,6 +1370,7 @@ button, input, textarea {
   background: none;
   padding: 0;
   font-family: var(--font-secondary);
+  font-size: 0.75rem;
   color: var(--category-col);
   cursor: pointer;
 }
@@ -1415,7 +1422,11 @@ button, input, textarea {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 0.5rem;
+  /* Matches .size-modal__guide-row's own margin-bottom below (with
+     .size-modal__confirm's margin-top zeroed out) so the "Size guide"
+     row sits equidistant between the custom-size row above it and the
+     confirm button below. */
+  margin-bottom: 1.5rem;
   container-type: inline-size;
 }
 .size-modal__custom-label {
@@ -1424,9 +1435,8 @@ button, input, textarea {
 }
 /* flex: 0 0 auto (not 1) — the field hugs just its own content (input +
    unit) rather than stretching the underline across empty row space;
-   margin-left: auto then flushes this compact field (and the "Size
-   guide" toggle right after it) to the row's right edge, leaving
-   .size-modal__custom-label alone at the left. The border-bottom
+   margin-left: auto then flushes this compact field to the row's right
+   edge, leaving .size-modal__custom-label alone at the left. The border-bottom
    "underline" itself lives on .size-modal__custom-underline (input+unit
    only), not here — this outer wrapper is where the ::before dot below
    renders, so it sits just before the underlined section instead of
@@ -1452,13 +1462,22 @@ button, input, textarea {
   background: none;
   padding: 0.3rem 0;
   font-family: var(--font-secondary);
+  font-size: 0.75rem;
   color: var(--category-col);
 }
 .size-modal__custom-unit {
   flex: 0 0 auto;
   padding-bottom: 0.3rem;
   font-family: var(--font-secondary);
+  font-size: 0.75rem;
   color: var(--category-col);
+}
+/* Its own row, below the custom-size row, centered rather than
+   left/right-anchored like the rows above it. */
+.size-modal__guide-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
 }
 .size-modal__size-guide-toggle {
   flex: 0 0 auto;
@@ -1466,8 +1485,11 @@ button, input, textarea {
   background: none;
   padding: 0;
   font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
   color: var(--black);
-  text-decoration: underline;
   cursor: pointer;
 }
 
@@ -1485,13 +1507,17 @@ button, input, textarea {
   color: var(--category-col);
 }
 
-/* ---- confirm: same recipe as .product-detail__select, including the
-   same 100vw + calc(50% - 50vw) breakout — .size-modal__panel is a plain
-   full-bleed sheet (== the true viewport width) again, so this reaches
-   its real edges rather than just .size-modal__content's capped ones. ---- */
+/* ---- confirm: breaks out of .size-modal__content's own padding (not the
+   true viewport, unlike .product-detail__select's 100vw + calc(50% - 50vw)
+   breakout) — so it stays flush with --size-modal-max's edges even once
+   that narrows below the viewport width on wide screens, instead of
+   stretching past the rows above it out to the true screen edge. ---- */
 .size-modal__confirm {
-  width: 100vw;
-  margin: 2rem calc(50% - 50vw) 0;
+  width: calc(100% + 2 * var(--edge-px));
+  /* Top margin is 0, not a gap of its own — .size-modal__guide-row's
+     margin-bottom is what creates the space above this button (see its
+     comment), matching the space above the guide row exactly. */
+  margin: 0 calc(-1 * var(--edge-px)) 0;
   height: 2rem;
   display: flex;
   align-items: center;
@@ -1500,6 +1526,10 @@ button, input, textarea {
   color: var(--white);
   border: none;
   font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
   cursor: pointer;
   transition: background 0.2s ease;
 }
@@ -1711,6 +1741,11 @@ body:has(#revealSection) .selection-bar {
   color: var(--white);
   opacity: 1;
   transition: opacity 0.3s ease;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
 }
 .selection-bar__order.is-hidden {
   opacity: 0;
@@ -1805,6 +1840,10 @@ body:has(#revealSection) .selection-bar {
   border: none;
   background: none;
   font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
   color: var(--category-col);
   cursor: pointer;
 }
