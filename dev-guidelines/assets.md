@@ -17,7 +17,7 @@ The full DINish family (every weight/width/italic combination). Only one file is
 assets/fonts/dinish-woff2/DINish-Regular.woff2
 ```
 
-That's the exact path `css/style.css`'s `@font-face` rule (line 48) points at, and it exists on disk — so the font file itself isn't the problem if DINish isn't rendering. See `styling.md`'s known-issue note: that `@font-face` rule has a separate, real syntax bug (a trailing comma in its `src` value) that can make browsers drop the whole declaration regardless of the file being present and correctly pathed.
+That's the exact path `css/style.css`'s `@font-face` rule (line 59) points at, and it exists on disk — so the font file itself isn't the problem if DINish isn't rendering. See `styling.md`'s known-issue note: that `@font-face` rule has a separate, real syntax bug (a trailing comma in its `src` value) that can make browsers drop the whole declaration regardless of the file being present and correctly pathed.
 
 ## `products/<slug>_<category>/`
 
