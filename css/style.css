@@ -94,8 +94,21 @@ html {
      scrollbar) vs. one that isn't renders at a slightly different usable
      width — and since .selection-bar is position: fixed; left:0; right:0,
      everything inside it (the icon strip, Order link) would visibly
-     shift a few pixels depending on which page you're on. */
-  scrollbar-gutter: stable;
+     shift a few pixels depending on which page you're on. both-edges
+     (not plain stable) matters here specifically because of how many
+     "re-center on my own midpoint, then breakout to 100vw" tricks this
+     site relies on (product-card__bar-link, the hero images, the
+     carousel frame, .product-detail__select): plain stable reserves its
+     gutter on one edge only, which — on any engine that honors it even
+     with no visible scrollbar to show (observed on Chrome for Android,
+     which uses an overlay scrollbar on touch but still reserves the
+     stable gutter per spec) — quietly shifts every one of those
+     midpoints off the true viewport center by half the gutter's width,
+     showing up as a gap on one screen edge and a same-size sliver of
+     genuinely scrollable overflow on the other. both-edges reserves the
+     same gutter on both sides instead, so it keeps the width-consistency
+     this rule exists for while keeping centering symmetric. */
+  scrollbar-gutter: stable both-edges;
   /* Categorically rules out a HORIZONTAL scrollbar ever appearing (the
      site leans on a lot of width: 100vw breakout tricks — hero images,
      full-bleed bars, the carousel frame — any one of which overflowing
@@ -601,7 +614,7 @@ button, input, textarea {
 
 .products {
   position: relative;
-  padding: clamp(4rem, 10vw, 7rem) 0 clamp(3rem, 8vw, 6rem);
+  padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(3rem, 8vw, 6rem);
 }
 
 .product-grid {
@@ -630,31 +643,58 @@ button, input, textarea {
    the grid itself is centered) horizontal center. The model is pinned to
    the end of the left half — i.e. its right border sits exactly on that
    center line — and the label starts flush at the beginning of the right
-   half, regardless of how wide either one is. */
+   half, regardless of how wide either one is.
+   min-width: 0 overrides a grid item's default min-width: auto, which
+   otherwise sizes it to fit its own content's minimum — here that's
+   product-card__figure's explicit clamp() floor (210px) plus
+   product-card__label's nowrap text, which together already exceed half
+   of a narrow phone's available width before the label's text is even
+   considered. Without this, that content forces .product-card's own
+   internal 1fr 1fr tracks to grow, which (since .product-card has no
+   width of its own beyond stretching to fill .product-grid's single
+   column) bubbles up into .product-grid itself — this is what was
+   actually widening the whole page past the viewport on phones (seen
+   as product-card__bar-link's 100vw breakout sitting a few px right of
+   center, with a matching hairline of genuinely scrollable overflow on
+   the right), not the scrollbar-gutter concern in the base rules, which
+   only applies to browsers/platforms that reserve scrollbar space at
+   all. With min-width: 0 here, .product-grid can no longer be forced
+   wider than the viewport; figure/label instead just overflow their own
+   (now correctly viewport-capped) row visually if they still don't fit,
+   a self-contained layout squeeze rather than a page-wide one. */
 .product-card {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   background: transparent;
+  min-width: 0;
 }
 
 /* A full-viewport-width divider bar behind each row, doubling as the
    click target for the row (so clicking anywhere on the bar — not just
    the model or the product-card__label text — opens the product page).
    One real <a> instead of a separate decorative pseudo-element + an
-   invisible link layered on top of it. left: 50% + translateX(-50%)
-   re-centers on the card's own midpoint regardless of the card's width,
-   and width: 100vw then overflows evenly past both edges of the
-   (centered, padded) grid out to the true screen edges. z-index: 0 keeps
-   it behind the figure/label (z-index: 1), so those still take priority
-   over their own areas. */
+   invisible link layered on top of it. left: calc(50% - 50vw) computes
+   the bar's absolute position directly off the viewport in one step,
+   re-centering on the card's own midpoint and overflowing evenly past
+   both edges out to the true screen edges — this only lines up because
+   the card's midpoint really does sit on the viewport's true center. If
+   it visibly doesn't (a gap on one edge, a hair of real horizontal
+   scroll on the other, seen on phones specifically), check
+   .product-card's own min-width: 0 first — that's what stops its
+   content from ballooning .product-grid past the viewport width in the
+   first place (see the comment there); html's scrollbar-gutter rule in
+   the base rules is a secondary, desktop/Chrome-specific version of the
+   same symptom, not the one that showed up on iOS Safari. z-index: 0
+   keeps it behind the figure/label (z-index: 1), so those still take
+   priority over their own areas. */
 .product-card__bar-link {
   position: absolute;
   top: 50%;
-  left: 50%;
-  background: var(--white);
-  transform: translate(-50%, -50%);
+  left: calc(50% - 50vw);
+  background: var(--black-bg);
+  transform: translateY(-50%);
   width: 100vw;
   height: 1.2rem;
   z-index: 0;
@@ -680,7 +720,7 @@ button, input, textarea {
   position: relative;
   width: clamp(210px, 45vw, 795px);
   height: clamp(210px, 45vw, 795px);
-  padding: clamp(42px, 12vw, 225px);
+  padding: clamp(24px, 6vw, 110px);
   overflow: hidden;
 }
 
@@ -710,6 +750,7 @@ button, input, textarea {
 }
 .product-card__label-name {
   font-family: var(--font-main);
+  color: var(--white);
 }
 .product-card__label-type {
   font-family: var(--font-secondary);
