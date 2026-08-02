@@ -743,14 +743,24 @@ button, input, textarea {
   object-fit: cover;
 }
 
-/* Flush against the center line (start of the right half), so it sits
-   right next to the model's border. */
+/* A fixed-width box centered in the right column (grid-column: 2 — itself
+   already the right half of .product-grid's centered, max-width-capped
+   row, so centering here reads as centering in "the right column of the
+   viewport"), with its text left-justified inside that box. Replaces an
+   earlier version flush against the center line with a fluid
+   padding-left: 12vw push — fine on wide screens, but that push scales
+   with viewport width while the model column's own clamp()-based sizing
+   doesn't, so the two drifted out of proportion on narrow phone screens
+   specifically (the label crowding the model or overflowing toward the
+   screen edge). A fixed box width anchored to the column's own center
+   stays visually consistent at any viewport size instead. */
 .product-card__label {
   grid-column: 2;
-  justify-self: start;
+  justify-self: center;
+  width: 6.25rem; /* 100px at the root 16px font-size */
   position: relative;
   z-index: 1;
-  padding-left: 12vw;
+  text-align: left;
   white-space: nowrap;
   font-size: 1rem;
   letter-spacing: 0.05em;
