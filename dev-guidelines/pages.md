@@ -20,7 +20,7 @@ Hero (`#revealSection`) — a scroll-driven x-ray reveal effect over a hand imag
 
 ## `product.html` — product detail
 
-Driven by a `?id=...` query string resolved against `data/products.json` (see `client-scripts.md`'s `product.js` section). Sections, in the order they appear (numbered in the HTML's own comments): label bar → carousel (3D model or photo slides, drag/click-rim navigation only, no visible arrows) → metal picker → select button → description → characteristics (metal-dependent specs) → shipping/returns (static text, same on every product) → the size-selection modal (a sibling of `<main>`, not nested inside it — opened by the select button).
+Driven by a `?id=...` query string resolved against `data/products.json` (see `client-scripts.md`'s `product.js` section). Sections, in the order they appear (numbered in the HTML's own comments): label bar → carousel (3D model or photo slides; drag to scroll freely, or tap a slide to center it — no visible arrows, no rim click zones) → metal picker → select button → description → characteristics (metal-dependent specs) → shipping/returns (static text, same on every product) → the size-selection modal (a sibling of `<main>`, not nested inside it — opened by the select button).
 
 Everything text/image-related starts empty or `hidden` in the markup and gets filled in by `js/product.js` once the product data loads.
 

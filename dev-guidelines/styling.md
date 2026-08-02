@@ -1,6 +1,6 @@
 # Styling
 
-One file, `css/style.css` (~1911 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
+One file, `css/style.css` (~1881 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
 
 ## Design tokens (`:root`, lines 5–57)
 
@@ -34,20 +34,20 @@ Regular (400), Bold (700), and Black (900, driven by `--button-font-weight` — 
 | 583–618 | Section heads (shared component) |
 | 619–777 | Products (homepage grid) — `.product-card__label` is a fixed-width box (`width: 6.25rem`) centered in its grid column via `justify-self: center`, replacing an earlier viewport-relative `padding-left: 12vw` push that drifted out of proportion against the model column's own sizing on narrow phones |
 | 778–852 | Selection / order page |
-| 853–1599 | Product detail page (by far the largest — sub-map below) |
-| 1600–1615 | Footer |
-| 1616–1911 | Floating selection bar |
+| 853–1569 | Product detail page (by far the largest — sub-map below) |
+| 1570–1585 | Footer |
+| 1586–1881 | Floating selection bar |
 
 **Product detail sub-map** (matches the numbered comments in both this file and `product.html`):
 
 - 893 — label bar
-- 987 — carousel
-- 1150 — metal selection
-- 1254 — select button
-- 1280 — prose sections (description / characteristics / shipping)
-- 1331 — size-selection modal (1402 standard sizes, 1475 custom size, 1555 size guide, 1569 confirm button)
+- 987 — carousel (no rim click zones anymore — dropped in favor of drag-to-scroll plus tap-a-slide-to-center-it, all in JS; see `client-scripts.md`)
+- 1120 — metal selection
+- 1224 — select button
+- 1250 — prose sections (description / characteristics / shipping)
+- 1301 — size-selection modal (1372 standard sizes, 1445 custom size, 1525 size guide, 1539 confirm button)
 
-**Floating selection bar sub-map**: 1670 — summary row (always visible in the DOM/markup sense — see the scroll-driven entrance note below for the one page where it isn't always *shown*), 1815 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
+**Floating selection bar sub-map**: 1640 — summary row (always visible in the DOM/markup sense — see the scroll-driven entrance note below for the one page where it isn't always *shown*), 1785 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
 
 ## `.reveal__ring` (lines 411–414 for the `--ring-*` fallbacks, 532–543 for the rule itself) — ring-on-hand overlay
 
@@ -78,7 +78,7 @@ Recognizing these by pattern saves re-deriving them every time:
 1. **Backdrop-filter invert band** — `position:absolute; left:50%; top/bottom:50%; width:100vw; transform:translate(-50%,-50%); backdrop-filter:invert(1);`. Used 3 times: `.reveal__frontier`, `.product-detail__label-bar::before`, `.selection-bar__row::before`. The label bar and selection-bar row versions are each paired with a solid-color sibling (`#e5e5e5`) tuned so the inverted result matches `--black-bg` exactly, rather than inverting whatever happens to sit behind them.
 2. **Full-bleed breakout of a centered column** — two variants: `left:calc(50% - 50vw); width:100vw` for absolutely-positioned overlays needing only one axis this way (`.product-card__bar-link` — vertical centering there still uses `top:50%; transform:translateY(-50%)`, a separate axis with no equivalent single-step expression), vs. `width:100vw; margin-left/right: calc(50% - 50vw)` for normal-flow blocks (`.product-detail__select`). `.product-card__bar-link` used to pair `left:50%` with `transform:translateX(-50%)` instead of the `calc()` form — changed because that pairing mixes two independently-rounded values (a % of the card's own width, then a transform based on the bar's own `100vw` width), which on some device pixel ratios showed up as a hairline gap at one screen edge. `.size-modal__confirm` used to be a second example of the margin-based variant but no longer breaks out to the true viewport edge — it now stays flush with `--size-modal-max`'s own edges instead (`width: calc(100% + 2 * var(--edge-px)); margin: 0 calc(-1 * var(--edge-px)) 0`), so it tracks the modal's narrowed width on wide screens rather than overshooting past it.
 3. **`grid-template-rows: 0fr → 1fr` open/close reveal** — animates a height from/to auto without ever measuring it in JS. Used by `.site-header__menu` and the size modal's size-guide panel.
-4. **Container queries** (`container-type: inline-size` + `cqw` units) — `.product-carousel-frame` (tile size, rim width), `.product-metals` (swatch width), `.size-modal__custom-row` (custom-size input width). Used wherever a component's internal sizing needs to respond to its own box rather than the viewport.
+4. **Container queries** (`container-type: inline-size` + `cqw` units) — `.product-carousel-frame` (tile size), `.product-metals` (swatch width), `.size-modal__custom-row` (custom-size input width). Used wherever a component's internal sizing needs to respond to its own box rather than the viewport.
 5. **Always-rendered, toggled-transparent indicator dot** — reserves its own layout space up front so selecting an option never shifts adjacent text. Used by the metal picker and both the standard/custom rows of the size modal.
 6. **Full-bleed clickable divider bar as one real element** — `.product-card__bar-link` is a single `<a>` breakout out to `100vw` (`--black-bg`, with `.product-card__label-name` set to `--white` so the product name stays legible over it — `.product-card__label-type`'s existing `--category-col` grey already read fine against black), used as the whole row's click target, rather than an invisible overlay layered on top of separate content.
 7. **`min-width: 0` to stop a grid item's content from ballooning its container** — grid items default to `min-width: auto`, i.e. they refuse to shrink below their own content's minimum size, which can force a track (and everything containing it) wider than intended. `.product-card` needs this: `.product-card__figure`'s explicit `clamp(210px, …)` floor alone already exceeds half of a narrow phone's available width, which — without `min-width: 0` — was forcing `.product-grid`, and so the whole page, wider than the viewport (visible as `.product-card__bar-link`'s breakout landing a few px off-center, with a matching hairline of genuinely scrollable overflow on the far edge).
