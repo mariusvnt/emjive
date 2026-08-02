@@ -30,9 +30,9 @@
      alongside "metalDetails") is updated in place to point at it — the old
      file, if the path changed, is deleted.
    - One top shot per product: a straight-down (camera-orbit phi: 0deg)
-     view lit only by a plain procedural room environment (RoomEnvironment,
-     three.js's own stand-in for a neutral studio IBL — deliberately NOT
-     the studio HDRI every other render here uses) plus a soft contact
+     view lit by the same studio HDRI every other render here uses (set by
+     window.EmjiveModelViewer itself before onReady fires — this harness
+     doesn't touch scene.environment for top shots) plus a soft contact
      shadow, rather than the flat/shadowless cutout look of the icons.
      Also includes an invisible "finger" occluder (see scanFingerHole/
      addFingerOccluder below) — with no hand model in these renders, a
@@ -153,7 +153,6 @@ const HARNESS_HTML = `<!doctype html>
 </head><body>
 <script type="module">
   import * as THREE from "three";
-  import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
   window.__renderReady = false;
 
@@ -172,10 +171,6 @@ const HARNESS_HTML = `<!doctype html>
   function disposeCurrentHandle() {
     if (currentHandle && currentHandle.renderer) currentHandle.renderer.dispose();
     currentHandle = null;
-    // This harness's own separate RoomEnvironment cache (top-shot-only,
-    // never touched by js/three-viewer.js itself) has the same
-    // one-texture-per-context constraint — see getRoomEnvironment() below.
-    roomEnvCache = null;
   }
 
   function mountTargetWrap(sizePx) {
@@ -212,22 +207,6 @@ const HARNESS_HTML = `<!doctype html>
     wrap.appendChild(handle.el);
     currentHandle = handle;
   };
-
-  // three.js has no built-in neutral-studio IBL the way model-viewer's own
-  // default environment was — RoomEnvironment (three/addons) is the
-  // ecosystem's standard stand-in for exactly this (it's literally modeled
-  // on model-viewer's own built-in environment scene). Cached at module
-  // scope, built lazily on first use, reused across every top-shot render
-  // this run — same reasoning as js/three-viewer.js's own shared HDRI cache.
-  var roomEnvCache = null;
-  function getRoomEnvironment(renderer) {
-    if (!roomEnvCache) {
-      var pmrem = new THREE.PMREMGenerator(renderer);
-      roomEnvCache = pmrem.fromScene(new RoomEnvironment()).texture;
-      pmrem.dispose();
-    }
-    return roomEnvCache;
-  }
 
   // A soft radial-gradient contact shadow under the model, generated
   // on the fly (a plain 2D canvas gradient) rather than a static asset —
@@ -334,11 +313,10 @@ const HARNESS_HTML = `<!doctype html>
   }
 
   // Still built via window.EmjiveModelViewer first — same METAL_PRESETS
-  // material application as every other render — then deliberately
-  // diverges on exactly two things: camera angle (straight down) and
-  // lighting (RoomEnvironment's plain procedural IBL, not the studio HDRI
-  // every other render here uses, plus the soft contact shadow above, so
-  // "light from above" actually reads in a still image).
+  // material application AND same studio HDRI as every other render — then
+  // deliberately diverges on exactly two things: camera angle (straight
+  // down) and the added soft contact shadow below, so "light from above"
+  // actually reads in a still image.
   window.__renderTopShot = function (product, metalKey, sizePx) {
     window.__renderReady = false;
     disposeCurrentHandle();
@@ -354,7 +332,10 @@ const HARNESS_HTML = `<!doctype html>
       transparentBackground: true,
       static: true,
       onReady: function () {
-        handle.scene.environment = getRoomEnvironment(handle.renderer);
+        // handle.scene.environment is already the studio HDRI here —
+        // window.EmjiveModelViewer sets it itself before onReady fires
+        // (see js/three-viewer.js's environmentPromise), so no override
+        // needed.
         // Measured before anything else is added to the scene — both
         // addFingerOccluder and addShadowPlane need the model's own
         // bounding box, not one inflated by each other.
