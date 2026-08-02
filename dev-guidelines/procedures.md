@@ -21,7 +21,7 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
    product (no background), one per metal it can be shown in (not just its
    default — the product page's metal picker swaps the icon to match
    whichever finish is currently selected). Easiest way: set `"model"` and
-   `"cameraOrbit"` below first, then run `npm run auto-render` (see
+   `"camera-setup"` below first, then run `npm run auto-render` (see
    "Re-rendering icons and metal swatches" further down) — it renders every
    metal's icon itself and fills in `"icons"` for you, guaranteed to match
    the model's pose since it's the exact same render pipeline. Only used as
@@ -46,7 +46,7 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
   },
   "onHand": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
   "model": "assets/products/your-item-name/model.glb",
-  "cameraOrbit": "0deg 75deg 105%",
+  "camera-setup": { "rotation": 0, "tilt": 75, "zoom": 105 },
   "metal": "silver",
   "metalDetails": {
     "steel":  { "price": 0, "weight": "", "composition": "" },
@@ -99,9 +99,9 @@ image appears overlaid on the homepage hero's x-ray hand. Leave
 you've actually positioned it — `x`/`y` are the image's center as a % of
 the hand image's own width/height, `scale` its width as a % of the same,
 `rotation` in degrees. There's no live-preview tool for this the way
-`cameraOrbit` at least has "drag it, read the values back"; easiest way
+`camera-setup` at least has "drag it, read the values back"; easiest way
 in practice is to open the homepage, guess-and-check by editing these
-four and reloading, the same trial-and-error `cameraOrbit` itself
+four and reloading, the same trial-and-error `camera-setup` itself
 recommends just below. Any number of products can have `"visible": true`
 at once — each gets its own independently-positioned overlay.
 
@@ -134,27 +134,27 @@ custom-size field available.
 
 ### Setting a model's default view
 
-Add `"cameraOrbit"` (and optionally `"cameraTarget"`) to a product entry to
+Add `"camera-setup"` (and optionally `"cameraTarget"`) to a product entry to
 control the angle it loads at. It's also the pose the model eases back to
 smoothly whenever you let go after dragging it:
 
 ```json
-"cameraOrbit": "0deg 75deg 105%"
+"camera-setup": { "rotation": 0, "tilt": 75, "zoom": 105 }
 ```
 
-The format is `"<theta>deg <phi>deg <radius%>"` — theta spins it left/right,
-phi tilts it up/down (90deg = eye-level), radius is zoom as a `%` of the
-distance that exactly frames the model's bounding sphere (`js/three-viewer.js`'s
-`parseOrbitString()` — unlike the old model-viewer-based system, radius is
-always a percent, never an absolute distance like `1.2m`). If `cameraOrbit`
-is omitted, it falls back to `"0deg 75deg 105%"`.
+`rotation` spins it left/right, `tilt` tilts it up/down (90 = eye-level),
+`zoom` is a `%` of the distance that exactly frames the model's bounding
+sphere (`js/three-viewer.js`'s `parseOrbitConfig()` — unlike the old
+model-viewer-based system, `zoom` is always a percent, never an absolute
+distance like `1.2m`). If `camera-setup` is omitted, it falls back to
+`{ rotation: 0, tilt: 75, zoom: 105 }`.
 
 There's no console helper like the old `model-viewer.getCameraOrbit()` to
 read back an angle you've dragged to — `TrackballControls` doesn't track
-orbit in theta/phi terms, it just holds a raw camera position. Easiest way
+orbit in these terms, it just holds a raw camera position. Easiest way
 to find good numbers in practice: open the page, drag the model to the
 angle you want it to default to as a visual reference, then edit
-`cameraOrbit` in `products.json` and reload to compare, repeating until it
+`camera-setup` in `products.json` and reload to compare, repeating until it
 matches.
 
 ### Choosing a product's metal
@@ -194,12 +194,13 @@ A product's `icons`, its top shots (`assets.top-shot`), and the metal
 picker's swatch bars (`css/style.css`'s
 `.product-metals__option[data-metal="..."]`) are all real renders of the
 PBR material — not hand-picked colors or gradients — using the exact same
-`METAL_PRESETS` values the live 3D models use. Icons and swatches also
-share the same environment HDRI (`assets/hdri/studio_kontrast_04_1k.hdr`);
-top shots deliberately don't (see below). If you change anything in
-`METAL_PRESETS`, **all three need to be re-rendered to stay accurate** —
-swapping the HDRI only affects icons/swatches, not top shots. Nothing
-regenerates any of them automatically.
+`METAL_PRESETS` values the live 3D models use. All three also share the
+same environment HDRI (`assets/hdri/studio_kontrast_04_1k.hdr`) — top
+shots used to be lit with a plain `RoomEnvironment` instead, but that
+override was removed since `window.EmjiveModelViewer` already sets the
+studio HDRI before a render's `onReady` fires. If you change anything in
+`METAL_PRESETS` or swap the HDRI file, **all three need to be re-rendered
+to stay accurate**. Nothing regenerates any of them automatically.
 
 ```bash
 npm install               # first time only — pulls in puppeteer-core + sharp
@@ -235,20 +236,19 @@ list, if none are given):
   (e.g. `assets/products/furcula_ring/furcula_icon_steel.webp`), and
   `data/products.json`'s `"icons"` object for that product is updated in
   place to match (the previous file for that metal is deleted if the path
-  changed). Uses the product's own `model` + `cameraOrbit` from
+  changed). Uses the product's own `model` + `camera-setup` from
   `products.json`, and the same shared studio HDRI (`assets/hdri/studio_kontrast_04_1k.hdr`)
   the live site uses.
-- **Top shots** — one per product per metal, same as icons. A straight-down
-  view (`0deg 0deg <radius>`, reusing the product's own `cameraOrbit`
-  radius but always theta 0deg for a canonical top-down framing regardless
-  of that product's own default rotation) lit *without* the studio HDRI —
-  three.js has no built-in neutral-studio IBL the way model-viewer's own
-  default environment was, so the harness uses `RoomEnvironment`
-  (`three/addons/environments/RoomEnvironment.js`, the ecosystem's
-  standard stand-in for exactly this — it's literally modeled on
-  model-viewer's own built-in environment scene) — plus a soft contact
-  shadow (a radial-gradient texture generated on the fly with a 2D canvas,
-  not a static asset, on a plane positioned at the model's bounding-sphere
+- **Top shots** — one per product per metal, same as icons, and lit with
+  that same studio HDRI (set by `window.EmjiveModelViewer` itself before
+  `onReady` fires — the harness used to swap in a plain `RoomEnvironment`
+  here instead, three.js's stand-in for a neutral studio IBL, but that
+  override was removed as an unnecessary divergence). A straight-down view
+  (`{ rotation: 0, tilt: 0, zoom }`, reusing the product's own `camera-setup`
+  zoom but always rotation 0 for a canonical top-down framing regardless
+  of that product's own default rotation) plus a soft contact shadow (a
+  radial-gradient texture generated on the fly with a 2D canvas, not a
+  static asset, on a plane positioned at the model's bounding-sphere
   floor), rather than the flat, shadow-free cutout look of the icons.
   Also includes an invisible "finger" occluder plane, so the ring's own
   geometry that a real finger would hide (the band's inner wall, or a
