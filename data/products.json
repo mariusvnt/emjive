@@ -101,6 +101,31 @@
         "silver": { "price": 0, "weight": "", "composition": "" },
         "bronze": { "price": 0, "weight": "", "composition": "" }
       }
+    },
+    {
+      "id": "04",
+      "name": "Marrow",
+      "category": "ring",
+      "description": "",
+      "icons": {
+        "steel":  "assets/products/marrow_ring/marrow_icon_steel.webp",
+        "silver": "assets/products/marrow_ring/marrow_icon_silver.webp",
+        "bronze": "assets/products/marrow_ring/marrow_icon_bronze.webp"
+      },
+      "photos": [],
+      "assets": {
+        "xray": "",
+        "top-shot": { "steel": "assets/products/marrow_ring/marrow_top-shot_steel.webp", "silver": "assets/products/marrow_ring/marrow_top-shot_silver.webp", "bronze": "assets/products/marrow_ring/marrow_top-shot_bronze.webp" }
+      },
+      "onHand": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "model": "assets/products/marrow_ring/Marrow_gltf.glb",
+      "camera-setup": { "rotation": 20, "tilt": 80, "zoom": 105 },
+      "metal": "steel",
+      "metalDetails": {
+        "steel":  { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      }
     }
   ]
 }
