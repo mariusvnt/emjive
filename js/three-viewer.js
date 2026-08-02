@@ -733,11 +733,22 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var wrapper = document.createElement("div");
     wrapper.className = "emjive-3d-viewer";
 
-    var renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: true
-    });
+    var renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true
+      });
+    } catch (err) {
+      // Same WebGL-context-budget failure mode as buildThreeViewer() above
+      // — see its own comment. This harness-only builder has no icon
+      // fallback to hand back, so callers (scripts/auto-render.js) just
+      // get null instead of an uncaught throw, and decide what to do
+      // themselves.
+      console.error("emjive: could not create a WebGL context for the", metalKey, "swatch", err);
+      return null;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(sizePx, sizePx, false);
     renderer.setClearColor(0x000000, 0);

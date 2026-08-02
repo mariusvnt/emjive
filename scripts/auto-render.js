@@ -201,6 +201,16 @@ const HARNESS_HTML = `<!doctype html>
         });
       }
     });
+    if (!handle) {
+      // window.EmjiveModelViewer returns null (rather than throwing) if
+      // the browser couldn't grant a WebGL context — see its own comment.
+      // There's no icon fallback to fall back to here, unlike the live
+      // site: this whole run's job IS to produce that fallback image, so
+      // failing loudly with a clear message beats either a cryptic
+      // "Cannot set properties of null" crash or silently skipping a
+      // product/metal and shipping an incomplete set of renders.
+      throw new Error("could not create a WebGL context while rendering the icon for " + product.name + " (" + metalKey + ")");
+    }
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
@@ -378,6 +388,12 @@ const HARNESS_HTML = `<!doctype html>
         });
       }
     });
+    if (!handle) {
+      // See the matching check in window.__renderTarget above for why
+      // this throws instead of silently skipping or crashing on a null
+      // dereference.
+      throw new Error("could not create a WebGL context while rendering the top shot for " + product.name + " (" + metalKey + ")");
+    }
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
@@ -403,6 +419,12 @@ const HARNESS_HTML = `<!doctype html>
         });
       }
     });
+    if (!handle) {
+      // See the matching check in window.__renderTarget above for why
+      // this throws instead of silently skipping or crashing on a null
+      // dereference.
+      throw new Error("could not create a WebGL context while rendering the " + metalKey + " swatch");
+    }
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
