@@ -45,9 +45,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // The single source of truth repo-wide (scripts/auto-render.js reuses
   // this exact module, not a separate copy).
   var METAL_PRESETS = {
-    steel: { baseColorFactor: [120 / 255, 120 / 255, 135 / 255, 1], metallicFactor: 1.0, roughnessFactor: 0.3 },
-    silver: { baseColorFactor: [240 / 255, 240 / 255, 240 / 255, 1], metallicFactor: 1.0, roughnessFactor: 0.18 },
-    bronze: { baseColorFactor: [255 / 255, 156 / 255, 41 / 255, 1], metallicFactor: 0.95, roughnessFactor: 0.16 }
+    steel: { baseColorFactor: [120 / 255, 120 / 255, 135 / 255, 1], metallicFactor: 1.0, roughnessFactor: 0.15 },
+    silver: { baseColorFactor: [240 / 255, 240 / 255, 240 / 255, 1], metallicFactor: 1.0, roughnessFactor: 0.09 },
+    bronze: { baseColorFactor: [255 / 255, 156 / 255, 41 / 255, 1], metallicFactor: 0.95, roughnessFactor: 0.08 }
   };
 
   function metalToStandardMaterialParams(metalKey) {
