@@ -227,33 +227,30 @@
     return { min: min, max: max, width: availableWidth };
   }
 
-  function applyOffset(offsetPx, animate) {
+  // transition, when given, overrides the default snap — see
+  // CENTER_TRANSITION below, the sole caller that does.
+  function applyOffset(offsetPx, animate, transition) {
     var track = document.getElementById("productCarouselTrack");
-    track.style.transition = animate ? "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)" : "none";
+    track.style.transition = animate ? (transition || "transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)") : "none";
     track.style.transform = "translateX(" + offsetPx + "px)";
     state.scrollOffset = offsetPx;
   }
 
-  // The rims aren't a fixed size — each one spans the whole run of empty
-  // space between the screen edge and whichever tile is currently closest
-  // to centered (the "active" one), so previous/next is clickable
-  // anywhere in that runway, not just a thin strip at the very edge. Only
-  // called at rest (after a render, a resize, a rim click, or a drag
-  // settles) — while actively dragging, the viewport has pointer capture
-  // anyway, so the rims can't be clicked until it ends.
-  function updateRims() {
-    if (state.slideCount <= 1) return;
-    var bounds = computeBounds();
-    var tile = measureTileWidth();
-    var index = Math.round((bounds.max - state.scrollOffset) / tile);
-    index = Math.max(0, Math.min(state.slideCount - 1, index));
-    var tileLeft = index * tile + state.scrollOffset;
-    var tileRight = tileLeft + tile;
-    var leftWidth = Math.max(0, Math.min(bounds.width, tileLeft));
-    var rightWidth = Math.max(0, Math.min(bounds.width, bounds.width - tileRight));
-    document.getElementById("carouselRimLeft").style.width = leftWidth + "px";
-    document.getElementById("carouselRimRight").style.width = rightWidth + "px";
-  }
+  // Shared by every way a slide gets centered — tapping it directly, or a
+  // phone-style paging drag settling onto it (see wireCarouselNav) — so
+  // both read as the same gesture language rather than two different
+  // animation feels. Same perfectly symmetric ease-in-out curve as
+  // applyOffset's own default above (control points mirrored around the
+  // curve's own center: (0.4, 0) and its point-reflection (0.6, 1)) — a
+  // real zero-velocity start easing into an equally gentle, symmetric
+  // stop, rather than a front-loaded curve that reads as an abrupt jump
+  // once it's covering a full tile's width.
+  var CENTER_TRANSITION = "transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)";
+  // Same symmetric curve, shorter — used only when a phone drag cancels
+  // a slide change (doesn't commit, so it settles back on the slide it
+  // started on) rather than actually landing on a different one; see
+  // settleDrag in wireCarouselNav.
+  var CANCEL_TRANSITION = "transform 0.2s cubic-bezier(0.4, 0, 0.6, 1)";
 
   // reset (true right after a product's slides are (re)built) snaps to the
   // starting position (first tile centered). Otherwise (on resize) the
@@ -265,16 +262,23 @@
     var bounds = computeBounds();
     var target = reset ? bounds.max : Math.max(bounds.min, Math.min(bounds.max, state.scrollOffset));
     applyOffset(target, false);
-    updateRims();
   }
 
-  function scrollByTiles(direction) {
+  // Centers a given slide — either a direct tap on it, or where a phone's
+  // paging drag settles (see wireCarouselNav) — jumping straight there
+  // however far from center it started, not a step-by-one-tile page.
+  // index 0 centers the first tile (offset bounds.max), the last index
+  // centers the last tile (bounds.min), same mapping computeBounds' own
+  // comment describes. CENTER_TRANSITION by default, so every way a
+  // slide gets centered moves identically — transition overrides that
+  // (see CANCEL_TRANSITION's use in settleDrag, the sole caller that
+  // does).
+  function centerOnSlide(index, transition) {
     if (state.slideCount <= 1) return;
     var bounds = computeBounds();
     var tile = measureTileWidth();
-    var target = Math.max(bounds.min, Math.min(bounds.max, state.scrollOffset - direction * tile));
-    applyOffset(target, true);
-    updateRims();
+    var target = Math.max(bounds.min, Math.min(bounds.max, bounds.max - index * tile));
+    applyOffset(target, true, transition || CENTER_TRANSITION);
   }
 
   // WebKit-style rubber-band damping for drag-past-the-bounds overshoot,
@@ -285,36 +289,27 @@
     return (overshoot * dimension * c) / (dimension + c * overshoot);
   }
 
-  // No visible arrows: navigation is either a short tap/click on the
-  // left/right rim (invisible edge zones, always present in the markup),
-  // which scrolls by one tile-width, or a real drag — starting on a rim
-  // or directly on the filmstrip — to any position freely, no snapping to
-  // a discrete "active slide". The rims need the SAME drag handling as
-  // the viewport itself (not just a click listener) since they visually
-  // sit on top of it (z-index: 2, covering part of its area) and would
-  // otherwise swallow pointerdown before a drag starting there ever
-  // reached the viewport. Wired once here, since the viewport/track/rim
+  // Same breakpoint css/style.css's .product-grid rule uses for its own
+  // phone-vs-wide-screen switch — the only responsive threshold anywhere
+  // on the site, reused here rather than inventing a second one.
+  function isMobileCarousel() {
+    return window.matchMedia("(max-width: 640px)").matches;
+  }
+
+  // No visible arrows: navigation is either a tap on a slide, which jumps
+  // straight to centering that slide — however far from center it
+  // started, not a step-by-one-tile page — or a real drag. A real drag's
+  // release behaves differently by screen size: on a wide screen it lands
+  // exactly wherever the drag left it, free, clamped back into bounds; on
+  // a phone (see isMobileCarousel above) it always pages exactly one
+  // slide forward/backward in the drag's direction and centers it, since
+  // free positioning there mostly just leaves the filmstrip resting
+  // between two slides. Wired once here, since the viewport/track
   // elements are static markup in product.html — only the slides inside
   // the track change per product.
   function wireCarouselNav() {
-    var rimLeft = document.getElementById("carouselRimLeft");
-    var rimRight = document.getElementById("carouselRimRight");
     var viewport = document.querySelector(".product-carousel__viewport");
-    var surfaces = [viewport, rimLeft, rimRight];
-
-    // Keyboard-only fallback (Tab, then Enter/Space) — real pointer taps
-    // are handled entirely below instead. A mouse (unlike touch) still
-    // fires a native click after pointerup on a <button> regardless of
-    // how far it moved in between, so without suppressClick this would
-    // double-fire on top of endDrag's own handling of the same tap/drag.
-    rimLeft.addEventListener("click", function () {
-      if (suppressClick) return;
-      scrollByTiles(-1);
-    });
-    rimRight.addEventListener("click", function () {
-      if (suppressClick) return;
-      scrollByTiles(1);
-    });
+    var track = document.getElementById("productCarouselTrack");
 
     // Otherwise a mouse drag starting on a photo kicks off the browser's
     // own native image-drag-and-drop gesture (desktop only — touch drags
@@ -322,26 +317,37 @@
     // below. img.draggable = false (set in buildImageSlide) covers real
     // <img> slides; this covers anything else a browser might still try
     // to drag (e.g. the 3D viewer's poster image while it's loading).
-    surfaces.forEach(function (surface) {
-      surface.addEventListener("dragstart", function (e) { e.preventDefault(); });
-    });
+    viewport.addEventListener("dragstart", function (e) { e.preventDefault(); });
 
     var dragging = false;
     var dragStartX = 0;
+    var dragStartY = 0;
     var dragStartOffset = 0;
     var dragBounds = null;
-    var dragSurface = null;
-    // True for the brief window after endDrag has already acted on a
-    // rim-originated tap/drag itself, covering the native click that
-    // still follows right behind it (see the click listeners above).
-    // Cleared on the next tick regardless, in case that click never
-    // actually fires (e.g. the release lands outside the rim's bounds).
-    var suppressClick = false;
-    // Below this much pointer movement, a release counts as a tap (fires
-    // the rim's scroll-by-one-tile action if it started on one) rather
-    // than a drag — same threshold js/main.js's wireModelClickNavigation
-    // uses for the equivalent click-vs-drag problem on the 3D models.
+    // The slide the pointer actually landed on at dragStart (from that
+    // event's own target, before pointer capture below starts pinning
+    // every subsequent event's target to the viewport) — used by endDrag
+    // to know which slide to center on a tap.
+    var dragStartSlide = null;
+    // Below this much pointer movement, a release counts as a tap (center
+    // whichever slide it started on) rather than a drag — same threshold
+    // js/main.js's wireModelClickNavigation uses for the equivalent
+    // click-vs-drag problem on the 3D models. Doubles as the axis-lock
+    // slop below, so there's a single "did this actually move" threshold
+    // rather than two competing ones.
     var TAP_THRESHOLD = 6;
+    // Which pointer (if any) is currently being tracked from pointerdown
+    // through its eventual pointerup/cancel — including the ambiguous
+    // window right after pointerdown, before axisLocked below is decided.
+    var trackedPointerId = null;
+    // Set the moment a tracked pointer's movement first exceeds
+    // TAP_THRESHOLD on either axis: true if it turned out horizontal
+    // (dragging becomes true, the carousel takes over), false if vertical
+    // (handed off untouched to the browser's own touch-action: pan-y
+    // scroll — see .product-carousel__viewport). Stays null while still
+    // ambiguous, so a real tap (which never crosses the slop at all)
+    // never has to pick an axis.
+    var axisLocked = null;
     // Recent drag speed (px/ms), exponentially smoothed frame to frame so
     // a single jittery pointermove right before release doesn't dominate
     // it — used to give the release a small momentum coast in endDrag.
@@ -355,20 +361,46 @@
       // the carousel.
       if (state.slideCount <= 1 || e.target.closest(".emjive-3d-viewer")) return;
       dragBounds = computeBounds();
-      dragging = true;
-      dragSurface = e.currentTarget;
+      trackedPointerId = e.pointerId;
+      axisLocked = null;
+      dragStartSlide = e.target.closest(".product-carousel__slide");
       dragStartX = e.clientX;
+      dragStartY = e.clientY;
       dragStartOffset = state.scrollOffset;
       dragLastX = e.clientX;
       dragLastT = e.timeStamp;
       dragVelocity = 0;
-      applyOffset(state.scrollOffset, false); // kill any in-flight transition
-      e.currentTarget.setPointerCapture(e.pointerId);
+      // Deliberately no setPointerCapture/dragging=true/applyOffset here
+      // yet — which axis this gesture is on isn't known until it clears
+      // TAP_THRESHOLD in onPointerMove below. Committing to the carousel
+      // this early used to mean a touch that turned out to be a vertical
+      // scroll still nudged the filmstrip sideways on its natural
+      // diagonal wobble before the browser recognized the scroll,
+      // fighting the page's own touch-action: pan-y the whole time.
     }
 
     function onPointerMove(e) {
+      if (e.pointerId !== trackedPointerId) return;
+      var dx = e.clientX - dragStartX;
+      var dy = e.clientY - dragStartY;
+
+      if (axisLocked === null) {
+        if (Math.abs(dx) < TAP_THRESHOLD && Math.abs(dy) < TAP_THRESHOLD) return; // still ambiguous
+        axisLocked = Math.abs(dx) > Math.abs(dy);
+        if (!axisLocked) {
+          // Vertical — hand off to the browser's native pan-y scroll and
+          // stop tracking this pointer entirely; nothing here has
+          // touched the carousel yet, so there's nothing to undo.
+          trackedPointerId = null;
+          return;
+        }
+        dragging = true;
+        applyOffset(state.scrollOffset, false); // kill any in-flight transition
+        viewport.setPointerCapture(e.pointerId);
+      }
       if (!dragging) return;
-      var raw = dragStartOffset + (e.clientX - dragStartX);
+
+      var raw = dragStartOffset + dx;
       var next;
       if (raw > dragBounds.max) {
         var startOvershoot = raw - dragBounds.max;
@@ -391,45 +423,104 @@
     }
 
     function endDrag(e) {
-      if (!dragging) return;
+      if (e.pointerId !== trackedPointerId) return;
+      trackedPointerId = null;
+      var wasDragging = dragging;
       dragging = false;
-      if (dragSurface === rimLeft || dragSurface === rimRight) {
-        // Whatever happens below already IS this interaction's full
-        // handling — the click that's about to follow on the rim button
-        // would just repeat it (see the click listeners above).
-        suppressClick = true;
-        setTimeout(function () { suppressClick = false; }, 0);
+      if (!wasDragging) {
+        // Never crossed the axis-lock slop in onPointerMove — a tap, not
+        // a drag. (If it turned out vertical instead, onPointerMove
+        // already cleared trackedPointerId itself and this function
+        // returned above before ever reaching here — nothing to do,
+        // since the carousel never touched the track for that gesture.)
+        // Any sub-threshold jitter was never applied in the first place
+        // (onPointerMove returns early until the slop is cleared), so
+        // there's nothing to snap back from — just center whichever
+        // slide it landed on.
+        if (dragStartSlide) centerOnSlide(Array.prototype.indexOf.call(track.children, dragStartSlide));
+        return;
       }
-      if (Math.abs(e.clientX - dragStartX) < TAP_THRESHOLD) {
-        // A tap, not a drag — snap back to exactly where we started (any
-        // sub-threshold jitter already applied via onPointerMove) and
-        // fire the surface's own tap action, if it has one.
-        applyOffset(dragStartOffset, false);
-        if (dragSurface === rimLeft) scrollByTiles(-1);
-        else if (dragSurface === rimRight) scrollByTiles(1);
+      settleDrag(e);
+    }
+
+    // A pointercancel means the browser interrupted this pointer's normal
+    // processing itself — most commonly a vertical scroll on a phone:
+    // touch-action: pan-y lets the browser take that over natively, and
+    // it can send the cancel before our own onPointerMove ever sees
+    // enough movement to axis-lock (a fast vertical swipe is recognized
+    // and handed to native scrolling almost immediately). That used to
+    // reach endDrag with dragging still false, which read as "a tap" and
+    // centered whatever slide the touch started on — including jumping
+    // to it from wherever the strip currently was, if that slide wasn't
+    // the one already centered. A cancel should never be read as a tap:
+    // it's specifically the "this wasn't a deliberate pointer gesture on
+    // this element" signal, so an unresolved one is a pure no-op here.
+    function onPointerCancel(e) {
+      if (e.pointerId !== trackedPointerId) return;
+      trackedPointerId = null;
+      var wasDragging = dragging;
+      dragging = false;
+      if (!wasDragging) return;
+      // Did commit to a horizontal drag before being interrupted — settle
+      // it same as a real release, except by the strip's own current
+      // (already live-updated) position rather than this event's
+      // coordinates, which a cancel doesn't reliably carry.
+      settleDrag(null);
+    }
+
+    // Shared release-settling for a real horizontal drag, whether it
+    // ended in a clean pointerup (e is that event, used for the mobile
+    // page's direction/distance) or was interrupted mid-drag (e is null —
+    // see onPointerCancel above, which settles by position instead).
+    function settleDrag(e) {
+      if (isMobileCarousel()) {
+        var tile = measureTileWidth();
+        var startIndex = Math.round((dragBounds.max - dragStartOffset) / tile);
+        var direction = 0;
+        if (e) {
+          // A real drag on a phone always resolves to exactly one slide
+          // step, centered — never free-floating between two slides the
+          // way a wide-screen drag can. Commits to the next/previous
+          // slide (whichever direction it was dragged) only past a real
+          // distance or a fast-enough flick; short/slow drags spring
+          // back to the slide they started on, same as a cancelled swipe
+          // would.
+          var dx = e.clientX - dragStartX;
+          var absDx = Math.abs(dx);
+          var COMMIT_FRACTION = 0.15; // of a tile's width
+          // A short drag can still smooth out to a spuriously high
+          // velocity from raw touch-event jitter (coalesced touchmove
+          // samples a few sub-16ms apart) — MIN_FLICK_DISTANCE stops
+          // that noise from reading as a deliberate flick on what's
+          // really just a tiny, unsteady scroll, which was paging a full
+          // slide on barely any movement.
+          var MIN_FLICK_DISTANCE = 18; // px
+          var FLICK_VELOCITY = 0.6; // px/ms
+          var committed = absDx > tile * COMMIT_FRACTION || (absDx > MIN_FLICK_DISTANCE && Math.abs(dragVelocity) > FLICK_VELOCITY);
+          direction = committed ? (dx < 0 ? 1 : -1) : 0;
+        }
+        // No event to read a direction from (an interruption) — nearest
+        // slide by the strip's own current position instead.
+        var index = e ? startIndex + direction : Math.round((dragBounds.max - state.scrollOffset) / tile);
+        index = Math.max(0, Math.min(state.slideCount - 1, index));
+        // Landing back on the same slide it started on means the drag
+        // cancelled the slide change rather than committing to one —
+        // shorter transition for that spring-back than an actual change
+        // to a different slide gets.
+        centerOnSlide(index, index === startIndex ? CANCEL_TRANSITION : undefined);
       } else {
-        // Subtle inertia: coast a little further in the direction/speed
-        // of the last few pixels of drag rather than stopping dead where
-        // the pointer happened to lift, still clamped into the same
-        // bounds a plain release already respects (so it can't fling
-        // past either end — no separate rubber-band needed here). Kept
-        // deliberately small (capped at well under half a tile) so it
-        // reads as a gentle coast, not a mobile-style long-distance flick.
-        var MOMENTUM_TIME = 120; // ms
-        var momentumCap = measureTileWidth() * 0.4;
-        var momentum = Math.max(-momentumCap, Math.min(momentumCap, dragVelocity * MOMENTUM_TIME));
-        var target = Math.max(dragBounds.min, Math.min(dragBounds.max, state.scrollOffset + momentum));
-        applyOffset(target, true); // also springs back if it was rubber-banded past either end
-        updateRims();
+        // Free positioning: lands exactly where the drag left it, no
+        // momentum coast — just clamped back into bounds, which also
+        // springs it back if it was rubber-banded past either end.
+        var target = Math.max(dragBounds.min, Math.min(dragBounds.max, state.scrollOffset));
+        applyOffset(target, true);
       }
     }
 
-    surfaces.forEach(function (surface) {
-      surface.addEventListener("pointerdown", onPointerDown);
-      surface.addEventListener("pointermove", onPointerMove);
-      surface.addEventListener("pointerup", endDrag);
-      surface.addEventListener("pointercancel", endDrag);
-    });
+    viewport.addEventListener("pointerdown", onPointerDown);
+    viewport.addEventListener("pointermove", onPointerMove);
+    viewport.addEventListener("pointerup", endDrag);
+    viewport.addEventListener("pointercancel", onPointerCancel);
 
     var resizeTicking = false;
     window.addEventListener("resize", function () {

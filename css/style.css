@@ -1051,8 +1051,8 @@ button, input, textarea {
   position: relative;
   /* Own stacking context (position + z-index together) so this whole
      component paints as one unit above .product-carousel__xray, rather
-     than the individual z-indexes inside it (.product-carousel__viewport,
-     .product-carousel__rim) being compared against the xray directly. */
+     than .product-carousel__viewport's own z-index being compared
+     against the xray directly. */
   z-index: 1;
   width: 100%;
 }
@@ -1115,36 +1115,6 @@ button, input, textarea {
 .product-carousel__slide--model .emjive-3d-viewer {
   width: 55%;
   height: 55%;
-}
-/* Click/drag zones flush against the left/right edge of the viewport —
-   short tap pages by one tile, a real drag scrolls freely, same as
-   dragging directly on the filmstrip (see js/product.js's
-   wireCarouselNav, which wires the same pointer handling to these as to
-   the viewport). left/right: 0 anchors each one to the screen edge;
-   updateRims() drives the actual width (inline style, overriding the one
-   below) to cover the full run of empty space out to whichever tile is
-   currently centered, not just a fixed strip — the clamp() here is only
-   what's visible for the instant before that first runs. touch-action:
-   pan-y matches the viewport, so a touch drag starting on a rim scrolls
-   the filmstrip instead of triggering the browser's own page gestures. */
-.product-carousel__rim {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: clamp(2rem, 6cqw, 4rem);
-  z-index: 2;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  touch-action: pan-y;
-}
-.product-carousel__rim--left { left: 0; }
-.product-carousel__rim--right { right: 0; }
-/* Single-slide state (no extra photos): rim click zones fully hidden
-   rather than disabled — nothing to page to. */
-.product-carousel--single .product-carousel__rim {
-  display: none;
 }
 
 /* ---- 3. metal selection: horizontal gradient bars (one per swatch),
