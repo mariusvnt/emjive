@@ -48,6 +48,12 @@
      descendant of .reveal, so a variable defined only there wouldn't be
      visible here. */
   --reveal-pin-height: 100vh;
+
+  /* Shared by the x-ray hand image and its two extension panels below the
+     fold (same reason --reveal-pin-height is global above) so the x-ray
+     effect reads as one continuous image at one consistent opacity rather
+     than three separately-tuned values drifting apart. */
+  --reveal-xray-opacity: 1;
 }
 
 /* DINish isn't on Google Fonts — it's a free (SIL OFL) font by Bert
@@ -509,6 +515,7 @@ button, input, textarea {
   max-width: none;
   height: var(--reveal-pin-height);
   display: block;
+  opacity: var(--reveal-xray-opacity);
 }
 .reveal__extension--1 { top: 0; }
 .reveal__extension--2 { top: var(--reveal-pin-height); }
@@ -519,6 +526,7 @@ button, input, textarea {
   width: 100%;
   height: 100%;
   display: block;
+  opacity: var(--reveal-xray-opacity);
 }
 
 .reveal__ring {
