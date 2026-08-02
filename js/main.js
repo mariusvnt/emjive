@@ -227,10 +227,13 @@
     // No metal picker on the homepage grid — always the product's own
     // default metal (product.metal). window.EmjiveModelViewer is exposed
     // by js/three-viewer.js — reused here so the viewer construction/
-    // material logic lives in exactly one place.
+    // material logic lives in exactly one place. It can return null if
+    // the browser couldn't grant a WebGL context (see its own comment) —
+    // falls through to the same gridIcon branch a product with no
+    // "model" field at all uses, rather than leaving the card blank.
     var gridIcon = product.icons && product.icons[product.metal];
-    if (product.model) {
-      var modelHandle = window.EmjiveModelViewer(product, product.metal);
+    var modelHandle = product.model ? window.EmjiveModelViewer(product, product.metal) : null;
+    if (modelHandle) {
       wireModelClickNavigation(modelHandle.el, href);
       figure.appendChild(modelHandle.el);
     } else if (gridIcon) {

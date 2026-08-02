@@ -141,13 +141,30 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   function loadEnvironment(renderer) {
     var pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
-    return new Promise(function (resolve) {
-      new HDRLoader().load(HDRI_SRC, function (hdrTexture) {
-        var envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
-        hdrTexture.dispose();
-        pmremGenerator.dispose();
-        resolve(envMap);
-      });
+    return new Promise(function (resolve, reject) {
+      new HDRLoader().load(
+        HDRI_SRC,
+        function (hdrTexture) {
+          var envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
+          hdrTexture.dispose();
+          pmremGenerator.dispose();
+          resolve(envMap);
+        },
+        undefined,
+        // Without this, a failed HDRI request (network blip, server
+        // hiccup) left this promise neither resolved nor rejected —
+        // Promise.all([modelPromise, environmentPromise]) below then hung
+        // forever with zero console output, so the model silently never
+        // appeared and there was no way to tell why. Rejecting here at
+        // least surfaces the failure and lets it fall through to the same
+        // "poster stays as the fallback" behavior a model-load failure
+        // already gets.
+        function (err) {
+          pmremGenerator.dispose();
+          console.error("emjive: failed to load HDRI environment", HDRI_SRC, err);
+          reject(err);
+        }
+      );
     });
   }
 
@@ -235,11 +252,28 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var wrapper = document.createElement("div");
     wrapper.className = "emjive-3d-viewer";
 
-    var renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: preserveBuffer
-    });
+    var renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: preserveBuffer
+      });
+    } catch (err) {
+      // A browser's per-page WebGL context budget is finite — once it's
+      // exhausted (several simultaneous viewers, bfcache-retained
+      // contexts from earlier navigations, a weak/mobile GPU), this
+      // constructor throws synchronously. Left uncaught, this used to
+      // blow up the caller's whole products.forEach loop (js/main.js)
+      // mid-iteration, silently dropping every remaining product — no
+      // model AND no icon fallback, since callers only build the icon
+      // fallback when this function returns null, not when it throws.
+      // Returning null instead lets both js/main.js and js/product.js
+      // fall back to the plain icon image, same as a product with no
+      // "model" field at all.
+      console.error("emjive: could not create a WebGL context for", product.name, err);
+      return null;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;

@@ -147,11 +147,14 @@
     }
 
     var slideSources = [];
-    if (product.model) {
-      // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused
-      // here so the viewer construction/material logic lives in exactly
-      // one place.
-      state.modelHandle = window.EmjiveModelViewer(product, state.selectedMetal);
+    // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused
+    // here so the viewer construction/material logic lives in exactly one
+    // place. It can return null if the browser couldn't grant a WebGL
+    // context (see its own comment) — falls through to the same icon
+    // fallback branch a product with no "model" field at all uses, rather
+    // than leaving the carousel empty.
+    state.modelHandle = product.model ? window.EmjiveModelViewer(product, state.selectedMetal) : null;
+    if (state.modelHandle) {
       // Smaller than the photo slides on purpose — leaves generous empty
       // space around the model to drag/swipe the carousel from without
       // that drag landing on the viewer's own TrackballControls instead.
