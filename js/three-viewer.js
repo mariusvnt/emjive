@@ -33,7 +33,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   "use strict";
 
   var HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
-  var DEFAULT_ORBIT = "0deg 75deg 105%";
+  var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
   // PBR material presets applied to every mesh of a product's 3D model,
@@ -59,15 +59,18 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     };
   }
 
-  // "<theta>deg <phi>deg <radius%>" -> radians + a percent (100% = the
-  // distance that exactly frames the model's bounding sphere for the
-  // camera's fov; matches model-viewer's own camera-orbit convention).
-  function parseOrbitString(str) {
-    var parts = (str || DEFAULT_ORBIT).trim().split(/\s+/);
-    var theta = parseFloat(parts[0]) || 0;
-    var phi = parts[1] !== undefined ? parseFloat(parts[1]) : 75;
-    var radiusPercent = parts[2] !== undefined ? parseFloat(parts[2]) : 105;
-    if (isNaN(radiusPercent)) radiusPercent = 105;
+  // { rotation, tilt, zoom } -> radians + a percent (100% = the distance
+  // that exactly frames the model's bounding sphere for the camera's fov).
+  // rotation spins left/right, tilt is up/down (90 = eye-level), zoom is
+  // that same radius expressed as a percent — descriptive names for what
+  // used to be a single "<theta>deg <phi>deg <radius%>" string (matching
+  // model-viewer's old camera-orbit attribute convention, which this
+  // whole viewer replaced).
+  function parseOrbitConfig(config) {
+    var cfg = config || DEFAULT_ORBIT;
+    var theta = typeof cfg.rotation === "number" ? cfg.rotation : 0;
+    var phi = typeof cfg.tilt === "number" ? cfg.tilt : 75;
+    var radiusPercent = typeof cfg.zoom === "number" ? cfg.zoom : 105;
     return {
       thetaRad: (theta * Math.PI) / 180,
       phiRad: (phi * Math.PI) / 180,
@@ -373,7 +376,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     controls.dynamicDampingFactor = 0.04032;
     var SPIN_DECAY_LAMBDA = (-0.5 * Math.log(1 - controls.dynamicDampingFactor)) / REF_DT;
 
-    var defaultOrbit = product.cameraOrbit || DEFAULT_ORBIT;
+    var defaultOrbit = product["camera-setup"] || DEFAULT_ORBIT;
     var explicitTarget = parseTargetString(product.cameraTarget);
 
     var defaultCameraPosition = new THREE.Vector3();
@@ -386,9 +389,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // both for the initial default framing and as the direct replacement
     // for model-viewer's jumpCameraToGoal()+camera-orbit combo in
     // scripts/auto-render.js's top-shot render path.
-    function frameCamera(orbitStr) {
+    function frameCamera(orbitConfig) {
       if (!modelRoot) return;
-      var orbit = parseOrbitString(orbitStr);
+      var orbit = parseOrbitConfig(orbitConfig);
       var box = new THREE.Box3().setFromObject(modelRoot);
       var sphere = box.getBoundingSphere(new THREE.Sphere());
       var target = explicitTarget || sphere.center;
@@ -584,8 +587,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         currentMetal = newMetalKey;
         if (modelLoaded) applyMaterial();
       },
-      setCameraOrbit: function (orbitStr) {
-        frameCamera(orbitStr);
+      setCameraOrbit: function (orbitConfig) {
+        frameCamera(orbitConfig);
         renderer.render(scene, camera);
       },
       // Internal handles, unused by the interactive site — exist so

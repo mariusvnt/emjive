@@ -36,7 +36,7 @@
       },
       "onHand": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
       "model": "assets/products/furcula_ring/furcula_gltf.glb",
-      "cameraOrbit": "30deg 70deg 75%",
+      "camera-setup": { "rotation": 30, "tilt": 70, "zoom": 100 },
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 220,   "weight": "", "composition": "" },
@@ -65,7 +65,7 @@
       },
       "onHand": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
       "model": "assets/products/foramen_ring/Foramen_gltf.glb",
-      "cameraOrbit": "-30deg 30deg 65%",
+      "camera-setup": { "rotation": -30, "tilt": 30, "zoom": 85 },
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },
@@ -94,7 +94,7 @@
       },
       "onHand": { "visible": true, "x": 59.3, "y": 48, "scale": 5, "rotation": 19 },
       "model": "assets/products/disc_ring/disc_gltf.glb",
-      "cameraOrbit": "-115deg 90deg 80%",
+      "camera-setup": { "rotation": -115, "tilt": 90, "zoom": 105 },
       "metal": "steel",
       "metalDetails": {
         "steel":  { "price": 0, "weight": "", "composition": "" },

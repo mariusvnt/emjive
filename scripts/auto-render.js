@@ -321,13 +321,13 @@ const HARNESS_HTML = `<!doctype html>
     window.__renderReady = false;
     disposeCurrentHandle();
     var wrap = mountTargetWrap(sizePx);
-    // Reuses the product's own default radius (falls back to 105%) so top
+    // Reuses the product's own default zoom (falls back to 105) so top
     // shots stay consistently framed with the product's other renders —
-    // theta is fixed at 0deg rather than the product's own default, for a
+    // rotation is fixed at 0 rather than the product's own default, for a
     // canonical, camera-north-up top-down shot regardless of how each
     // model's default 3/4 view happens to be rotated.
-    var defaultOrbit = product.cameraOrbit || "0deg 75deg 105%";
-    var radius = defaultOrbit.split(" ")[2] || "105%";
+    var defaultOrbit = product["camera-setup"] || { rotation: 0, tilt: 75, zoom: 105 };
+    var zoom = typeof defaultOrbit.zoom === "number" ? defaultOrbit.zoom : 105;
     var handle = window.EmjiveModelViewer(product, metalKey, {
       transparentBackground: true,
       static: true,
@@ -362,7 +362,7 @@ const HARNESS_HTML = `<!doctype html>
         // first pass's shadow color untouched instead of erasing it.
         handle.scene.traverse(function (obj) { obj.layers.set(1); });
         var shadowMesh = addShadowPlane(handle.scene, modelBox);
-        handle.setCameraOrbit("0deg 0deg " + radius); // pass 1: shadow alone
+        handle.setCameraOrbit({ rotation: 0, tilt: 0, zoom: zoom }); // pass 1: shadow alone
 
         handle.scene.traverse(function (obj) { obj.layers.set(0); });
         shadowMesh.layers.set(1); // hide it again — only the model + occluder render this pass
@@ -460,7 +460,7 @@ async function writeWebp(sharpInstance, outPath) {
 // trimmed alpha bbox) occupies along its longer edge, once centered.
 // frameCamera() in js/three-viewer.js sizes the camera off each model's
 // bounding-SPHERE (a crude, shape-agnostic stand-in for its true 2D
-// silhouette), at that product's own cameraOrbit angle — so the same
+// silhouette), at that product's own camera-setup angle — so the same
 // nominal radius-% lands at very different actual on-screen fill per
 // product (an anisotropic/thin ring viewed at a shallow angle produces a
 // far more lopsided bounding sphere than a stockier one viewed near
