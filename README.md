@@ -1,6 +1,9 @@
 # em·ji·ve — website
 
-A static site for the em·ji·ve jewelry brand: a product grid that shows
+A static site for the em·ji·ve jewelry brand, organised into **series** —
+each collection brings its own products, its own homepage hero animation,
+and its own design manifest, with one field in `data/series.json` deciding
+which one the homepage shows. A product grid that shows
 each item as its own 3D model (glTF/GLB — click and drag to rotate, falls
 back to a photo if no model is set yet). Clicking a product opens its
 detail page — a carousel, a metal picker, a description, metal-dependent
@@ -35,16 +38,17 @@ the product grid loads its data via `fetch`, which browsers block on
 adds two things on top of Vite's defaults:
 
 - **Multi-page entries** — Vite only treats `index.html` as a build entry
-  by default; `product.html` and `launch-order.html` are listed explicitly
-  too, so all three get their imports resolved.
-- **A copy step for `js/`, `assets/`, `data/`** — Vite's build can only
+  by default; every other page is listed explicitly too, so all six get
+  their imports resolved. Add a line there for any new page.
+- **A copy step for `js/`, `assets/`, `data/`, `series/`** — Vite's build can only
   see paths it can trace statically (`<script type="module">`,
   `url()` in CSS, that kind of thing). It can't bundle *classic*
   `<script src>` tags at all (so `js/main.js` etc. would silently vanish
   from the build without help), and it has no visibility into paths that
-  only exist as runtime string data — `data/products.json`'s icon/model
-  paths, or the HDRI path in `js/three-viewer.js`. Copying those three
-  folders verbatim sidesteps tracing every case individually.
+  only exist as runtime string data — a series' `products.json` icon/model
+  paths, the hero bundle paths in `data/series.json`, or the HDRI path in
+  `js/three-viewer.js`. Copying those four folders (`js/`, `assets/`,
+  `data/`, `series/`) verbatim sidesteps tracing every case individually.
 
 ### The current setup: GitHub Pages (interim)
 
@@ -80,12 +84,16 @@ entirely) — not something committing code here can do.
 ## Structure, at a glance
 
 ```text
-index.html, product.html, launch-order.html   The three pages
-css/style.css                                  All styling, one file
+index.html, product.html, launch-order.html    The shop
+archives.html, creation-process.html           Empty shells, design pending
+series.html                                     Renders any series' design manifest
+css/style.css                                   All shared styling, one file
 js/                                             Vanilla JS + the three.js viewer module
-data/products.json                              The product catalog
-assets/                                          Images, 3D models, fonts, HDRIs
-scripts/auto-render.js                           Re-renders product icons/swatches
+data/series.json                                Series index + category vocabulary
+data/series/<slug>/                             One series' products + manifest
+series/<slug>/                                  One series' hero bundle (html/css/js)
+assets/                                         Images, 3D models, fonts, HDRIs
+scripts/auto-render.js                          Re-renders product icons/swatches
 ```
 
 ## Where to go next

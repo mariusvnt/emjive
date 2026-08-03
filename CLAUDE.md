@@ -1,12 +1,13 @@
 # CLAUDE.md
 
-em·ji·ve is a static jewelry e-commerce site: 3 HTML pages, one CSS file, vanilla JS (no framework), a custom three.js/TrackballControls 3D viewer for products (free, pole-crossing rotation), and a real localStorage-backed selection/cart system with no backend. [Vite](https://vitejs.dev) is the dev server — `npm run dev` — and is required (not optional) since the 3D viewer is an ES module resolving `three` from npm.
+em·ji·ve is a static jewelry e-commerce site: 6 HTML pages, one CSS file, vanilla JS (no framework), a custom three.js/TrackballControls 3D viewer for products (free, pole-crossing rotation), and a real localStorage-backed selection/cart system with no backend. The catalog is organised into **series**: `data/series.json` indexes them all, each with its own products, design manifest, and swappable homepage hero bundle, and one field there decides which series the homepage shows. [Vite](https://vitejs.dev) is the dev server — `npm run dev` — and is required (not optional) since the 3D viewer is an ES module resolving `three` from npm.
 
 This file is an index into `dev-guidelines/`, the full agent-facing documentation set. For the human-facing project overview, see [`README.md`](README.md) instead.
 
 ## Known issues
 
-- The header's "About us" link points at `#contact` on every page, but no page actually has a `#contact` section — it's a dangling link, and the matching JS contact-form handler is a guarded no-op waiting for a form that doesn't exist yet → [`dev-guidelines/pages.md`](dev-guidelines/pages.md)
+- `archives.html`, `creation-process.html` and `series.html` are deliberately **empty shells** — real routes, meta tags and styling hooks, no designed content yet. The archives page in particular does *not* render the series list, even though `data/series.json` already holds everything it needs → [`dev-guidelines/pages.md`](dev-guidelines/pages.md)
+- `js/main.js` still carries a guarded `#contactForm` handler that no-ops, since no page has that element. Harmless, kept for whenever a contact form gets built → [`dev-guidelines/procedures.md`](dev-guidelines/procedures.md)
 
 ## Where to look
 
@@ -14,10 +15,10 @@ This file is an index into `dev-guidelines/`, the full agent-facing documentatio
 |---|---|
 | [`dev-guidelines/rules.md`](dev-guidelines/rules.md) | Before touching anything — process rules for how to work in this repo |
 | [`dev-guidelines/procedures.md`](dev-guidelines/procedures.md) | You need a step-by-step: adding a product, changing/adding a metal, re-rendering icons, setting up fonts, etc. |
-| [`dev-guidelines/pages.md`](dev-guidelines/pages.md) | Working on any of the 3 real HTML pages, or their shared header |
+| [`dev-guidelines/pages.md`](dev-guidelines/pages.md) | Working on any of the 6 HTML pages, their shared header, or a series' hero bundle |
 | [`dev-guidelines/styling.md`](dev-guidelines/styling.md) | Touching `css/style.css`, or debugging a layout/visual issue |
-| [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md) | Touching `js/main.js`, `selection.js`, `product.js`, `selection-bar.js`, `selection-page.js`, or `three-viewer.js` |
-| [`dev-guidelines/data.md`](dev-guidelines/data.md) | Touching `data/products.json` or its schema |
+| [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md) | Touching anything in `js/` (`series.js`, `main.js`, `product.js`, `selection*.js`, `series-page.js`, `three-viewer.js`) or a series' `hero.js` |
+| [`dev-guidelines/data.md`](dev-guidelines/data.md) | Touching `data/series.json`, a series' `products.json`/`manifest.json`, or their schema |
 | [`dev-guidelines/tooling.md`](dev-guidelines/tooling.md) | Touching `package.json` scripts, `scripts/auto-render.js`, `vite.config.js`, or the GitHub Pages deploy workflow |
 | [`dev-guidelines/assets.md`](dev-guidelines/assets.md) | Adding/moving files under `assets/` |
 

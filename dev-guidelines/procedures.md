@@ -9,11 +9,18 @@ npm install
 npm run dev
 ```
 
-This starts Vite's dev server (see `tooling.md`). You need a real server rather than opening `index.html` directly — the product grid loads `data/products.json` via `fetch`, which browsers block on `file://`, and `js/three-viewer.js` additionally needs Vite specifically to resolve its bare-specifier imports (`three`, `three/addons/...`).
+This starts Vite's dev server (see `tooling.md`). You need a real server rather than opening `index.html` directly — the product grid loads its data via `fetch`, which browsers block on `file://`, and `js/three-viewer.js` additionally needs Vite specifically to resolve its bare-specifier imports (`three`, `three/addons/...`).
 
 ## Adding a product
 
-1. Make a folder under `assets/products/your-item-name/`.
+Products belong to a series. Everything below assumes you're adding to an
+existing one — `bones` is the only one so far. To start a *new* series, see
+"Adding a series" further down first.
+
+1. Make a folder under `assets/series/<series-slug>/products/<slug>_<category>/`.
+   The `<slug>_<category>` shape is load-bearing: `npm run auto-render`
+   *constructs* its output path from it rather than reading `model`, so a
+   differently-named folder gets a second one created beside it.
 2. Drop in a 3D model as `.glb` (or `.gltf`), e.g. `model.glb`.
    - Export from Blender/Cinema4D/etc. as glTF Binary (.glb) — keep it under
      a few MB for fast loading.
@@ -26,7 +33,8 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
    metal's icon itself and fills in `"icons"` for you, guaranteed to match
    the model's pose since it's the exact same render pipeline. Only used as
    a fallback if `model` is left empty, or as a poster while the model loads.
-4. Open `data/products.json` and add an entry to the `"products"` array:
+4. Open that series' `data/series/<slug>/products.json` and add an entry to
+   its `"products"` array:
 
 ```json
 {
@@ -35,9 +43,9 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
   "category": "ring",
   "description": "A line or two about the piece — shown on its product page.",
   "icons": {
-    "steel":  "assets/products/your-item-name/your-ring-name_icon_steel.webp",
-    "silver": "assets/products/your-item-name/your-ring-name_icon_silver.webp",
-    "bronze": "assets/products/your-item-name/your-ring-name_icon_bronze.webp"
+    "steel":  "assets/series/bones/products/your-item-name_ring/your-ring-name_icon_steel.webp",
+    "silver": "assets/series/bones/products/your-item-name_ring/your-ring-name_icon_silver.webp",
+    "bronze": "assets/series/bones/products/your-item-name_ring/your-ring-name_icon_bronze.webp"
   },
   "photos": [],
   "assets": {
@@ -45,7 +53,7 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
     "top-shot": { "steel": "", "silver": "", "bronze": "" }
   },
   "onHand": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-  "model": "assets/products/your-item-name/model.glb",
+  "model": "assets/series/bones/products/your-item-name_ring/model.glb",
   "camera-setup": { "rotation": 0, "tilt": 75, "zoom": 105 },
   "metal": "silver",
   "metalDetails": {
@@ -56,13 +64,15 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
 }
 ```
 
-`category` should be one of the values listed in the top-level `"categories"`
-array in that same file — that list is the source of truth for what
-categories exist (the header's `.ring`/`.neck`/`.wrist` menu is hand-written
-though, not generated from it, so keep the two in sync by hand if you add a
-new category).
+`id` only has to be unique **within this file** — every series numbers its
+own products from `"01"`. `category` should be one the series declares in
+its `"categories"` array in `data/series.json` (which must itself be a key
+of that file's global `"categories"` vocabulary). Get this wrong and the
+product still shows in the unfiltered grid but no filter button reaches it —
+`npm run auto-render` warns about exactly this. The header's filter row is
+rendered from the data, so there's nothing to hand-sync.
 
-`"icons"` holds one entry per metal in the top-level `"metals"` list, same
+`"icons"` holds one entry per metal in `data/series.json`'s `"metals"` list, same
 shape as `"metalDetails"` below — leave a metal's value as `""` until you
 have a real render for it (`npm run auto-render` fills these in; nothing
 else does). `"metal"` (singular, further down) is a separate field — it
@@ -105,24 +115,16 @@ four and reloading, the same trial-and-error `camera-setup` itself
 recommends just below. Any number of products can have `"visible": true`
 at once — each gets its own independently-positioned overlay.
 
-Sizes offered in the "Choose a size" popup before an item is added to the
-selection aren't set per-product — they're looked up from two top-level
-objects by the product's own `"category"`, since a size run is a property
-of the category (all rings share one, all necklaces would share another)
-rather than of the individual piece: `"sizesByCategory"` (the standard
-sizes) and `"sizeUnits"` (the unit label shown next to the popup's custom-
-size field, e.g. `"mm"` for rings):
+Sizes offered in the "Choose a size" popup aren't set per-product, and
+aren't per-series either — they're a property of the *category*, declared
+once in `data/series.json`'s global `"categories"` vocabulary. A ring is
+52-62mm in every collection:
 
 ```json
-"sizesByCategory": {
-  "ring": ["50", "52", "54", "56", "58", "60"],
-  "neck": [],
-  "wrist": []
-},
-"sizeUnits": {
-  "ring": "mm",
-  "neck": "",
-  "wrist": ""
+"categories": {
+  "ring":  { "sizes": ["52", "55", "57", "60", "62"], "unit": "mm" },
+  "neck":  { "sizes": [], "unit": "" },
+  "wrist": { "sizes": [], "unit": "" }
 }
 ```
 
@@ -131,6 +133,43 @@ Leave a category with both an empty size list and an empty unit and the
 an empty popup, for any product in that category — a category with just a
 unit set (and no standard sizes) still opens the popup with only the
 custom-size field available.
+
+## Adding a category
+
+1. Add it to `data/series.json`'s **global** `"categories"` map, with its
+   `sizes` and `unit` (both can start empty — see just above for what that
+   does to the Select button).
+2. Add its key to the `"categories"` array of each series that should offer
+   it. That array is a subset of the global map's keys, in the order the
+   header's filter row shows them — a series that doesn't sell the category
+   simply omits it.
+
+Nothing else. The header's filter buttons render from that per-series array,
+so there's no markup to touch on any of the six pages. `npm run auto-render`
+warns if a series declares a category the global map doesn't define.
+
+## Adding a series
+
+1. Create `data/series/<slug>/products.json` — `{ "series": "<slug>",
+   "products": [] }` — and `data/series/<slug>/manifest.json` (see `data.md`
+   for its shape; only `title`/`year`/`subtitle` are rendered today).
+2. Create the hero bundle at `series/<slug>/hero.{html,css,js}`. Copy
+   `series/bones/` as a starting point and read the contract in `pages.md`
+   first — two rules bite otherwise: `hero.js` must have **no side effects
+   at execution time** (it only assigns `window.EmjiveSeriesHero`), and it
+   must **never use a bare specifier**, since Vite can't see a file loaded
+   by runtime string path. A hero needing 3D calls `window.EmjiveModelViewer`.
+3. Put that series' art under `assets/series/<slug>/hero/` and its product
+   folders under `assets/series/<slug>/products/`.
+4. Add an entry to `data/series.json`'s `"series"` array — slug, name, year,
+   its `"categories"` subset, and paths to all of the above (see `data.md`).
+5. **To make it the one the homepage shows, set `"featured"` to its slug.**
+   That single field is the whole switch; the previous series stays fully
+   reachable at `index.html?series=<old-slug>`, which is exactly what the
+   archives page will link to.
+
+No new HTML page is involved at any point — `index.html`, `product.html` and
+`series.html` each already render any series.
 
 ### Setting a model's default view
 
@@ -168,12 +207,12 @@ its 3D model, overriding whatever materials the model file itself has:
 ```
 
 `metal` should be one of the values listed in the top-level `"metals"`
-array in `products.json` — that list is the source of truth for what
-metals exist, and it's also what the product page's metal-picker swatches
+array in `data/series.json` — that list is global (not per-series) and is
+the source of truth for what metals exist, and it's also what the product page's metal-picker swatches
 are generated from. The actual presets live in `METAL_PRESETS` in
 `js/three-viewer.js`: `"steel"`, `"silver"` (the default if `metal` is
 omitted or unrecognized) and `"bronze"`. To add another finish, add it to
-**three** places — the `"metals"` list in `products.json`, a matching
+**three** places — the `"metals"` list in `data/series.json`, a matching
 entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
 / `roughnessFactor`, and a rendered swatch image for it in `css/style.css`
 (`.product-metals__option[data-metal="..."]`, see "Re-rendering icons and
@@ -223,8 +262,9 @@ bare page has no bundler of its own) and renders through
 `product.html` use, so there's no risk of the render drifting from what
 the site actually shows. See `tooling.md` for the harness's own structure.
 
-For each metal passed in (or every metal in `products.json`'s `"metals"`
-list, if none are given):
+For each metal passed in (or every metal in `data/series.json`'s `"metals"`
+list, if none are given), across every series (or just one, with
+`--series=<slug>`):
 
 - **Icons** — every product, not just the ones whose own `"metal"` (their
   homepage-grid default) happens to equal the metal being rendered: the
@@ -233,8 +273,8 @@ list, if none are given):
   currently selected, so every product needs one for every metal it could
   be shown in. Saved as a transparent 512×512 WebP named
   `<productname>_icon_<metal>.webp` next to the product's model
-  (e.g. `assets/products/furcula_ring/furcula_icon_steel.webp`), and
-  `data/products.json`'s `"icons"` object for that product is updated in
+  (e.g. `assets/series/bones/products/furcula_ring/furcula_icon_steel.webp`), and
+  that series' own `products.json` has its `"icons"` entry for that product updated in
   place to match (the previous file for that metal is deleted if the path
   changed). Uses the product's own `model` + `camera-setup` from
   `products.json`, and the same shared studio HDRI (`assets/hdri/studio_kontrast_04_1k.hdr`)
@@ -256,7 +296,7 @@ list, if none are given):
   onto a hand image — see `tooling.md`'s `scripts/auto-render.js` section
   for the mechanics and its known trade-off. Saved as a 1024×1024 WebP
   named `<productname>_top-shot_<metal>.webp` next to the product's
-  model, and `data/products.json`'s `assets.top-shot` object for that
+  model, and that series' own `products.json` has its `assets.top-shot` entry for that
   product is updated in place the same way `"icons"` is — and read live
   by the homepage hero's ring-on-hand overlay, see the product's own
   `onHand` field (`data.md`) and `pages.md`'s `index.html` section.
@@ -289,12 +329,20 @@ just for retina-sharp source pixels before the final resize.
 
 ## Header rubrics (nav vs. informative)
 
-Links inside the header's dropdown menu (`.site-header__nav`) come in two
-kinds, styled identically except for font:
+The dropdown menu (`.site-header__nav`) has exactly three rows: a category
+filter row, then Archives, then Creation process. Links come in two kinds,
+styled identically except for font:
 
-- `class="is-cat"` — Geist Mono (loaded from Google Fonts already), used
-  for the category rubrics (`.ring`, `.neck`, `.wrist`).
-- `class="is-info"` — DINish, used for informative links ("About us").
+- `class="is-cat"` — Geist Mono (loaded from Google Fonts already), used for
+  the category filter buttons. **These are rendered by `js/main.js` from the
+  active series' own category list — never hand-write them**, and don't
+  assume there are three. `.is-active` marks the selected ones.
+- `class="is-info"` — DINish, used for the two informative links (Archives,
+  Creation process).
+
+Filtering is multi-select and in-place on `index.html`, reflected as
+`?cat=ring,neck`; from any other page the same button is an ordinary link
+that navigates to the grid with that one category applied.
 
 DINish isn't on any font CDN — it's a free (SIL OFL licensed) font by Bert
 Driehuis. The family already lives in this repo at `assets/fonts/dinish-woff2/`
