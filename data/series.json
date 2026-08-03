@@ -1,0 +1,31 @@
+{
+  "featured": "bones",
+
+  "metals": ["steel", "silver", "bronze"],
+
+  "categories": {
+    "ring":  { "sizes": ["52", "55", "57", "60", "62"], "unit": "mm" },
+    "neck":  { "sizes": [], "unit": "" },
+    "wrist": { "sizes": [], "unit": "" }
+  },
+
+  "series": [
+    {
+      "slug": "bones",
+      "name": "Bones",
+      "year": "2026",
+      "categories": ["ring", "neck", "wrist"],
+      "products": "data/series/bones/products.json",
+      "manifest": "data/series/bones/manifest.json",
+      "hero": {
+        "fragment": "series/bones/hero.html",
+        "css":      "series/bones/hero.css",
+        "js":       "series/bones/hero.js",
+        "preload": [
+          "assets/series/bones/hero/hand-rings-under-flesh_4k.webp",
+          "assets/series/bones/hero/hand_xray.webp"
+        ]
+      }
+    }
+  ]
+}

@@ -275,7 +275,8 @@
   function renderProducts(products) {
     grid.innerHTML = "";
     if (!products.length) {
-      grid.appendChild(el("p", "product-grid__loading", "No products yet — add some to data/products.json"));
+      grid.appendChild(el("p", "product-grid__loading",
+        "No products yet — add some to this series' products.json (see data/series.json)"));
       return;
     }
     products.forEach(function (product) {
@@ -283,15 +284,17 @@
     });
   }
 
+  // The catalog is per-series now: js/series.js owns resolving which series
+  // this page is showing (?series=, else data/series.json's "featured") and
+  // fetching its products, so nothing here talks to a JSON path directly.
   if (grid) {
-    fetch("data/products.json")
-      .then(function (res) {
-        if (!res.ok) throw new Error("Could not load products.json");
-        return res.json();
+    window.EmjiveSeries.ready
+      .then(function (ctx) {
+        return window.EmjiveSeries.loadProducts(ctx.slug);
       })
-      .then(function (data) {
-        renderProducts(data.products || []);
-        updateHeroRings(data.products || []);
+      .then(function (products) {
+        renderProducts(products);
+        updateHeroRings(products);
       })
       .catch(function (err) {
         grid.innerHTML = "";

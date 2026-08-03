@@ -27,6 +27,10 @@
 
 <link rel="stylesheet" href="css/style.css" />
 
+<!-- Series resolution (which series this page shows, and its data).
+     Blocking on purpose — see the header comment in js/series.js. -->
+<script src="js/series.js"></script>
+
 <!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) -->
 <script type="module" src="js/three-viewer.js"></script>
 </head>
@@ -63,9 +67,9 @@
   <section class="reveal" id="revealSection">
     <div class="reveal__pin">
       <div class="reveal__stage">
-        <img class="reveal__img reveal__img--normal" src="assets/hand-rings-under-flesh_4k.webp" alt="" />
+        <img class="reveal__img reveal__img--normal" src="assets/series/bones/hero/hand-rings-under-flesh_4k.webp" alt="" />
         <div class="reveal__xray-group" id="revealXrayGroup">
-          <img class="reveal__img--xray" src="assets/hand_xray.webp" alt="" />
+          <img class="reveal__img--xray" src="assets/series/bones/hero/hand_xray.webp" alt="" />
           <!-- .reveal__ring <img>s are inserted here by js/main.js's
                updateHeroRings() — one per product whose onHand.visible
                is true in data/products.json, not a fixed single element. -->
@@ -77,8 +81,8 @@
 
   <section class="products" id="products">
     <div class="reveal__extension-crop">
-      <img class="reveal__extension reveal__extension--1" src="assets/hand_xray_extension_1.webp" alt="" />
-      <img class="reveal__extension reveal__extension--2" src="assets/hand_xray_extension_2.webp" alt="" />
+      <img class="reveal__extension reveal__extension--1" src="assets/series/bones/hero/hand_xray_extension_1.webp" alt="" />
+      <img class="reveal__extension reveal__extension--2" src="assets/series/bones/hero/hand_xray_extension_2.webp" alt="" />
     </div>
 
     <div class="product-grid" id="productGrid">

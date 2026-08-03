@@ -45,20 +45,21 @@
   }
 
   function init() {
-    fetch("data/products.json")
-      .then(function (res) {
-        if (!res.ok) throw new Error("Could not load products.json");
-        return res.json();
+    window.EmjiveSeries.ready
+      .then(function (ctx) {
+        state.metals = ctx.index.metals || [];
+        return window.EmjiveSeries.loadProducts(ctx.slug).then(function (products) {
+          var id = getIdFromQuery();
+          var product = products.find(function (p) { return p.id === id; });
+          if (product) return { product: product, slug: ctx.slug };
+          return null;
+        });
       })
-      .then(function (data) {
-        var id = getIdFromQuery();
-        var product = (data.products || []).find(function (p) { return p.id === id; });
-        state.metals = data.metals || [];
-        state.sizesByCategory = data.sizesByCategory || {};
-        state.sizeUnits = data.sizeUnits || {};
-        if (!product) return showNotFound();
-        state.product = product;
-        render(product);
+      .then(function (found) {
+        if (!found) return showNotFound();
+        state.product = found.product;
+        state.seriesSlug = found.slug;
+        render(found.product);
       })
       .catch(function () {
         showNotFound();
@@ -602,10 +603,12 @@
     var selectBtn = document.getElementById("selectButton");
     // Sizes are a property of the category (all rings share one size run,
     // all necklaces would share another, etc.), not of the individual
-    // product — looked up from state.sizesByCategory/state.sizeUnits rather
-    // than stored per-product in products.json.
-    var sizes = state.sizesByCategory[product.category] || [];
-    var unit = state.sizeUnits[product.category] || "";
+    // product — and the category vocabulary is global rather than
+    // per-series, so this resolves identically whichever series the product
+    // lives in. See data/series.json's top-level "categories".
+    var info = window.EmjiveSeries.categoryInfo(product.category);
+    var sizes = info.sizes || [];
+    var unit = info.unit || "";
 
     var standardRow = document.getElementById("sizeModalStandardRow");
     var standardWrap = document.getElementById("sizeModalStandardOptions");

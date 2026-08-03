@@ -1,0 +1,120 @@
+{
+  "series": "bones",
+  "products": [
+    {
+      "id": "01",
+      "name": "Furcula",
+      "category": "ring",
+      "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
+      "icons": {
+        "steel":  "assets/series/bones/products/furcula_ring/furcula_icon_steel.webp",
+        "silver": "assets/series/bones/products/furcula_ring/furcula_icon_silver.webp",
+        "bronze": "assets/series/bones/products/furcula_ring/furcula_icon_bronze.webp"
+      },
+      "photos": [
+        "assets/series/bones/products/furcula_ring/Furcula_photo1.png",
+        "assets/series/bones/products/furcula_ring/Furcula_photo2.png"
+      ],
+      "assets": {
+        "xray": "assets/series/bones/products/furcula_ring/furcula-xray.png",
+        "top-shot": {
+          "steel":  "assets/series/bones/products/furcula_ring/furcula_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/furcula_ring/furcula_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/furcula_ring/furcula_top-shot_bronze.webp"
+        }
+      },
+      "onHand": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
+      "model": "assets/series/bones/products/furcula_ring/furcula_gltf.glb",
+      "camera-setup": { "rotation": 30, "tilt": 70, "zoom": 100 },
+      "metal": "steel",
+      "metalDetails": {
+        "steel":  { "price": 220,   "weight": "", "composition": "" },
+        "silver": { "price": 350, "weight": "", "composition": "" },
+        "bronze": { "price": 240,   "weight": "", "composition": "" }
+      }
+    },
+    {
+      "id": "02",
+      "name": "Foramen",
+      "category": "ring",
+      "description": "",
+      "icons": {
+        "steel":  "assets/series/bones/products/foramen_ring/foramen_icon_steel.webp",
+        "silver": "assets/series/bones/products/foramen_ring/foramen_icon_silver.webp",
+        "bronze": "assets/series/bones/products/foramen_ring/foramen_icon_bronze.webp"
+      },
+      "photos": [],
+      "assets": {
+        "xray": "",
+        "top-shot": {
+          "steel":  "assets/series/bones/products/foramen_ring/foramen_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/foramen_ring/foramen_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/foramen_ring/foramen_top-shot_bronze.webp"
+        }
+      },
+      "onHand": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
+      "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
+      "camera-setup": { "rotation": -30, "tilt": 30, "zoom": 85 },
+      "metal": "steel",
+      "metalDetails": {
+        "steel":  { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      }
+    },
+    {
+      "id": "03",
+      "name": "Disc",
+      "category": "ring",
+      "description": "",
+      "icons": {
+        "steel":  "assets/series/bones/products/disc_ring/disc_icon_steel.webp",
+        "silver": "assets/series/bones/products/disc_ring/disc_icon_silver.webp",
+        "bronze": "assets/series/bones/products/disc_ring/disc_icon_bronze.webp"
+      },
+      "photos": [],
+      "assets": {
+        "xray": "",
+        "top-shot": {
+          "steel":  "assets/series/bones/products/disc_ring/disc_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/disc_ring/disc_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/disc_ring/disc_top-shot_bronze.webp"
+        }
+      },
+      "onHand": { "visible": true, "x": 59.3, "y": 48, "scale": 5, "rotation": 19 },
+      "model": "assets/series/bones/products/disc_ring/disc_gltf.glb",
+      "camera-setup": { "rotation": -115, "tilt": 90, "zoom": 105 },
+      "metal": "steel",
+      "metalDetails": {
+        "steel":  { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      }
+    },
+    {
+      "id": "04",
+      "name": "Marrow",
+      "category": "ring",
+      "description": "",
+      "icons": {
+        "steel":  "assets/series/bones/products/marrow_ring/marrow_icon_steel.webp",
+        "silver": "assets/series/bones/products/marrow_ring/marrow_icon_silver.webp",
+        "bronze": "assets/series/bones/products/marrow_ring/marrow_icon_bronze.webp"
+      },
+      "photos": [],
+      "assets": {
+        "xray": "",
+        "top-shot": { "steel": "assets/series/bones/products/marrow_ring/marrow_top-shot_steel.webp", "silver": "assets/series/bones/products/marrow_ring/marrow_top-shot_silver.webp", "bronze": "assets/series/bones/products/marrow_ring/marrow_top-shot_bronze.webp" }
+      },
+      "onHand": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "model": "assets/series/bones/products/marrow_ring/Marrow_gltf.glb",
+      "camera-setup": { "rotation": 20, "tilt": 80, "zoom": 105 },
+      "metal": "steel",
+      "metalDetails": {
+        "steel":  { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      }
+    }
+  ]
+}
