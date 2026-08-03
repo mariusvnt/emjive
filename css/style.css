@@ -614,6 +614,38 @@ button, input, textarea {
   color: var(--category-col);
 }
 /* ==========================================================================
+   Standalone content pages (archives, creation process, series manifest)
+
+   Same header-clearance recipe as .selection-page and .product-detail — the
+   header is position: fixed, so every page that isn't a full-bleed hero has
+   to pad past it itself. Kept as one shared class rather than three
+   near-identical ones, since these pages have no layout of their own yet.
+   ========================================================================== */
+
+.page-shell {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
+  min-height: 55vh;
+}
+.page-shell__loading {
+  font-size: 0.8rem;
+  color: var(--category-col);
+}
+/* The section-head inside a .page-shell is already inside the max-width and
+   edge padding, so it must not apply them a second time. */
+.page-shell .section-head {
+  max-width: none;
+  padding: 0;
+}
+.series-manifest__subtitle {
+  font-family: var(--font-main);
+  font-size: 0.95rem;
+  color: var(--category-col);
+  max-width: 46ch;
+}
+
+/* ==========================================================================
    Selection / order page
    ========================================================================== */
 

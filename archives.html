@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" />
+<title>em·ji·ve</title>
+<meta name="description" content="Every series across the brand's lifetime" />
+<link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="em·ji·ve" />
+<meta property="og:title" content="em·ji·ve" />
+<meta property="og:description" content="Every series across the brand's lifetime" />
+<meta property="og:url" content="https://mariusvnt.github.io/emjive/archives.html" />
+<meta property="og:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
+<meta property="og:image:width" content="512" />
+<meta property="og:image:height" content="512" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="em·ji·ve" />
+<meta name="twitter:description" content="Every series across the brand's lifetime" />
+<meta name="twitter:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="css/style.css" />
+
+<!-- Series resolution (which series this page shows, and its data).
+     Blocking on purpose — see the header comment in js/series.js. -->
+<script src="js/series.js"></script>
+</head>
+<body id="top">
+
+
+<header class="site-header">
+  <div class="site-header__row">
+    <a class="site-header__brand" href="index.html#top">
+      <img src="assets/logo.svg" alt="em&middot;ji&middot;ve" />
+    </a>
+    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
+      <span class="menu-toggle__bar menu-toggle__bar--h"></span>
+      <span class="menu-toggle__bar menu-toggle__bar--v"></span>
+    </button>
+  </div>
+  <div class="site-header__menu" id="siteHeaderMenu">
+    <div class="site-header__menu-inner">
+      <nav class="site-header__nav">
+        <!-- These are hand-written, not rendered from data/products.json's
+             "categories" list — that list is the source of truth for what
+             categories exist, so keep this menu in sync with it by hand. -->
+        <a href="index.html#products" class="is-cat">.ring</a>
+        <a href="index.html#products" class="is-cat">.neck</a>
+        <a href="index.html#products" class="is-cat">.wrist</a>
+        <a href="index.html#contact" class="is-info">About us</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main class="page-shell">
+  <div class="section-head">
+    <span class="section-head__index">archives</span>
+    <h2>Archives</h2>
+  </div>
+
+  <div class="page-shell__body" id="archivesBody">
+    <!-- Deliberately empty — this page is a shell waiting on its design.
+
+         The series list gets rendered here later from data/series.json's
+         "series" array: js/series.js already exposes what it needs, as
+         EmjiveSeries.all() for the entries and EmjiveSeries.manifestHref()
+         for each one's presentation page. -->
+  </div>
+</main>
+
+<script src="js/main.js"></script>
+<script src="js/selection.js"></script>
+<script src="js/selection-bar.js"></script>
+</body>
+</html>

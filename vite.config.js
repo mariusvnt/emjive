@@ -52,15 +52,18 @@ export default defineConfig({
   plugins: [copyFilesVitesBuildCantTrace()],
   build: {
     rollupOptions: {
-      // Vite only treats index.html as an entry by default — the other
-      // two real pages need to be listed explicitly or their own
-      // <script type="module"> tags (three-viewer.js on product.html)
-      // would ship unprocessed, with the same unresolved bare-specifier
-      // "three" import that broke index.html on GitHub Pages.
+      // Vite only treats index.html as an entry by default — every other
+      // page needs listing explicitly or its own <script type="module">
+      // tags (three-viewer.js on product.html) would ship unprocessed,
+      // with the same unresolved bare-specifier "three" import that broke
+      // index.html on GitHub Pages. Add a line here for any new page.
       input: {
         main: resolve(__dirname, "index.html"),
         product: resolve(__dirname, "product.html"),
-        launchOrder: resolve(__dirname, "launch-order.html")
+        launchOrder: resolve(__dirname, "launch-order.html"),
+        archives: resolve(__dirname, "archives.html"),
+        creationProcess: resolve(__dirname, "creation-process.html"),
+        series: resolve(__dirname, "series.html")
       }
     }
   }
