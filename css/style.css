@@ -257,6 +257,11 @@ button, input, textarea {
   --header-menu-pt: 1.25rem;
   --header-menu-pb: 2.25rem;
   --header-kind-gap: .5rem;
+
+  /* Filter row: gap between the category buttons, and from the "Filter by"
+     label to the first one. */
+  --header-filter-gap: .75rem;
+  --header-filter-label-gap: 1rem;
 }
 
 .site-header__row {
@@ -353,8 +358,10 @@ button, input, textarea {
   /* transition: color 0.2s ease; */
 }
 
-/* The two rubric kinds share every rule above except color: cat items get
-   the site's rust accent, informative items stay the default ink/black. */
+/* The two rubric kinds share every rule above except font and color: cat
+   items are mono and muted, informative items are DINish and full ink.
+   Descendant selectors, so .is-cat still matches inside the filter row's
+   wrapper. */
 .site-header__nav a.is-cat {
   font-family: var(--font-secondary);
   color: var(--category-col);
@@ -364,11 +371,45 @@ button, input, textarea {
   font-size: 14px;
 }
 
-/* Adds on top of the normal --header-rubric-gap wherever two consecutive
-   rubrics differ in kind, in document order (works regardless of how many
-   rubrics there are or what order they're in). */
-.site-header__nav a.is-cat + a.is-info,
-.site-header__nav a.is-info + a.is-cat {
+/* Selected filter. Deliberately minimal — same size and weight, ink instead
+   of muted — rather than inventing a token; the palette is only ever two
+   text colors. */
+.site-header__nav a.is-cat.is-active {
+  color: var(--black);
+}
+
+/* Row 1 of the menu: a horizontal row living inside .site-header__nav's
+   right-aligned vertical stack. flex-wrap because a series can declare any
+   number of categories — a long list wraps rather than overflowing the
+   header on a phone. */
+.site-header__filter {
+  display: flex;
+  /* baseline, not center: the label is 14px DINish and the buttons are 12px
+     mono, so their boxes differ but their text should sit on one line. */
+  align-items: baseline;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--header-filter-label-gap);
+}
+.site-header__filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--header-filter-gap);
+}
+/* Needs its own font/size: the nav's `a { font-size: 12px }` rule doesn't
+   reach a <span>. */
+.site-header__filter-label {
+  font-family: var(--font-main);
+  font-size: 14px;
+  color: var(--black);
+}
+
+/* Adds on top of the normal --header-rubric-gap at the boundary between the
+   filter row and the informative links. (Replaces an .is-cat + .is-info
+   adjacency pair — those two kinds stopped being siblings once the category
+   buttons moved inside .site-header__filter.) */
+.site-header__filter + a.is-info {
   margin-top: var(--header-kind-gap);
 }
 
@@ -516,6 +557,16 @@ button, input, textarea {
   background: transparent;
   min-width: 0;
 }
+/* Required, not decorative: the `display: grid` above beats the UA
+   stylesheet's `[hidden] { display: none }`, so without this the category
+   filter's `card.hidden = true` would do nothing at all. Same precedence
+   trap as .selection-bar__icons[hidden] further down. Cards are hidden
+   rather than removed and re-rendered on purpose — rebuilding them would
+   destroy and recreate every three.js WebGLRenderer on each toggle, and
+   nothing on the live site disposes contexts, so the grid would silently
+   and permanently degrade to static icons once the browser's context
+   budget ran out. */
+.product-card[hidden] { display: none; }
 
 /* A full-viewport-width divider bar behind each row, doubling as the
    click target for the row (so clicking anywhere on the bar — not just

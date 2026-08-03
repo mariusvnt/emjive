@@ -50,13 +50,16 @@
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
       <nav class="site-header__nav">
-        <!-- These are hand-written, not rendered from data/products.json's
-             "categories" list — that list is the source of truth for what
-             categories exist, so keep this menu in sync with it by hand. -->
-        <a href="index.html#products" class="is-cat">.ring</a>
-        <a href="index.html#products" class="is-cat">.neck</a>
-        <a href="index.html#products" class="is-cat">.wrist</a>
-        <a href="index.html#contact" class="is-info">About us</a>
+        <!-- Row 1: filter. The buttons are rendered by js/main.js from the
+             ACTIVE series' own category list (data/series.json) — don't
+             hand-write them, and don't assume three: each series declares
+             its own subset of the global vocabulary. -->
+        <div class="site-header__filter">
+          <span class="site-header__filter-label">Filter by</span>
+          <span class="site-header__filter-options" id="headerFilterOptions"></span>
+        </div>
+        <a href="archives.html" class="is-info">Archives</a>
+        <a href="creation-process.html" class="is-info">Creation process</a>
       </nav>
     </div>
   </div>

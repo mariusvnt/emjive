@@ -22,15 +22,93 @@
     menuToggle.setAttribute("aria-expanded", String(isOpen));
   }
 
+  // Only this page can filter in place; everywhere else a category click is
+  // a real navigation back to the grid.
+  var filtersAreInPlace = !!document.getElementById("productGrid");
+
   if (menuToggle && siteHeaderMenu) {
     menuToggle.addEventListener("click", function () {
       setHeaderMenuOpen(!menuToggle.classList.contains("is-open"));
     });
 
-    siteHeaderMenu.querySelectorAll("a").forEach(function (link) {
-      link.addEventListener("click", function () {
-        setHeaderMenuOpen(false);
-      });
+    // Delegated rather than bound per link: the category buttons are
+    // rendered from data after this runs, so a per-link listener would
+    // never reach them.
+    siteHeaderMenu.addEventListener("click", function (e) {
+      var link = e.target.closest("a");
+      if (!link || !siteHeaderMenu.contains(link)) return;
+
+      if (link.classList.contains("is-cat")) {
+        // On the grid page the menu deliberately stays OPEN — multi-select
+        // is unusable if it closes after every toggle. Elsewhere, fall
+        // through to the link's own href and let it navigate.
+        if (!filtersAreInPlace) return;
+        e.preventDefault();
+        toggleCategory(link.dataset.cat);
+        return;
+      }
+
+      setHeaderMenuOpen(false);
+    });
+  }
+
+  /* ---- header category filter -------------------------------------------- */
+
+  // Categories are per-series: each series declares its own subset of the
+  // global vocabulary, so this row is rendered from the ACTIVE series
+  // (?series=, else the featured one) rather than a fixed list. That's also
+  // the series a click will land on, so the buttons never advertise a
+  // category the destination can't show.
+  var filterOptions = document.getElementById("headerFilterOptions");
+  var activeCats = [];
+
+  function parseCatsFromQuery(valid) {
+    var raw = new URLSearchParams(window.location.search).get("cat");
+    if (!raw) return [];
+    // Unknown values are dropped rather than left to match nothing, so a
+    // typo — or a category belonging to some other series — shows
+    // everything instead of an empty grid.
+    return raw.split(",")
+      .map(function (c) { return c.trim(); })
+      .filter(function (c) { return c && valid.indexOf(c) !== -1; });
+  }
+
+  function buildFilterHref(cat) {
+    // Built off the real index URL so ?series= is preserved and the
+    // "/emjive/" base is never a concern.
+    var url = new URL("index.html", window.location.href);
+    var series = window.EmjiveSeries.slug;
+    if (series && !window.EmjiveSeries.isFeatured(series)) {
+      url.searchParams.set("series", series);
+    }
+    url.searchParams.set("cat", cat);
+    return url.pathname + url.search + "#products";
+  }
+
+  function renderHeaderFilter() {
+    if (!filterOptions) return;
+    filterOptions.innerHTML = "";
+    window.EmjiveSeries.categories().forEach(function (cat) {
+      // Real <a href>, not <button>, on every page: that keeps middle-click
+      // and open-in-new-tab working, with the in-place toggle layered on
+      // top via preventDefault() where the grid exists.
+      var link = document.createElement("a");
+      link.className = "is-cat";
+      link.dataset.cat = cat;
+      link.textContent = "." + cat;
+      link.href = buildFilterHref(cat);
+      filterOptions.appendChild(link);
+    });
+    syncFilterButtons();
+  }
+
+  function syncFilterButtons() {
+    if (!filterOptions) return;
+    filterOptions.querySelectorAll("a.is-cat").forEach(function (link) {
+      var on = activeCats.indexOf(link.dataset.cat) !== -1;
+      link.classList.toggle("is-active", on);
+      if (on) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
     });
   }
 
@@ -128,17 +206,104 @@
     return card;
   }
 
+  // Every card, built ONCE, paired with the product it came from. Filtering
+  // toggles `hidden` on these rather than re-rendering the grid: a rebuild
+  // would destroy and recreate every three.js WebGLRenderer on each toggle,
+  // and nothing on the live site disposes contexts. Past the browser's
+  // per-page context budget buildThreeViewer() returns null, and the grid
+  // degrades to static icons — permanently, for that page.
+  var cards = [];
+  var emptyMsg = null;
+
   function renderProducts(products) {
     grid.innerHTML = "";
+    cards = [];
     if (!products.length) {
       grid.appendChild(el("p", "product-grid__loading",
         "No products yet — add some to this series' products.json (see data/series.json)"));
       return;
     }
     products.forEach(function (product) {
-      grid.appendChild(buildCard(product));
+      var card = buildCard(product);
+      cards.push({ product: product, el: card });
+      grid.appendChild(card);
     });
   }
+
+  function applyFilter() {
+    var counts = {};
+    cards.forEach(function (entry) {
+      var cat = entry.product.category;
+      counts[cat] = (counts[cat] || 0) + 1;
+      entry.el.hidden = activeCats.length > 0 && activeCats.indexOf(cat) === -1;
+    });
+
+    var visible = cards.filter(function (entry) { return !entry.el.hidden; }).length;
+
+    // Reuses .product-grid__loading as the empty state — it already spans
+    // the full grid row, centered and muted, so no new CSS is needed.
+    if (!visible && cards.length) {
+      if (!emptyMsg) {
+        emptyMsg = el("p", "product-grid__loading");
+        var showAll = el("button", "btn", "Show all");
+        showAll.type = "button";
+        showAll.addEventListener("click", function () { setCategories([]); });
+        emptyMsg.textContent = "Nothing in " + activeCats.map(function (c) { return "." + c; }).join(" or ") +
+          " in this series yet. ";
+        emptyMsg.appendChild(showAll);
+        grid.appendChild(emptyMsg);
+      } else {
+        emptyMsg.firstChild.nodeValue = "Nothing in " +
+          activeCats.map(function (c) { return "." + c; }).join(" or ") + " in this series yet. ";
+        emptyMsg.hidden = false;
+      }
+    } else if (emptyMsg) {
+      emptyMsg.hidden = true;
+    }
+
+    // A styling hook only — nothing renders differently for these yet, but
+    // it lets a zero-product category be dimmed later without touching JS.
+    if (filterOptions) {
+      filterOptions.querySelectorAll("a.is-cat").forEach(function (link) {
+        var n = counts[link.dataset.cat] || 0;
+        link.dataset.count = String(n);
+        link.classList.toggle("is-empty", n === 0);
+      });
+    }
+
+    syncFilterButtons();
+  }
+
+  function syncFilterUrl() {
+    var url = new URL(window.location.href);
+    if (activeCats.length) url.searchParams.set("cat", activeCats.join(","));
+    else url.searchParams.delete("cat");
+    // new URL(location.href) keeps ?series= and the "/emjive/" base intact
+    // for free, and replaceState avoids stacking a history entry per toggle.
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }
+
+  function setCategories(next) {
+    activeCats = next;
+    applyFilter();
+    syncFilterUrl();
+  }
+
+  function toggleCategory(cat) {
+    if (!cat) return;
+    var i = activeCats.indexOf(cat);
+    setCategories(i === -1
+      ? activeCats.concat([cat])
+      : activeCats.filter(function (c) { return c !== cat; }));
+  }
+
+  // The header's filter row renders on EVERY page, including the ones that
+  // load no product data at all — which is exactly why the category list
+  // lives in data/series.json's index rather than inside a products file.
+  window.EmjiveSeries.ready.then(function () {
+    activeCats = parseCatsFromQuery(window.EmjiveSeries.categories());
+    renderHeaderFilter();
+  });
 
   // The catalog is per-series now: js/series.js owns resolving which series
   // this page is showing (?series=, else data/series.json's "featured") and
@@ -151,6 +316,9 @@
       })
       .then(function (products) {
         renderProducts(products);
+        // Cards exist now, so a ?cat= arrived at from another page (or a
+        // shared link) can finally be applied.
+        applyFilter();
       })
       .catch(function (err) {
         grid.innerHTML = "";
