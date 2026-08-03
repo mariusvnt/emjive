@@ -9,11 +9,15 @@
    supersample-then-downscale tricks.
 
    Usage:
-     node scripts/auto-render.js [metal ...]
+     node scripts/auto-render.js [metal ...] [--series=<slug>]
      npm run auto-render -- steel bronze
+     npm run auto-render -- --series=bones
 
-   With no metal names given, renders every metal in data/products.json's
-   top-level "metals" list. Requires a local Chrome install (set CHROME_PATH
+   With no metal names given, renders every metal in data/series.json's
+   top-level "metals" list. With no --series, walks every series listed
+   there, patching each one's own products.json.
+
+   Requires a local Chrome install (set CHROME_PATH
    to override the auto-detected path) with a real GPU available — see the
    WebGL renderer string this script logs on startup; if it says
    "SwiftShader" or similar, output will still be produced but without real
@@ -25,8 +29,9 @@
      swaps the icon (label thumbnail / poster) to match whichever metal is
      currently selected, so every product needs an icon for every metal it
      could be shown in, not only its default. Saved as 512x512 transparent
-     WebP at assets/products/<folder>/<name>_icon_<metal>.webp, and
-     data/products.json's "icons" object for that product (keyed by metal,
+     WebP at assets/series/<slug>/products/<folder>/<name>_icon_<metal>.webp
+     (the folder is built from the series layout, not read off product.model),
+     and that series' products.json "icons" object (keyed by metal,
      alongside "metalDetails") is updated in place to point at it — the old
      file, if the path changed, is deleted.
    - One top shot per product: a straight-down (camera-orbit phi: 0deg)
@@ -40,10 +45,9 @@
      real geometry sits under the visible top surface (the band's own
      inner wall, or worse, a glimpse through a gap in the shank); this
      hides that the same way a real finger would once the shot is
-     composited onto a hand image. Saved as 1024x1024 WebP at
-     assets/products/<folder>/<name>_top-shot_<metal>.webp, indexed in
-     data/products.json under that product's "assets.top-shot" object
-     (keyed by metal), mirroring how "icons" is keyed and updated.
+     composited onto a hand image. Saved as 1024x1024 WebP alongside the
+     icon, indexed in the same products.json under that product's
+     "assets.top-shot" object (keyed by metal), mirroring "icons".
    - One metal sample bar: a plain cylinder in this metal (not any actual
      product — see js/three-viewer.js's buildMaterialSwatch), saved as
      240x240 WebP at assets/metal-sample_<metal>.webp (the small square
@@ -65,7 +69,7 @@ const puppeteer = require("puppeteer-core");
 const sharp = require("sharp");
 
 const ROOT = path.resolve(__dirname, "..");
-const PRODUCTS_JSON_PATH = path.join(ROOT, "data", "products.json");
+const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
 const PORT = 5199;
 
 const ICON_SIZE = 512;
@@ -579,12 +583,53 @@ function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPat
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-async function main() {
-  const requestedMetals = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+// Repo-root-relative output folder for one product's renders, built from
+// the series layout rather than inferred from wherever product.model happens
+// to sit. Deriving it from path.dirname(product.model) — what this used to
+// do — silently wrote to the repo root for any product without a model yet
+// (path.dirname("") is "."), and couldn't tell one series' tree from
+// another's. Encodes assets.md's <slug>_<category> folder convention.
+function productFolder(seriesSlug, product) {
+  return "assets/series/" + seriesSlug + "/products/" + slug(product.name) + "_" + product.category;
+}
 
-  const productsRaw = fs.readFileSync(PRODUCTS_JSON_PATH, "utf8");
-  const productsData = JSON.parse(productsRaw);
-  const allMetals = productsData.metals || [];
+// Neither invariant is enforced anywhere else, and both fail quietly: a
+// series category outside the global vocabulary renders a filter button
+// that can never match, and a product whose category isn't in its own
+// series' subset disappears the moment any filter is on. This is the only
+// place that has the index and every series' products parsed at once.
+function warnCategoryDrift(seriesIndex, targets) {
+  const vocabulary = Object.keys(seriesIndex.categories || {});
+  for (const entry of seriesIndex.series) {
+    for (const cat of entry.categories || []) {
+      if (!vocabulary.includes(cat)) {
+        console.warn(
+          "  warning: series \"" + entry.slug + "\" declares category \"" + cat +
+          "\" which isn't in data/series.json's top-level \"categories\""
+        );
+      }
+    }
+  }
+  for (const target of targets) {
+    const declared = (seriesIndex.series.find((s) => s.slug === target.slug) || {}).categories || [];
+    for (const product of target.data.products) {
+      if (!declared.includes(product.category)) {
+        console.warn(
+          "  warning: [" + target.slug + "] " + product.name + " is category \"" + product.category +
+          "\", which that series doesn't declare — it won't be reachable by any filter"
+        );
+      }
+    }
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const requestedMetals = args.filter((a) => !a.startsWith("--"));
+  const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
+
+  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const allMetals = seriesIndex.metals || [];
   const metals = requestedMetals.length ? requestedMetals : allMetals;
 
   const unknown = metals.filter((m) => !allMetals.includes(m));
@@ -594,7 +639,26 @@ async function main() {
     );
   }
 
-  console.log("auto-render — metal(s): " + metals.join(", "));
+  // One target per series product file. raw/text/data stay bundled together
+  // deliberately: ids are only unique *within* a file now, so a shared
+  // top-level `productsText` could have file A's text patched using file B's
+  // product and still satisfy updateProductMetalFieldInText's "id" anchor.
+  const selected = seriesIndex.series.filter((s) => !seriesArg || s.slug === seriesArg);
+  if (seriesArg && !selected.length) {
+    throw new Error(
+      "Unknown series: " + seriesArg + " — must be one of: " +
+      seriesIndex.series.map((s) => s.slug).join(", ")
+    );
+  }
+  const targets = selected.map((s) => {
+    const absPath = path.join(ROOT, s.products);
+    const raw = fs.readFileSync(absPath, "utf8");
+    return { slug: s.slug, absPath, raw, text: raw, data: JSON.parse(raw) };
+  });
+
+  console.log("auto-render — metal(s): " + metals.join(", ") +
+    " — series: " + targets.map((t) => t.slug).join(", "));
+  warnCategoryDrift(seriesIndex, targets);
 
   const chromePath = findChrome();
   const server = await startServer();
@@ -610,10 +674,9 @@ async function main() {
     args: gpuArgs
   });
 
-  // Tracks in-place edits to the raw products.json TEXT (not a re-serialize
-  // of the parsed object) so hand-aligned formatting elsewhere in the file
-  // survives untouched.
-  let productsText = productsRaw;
+  // Each target tracks in-place edits to its own raw products.json TEXT (not
+  // a re-serialize of the parsed object) so hand-aligned formatting elsewhere
+  // in the file survives untouched — see `targets` above.
 
   try {
     const page = await browser.newPage();
@@ -645,51 +708,67 @@ async function main() {
     for (const metal of metals) {
       console.log("\n--- " + metal + " ---");
 
-      for (const product of productsData.products) {
-        const folder = path.dirname(product.model); // e.g. assets/products/furcula_ring
-        const relOutPath = folder + "/" + slug(product.name) + "_icon_" + metal + ".webp";
-        const absOutPath = path.join(ROOT, relOutPath);
+      for (const target of targets) {
+        const rel = path.relative(ROOT, target.absPath).replace(/\\/g, "/");
 
-        console.log("  icon: " + product.name + " (" + metal + ") -> " + relOutPath);
-        await renderIcon(page, product, metal, absOutPath);
+        for (const product of target.data.products) {
+          const folder = productFolder(target.slug, product);
 
-        const oldIconRelPath = product.icons && product.icons[metal];
-        if (oldIconRelPath !== relOutPath) {
-          const patched = updateProductMetalFieldInText(productsText, product, "icons", metal, relOutPath);
-          if (patched) {
-            productsText = patched;
-            if (oldIconRelPath) {
-              const oldAbs = path.join(ROOT, oldIconRelPath);
-              if (path.resolve(oldAbs) !== path.resolve(absOutPath)) deleteIfExists(oldAbs);
-            }
-          } else {
+          // The model is the one asset this tool doesn't write, so a model
+          // sitting outside the folder the convention predicts means either
+          // a hand-renamed directory or a file missed by a move — either way
+          // the renders below are about to land somewhere unexpected.
+          if (product.model && path.dirname(product.model) !== folder) {
             console.warn(
-              "  could not find the icons." + metal + " line to update in data/products.json for " +
-              product.name + " — set it by hand: " + relOutPath
+              "  warning: [" + target.slug + "] " + product.name + "'s model is in " +
+              path.dirname(product.model) + " but its renders go to " + folder
             );
           }
-        }
 
-        const topShotRelPath = folder + "/" + slug(product.name) + "_top-shot_" + metal + ".webp";
-        const topShotAbsPath = path.join(ROOT, topShotRelPath);
+          const relOutPath = folder + "/" + slug(product.name) + "_icon_" + metal + ".webp";
+          const absOutPath = path.join(ROOT, relOutPath);
 
-        console.log("  top shot: " + product.name + " (" + metal + ") -> " + topShotRelPath);
-        await renderTopShot(page, product, metal, topShotAbsPath);
+          console.log("  icon: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + relOutPath);
+          await renderIcon(page, product, metal, absOutPath);
 
-        const oldTopShotRelPath = product.assets && product.assets["top-shot"] && product.assets["top-shot"][metal];
-        if (oldTopShotRelPath !== topShotRelPath) {
-          const patched = updateProductMetalFieldInText(productsText, product, "top-shot", metal, topShotRelPath);
-          if (patched) {
-            productsText = patched;
-            if (oldTopShotRelPath) {
-              const oldAbs = path.join(ROOT, oldTopShotRelPath);
-              if (path.resolve(oldAbs) !== path.resolve(topShotAbsPath)) deleteIfExists(oldAbs);
+          const oldIconRelPath = product.icons && product.icons[metal];
+          if (oldIconRelPath !== relOutPath) {
+            const patched = updateProductMetalFieldInText(target.text, product, "icons", metal, relOutPath);
+            if (patched) {
+              target.text = patched;
+              if (oldIconRelPath) {
+                const oldAbs = path.join(ROOT, oldIconRelPath);
+                if (path.resolve(oldAbs) !== path.resolve(absOutPath)) deleteIfExists(oldAbs);
+              }
+            } else {
+              console.warn(
+                "  could not find the icons." + metal + " line to update in " + rel + " for " +
+                product.name + " — set it by hand: " + relOutPath
+              );
             }
-          } else {
-            console.warn(
-              "  could not find the assets.top-shot." + metal + " line to update in data/products.json " +
-              "for " + product.name + " — set it by hand: " + topShotRelPath
-            );
+          }
+
+          const topShotRelPath = folder + "/" + slug(product.name) + "_top-shot_" + metal + ".webp";
+          const topShotAbsPath = path.join(ROOT, topShotRelPath);
+
+          console.log("  top shot: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + topShotRelPath);
+          await renderTopShot(page, product, metal, topShotAbsPath);
+
+          const oldTopShotRelPath = product.assets && product.assets["top-shot"] && product.assets["top-shot"][metal];
+          if (oldTopShotRelPath !== topShotRelPath) {
+            const patched = updateProductMetalFieldInText(target.text, product, "top-shot", metal, topShotRelPath);
+            if (patched) {
+              target.text = patched;
+              if (oldTopShotRelPath) {
+                const oldAbs = path.join(ROOT, oldTopShotRelPath);
+                if (path.resolve(oldAbs) !== path.resolve(topShotAbsPath)) deleteIfExists(oldAbs);
+              }
+            } else {
+              console.warn(
+                "  could not find the assets.top-shot." + metal + " line to update in " + rel +
+                " for " + product.name + " — set it by hand: " + topShotRelPath
+              );
+            }
           }
         }
       }
@@ -703,9 +782,12 @@ async function main() {
       deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));
     }
 
-    if (productsText !== productsRaw) {
-      fs.writeFileSync(PRODUCTS_JSON_PATH, productsText, "utf8");
-      console.log("\nUpdated data/products.json icon/top-shot paths.");
+    for (const target of targets) {
+      if (target.text !== target.raw) {
+        fs.writeFileSync(target.absPath, target.text, "utf8");
+        console.log("\nUpdated " + path.relative(ROOT, target.absPath).replace(/\\/g, "/") +
+          " icon/top-shot paths.");
+      }
     }
 
     console.log("\nDone.");
