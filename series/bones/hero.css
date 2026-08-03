@@ -1,0 +1,207 @@
+/* ==========================================================================
+   Bones — hero styling.
+
+   Loaded at runtime by js/series.js (injected as a <link>, from this
+   series' "hero.css" path in data/series.json), not from index.html — so
+   it lands after css/style.css in the cascade and wins on ties.
+
+   PATH CONVENTION, and it differs from the fragment next door: any url()
+   here resolves against THIS FILE (../../assets/...), whereas an <img src>
+   in hero.html resolves against the PAGE, since the element gets cloned
+   into the live document. This file happens to need no url() at all — the
+   hero's images are all real <img> elements — but a future series' bundle
+   will hit this.
+   ========================================================================== */
+
+:root {
+  /* Global (not scoped to .reveal) because .reveal__extension-crop, which
+     also uses this, lives in .products — a sibling section, not a
+     descendant of .reveal, so a variable defined only there wouldn't be
+     visible here. */
+  --reveal-pin-height: 100vh;
+
+  /* Shared by the x-ray hand image and its two extension panels below the
+     fold (same reason --reveal-pin-height is global above) so the x-ray
+     effect reads as one continuous image at one consistent opacity rather
+     than three separately-tuned values drifting apart. */
+  --reveal-xray-opacity: 1;
+}
+
+/* ==========================================================================
+   Entry reveal — scroll pins the stage for --reveal-scroll-vh, during which
+   js/main.js clips hand_xray.webp open from the bottom up over
+   hand-rings-under-flesh_4k.webp.
+   ========================================================================== */
+
+.reveal {
+  position: relative;
+  --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
+  --reveal-frontier-height: clamp(0.4875rem, 1.3vw, 0.75rem); /* height of the scanning band (narrow-screen floor is 30% taller than it once was); width is always full screen */
+  /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
+     which also needs it, lives outside .reveal entirely. */
+
+  /* Ring placement on the x-ray hand: x/y are a ring's center as a % of
+     the hand image's own width/height (not the viewport), size is the
+     ring's width as a % of the hand image's width, rotation spins it in
+     place around that same center point. These four are only the
+     fallback values, inherited by a .reveal__ring <img> if nothing more
+     specific overrides them — js/main.js's updateHeroRings() creates one
+     .reveal__ring per product whose data/products.json "onHand.visible"
+     is true, each with these same four set inline (from that product's
+     own onHand.x/y/scale/rotation) directly on that specific <img>, so
+     several rings on screen at once don't all read the one shared set
+     defined here. */
+  --ring-x: 58.5%;
+  --ring-y: 51%;
+  --ring-size: 6%;
+  --ring-rotation: 0deg;
+
+  height: var(--reveal-scroll-vh);
+}
+
+.reveal__pin {
+  position: sticky;
+  top: 0;
+  height: var(--reveal-pin-height);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.reveal__stage {
+  position: relative;
+  height: 100%;
+}
+
+/* Both images share identical intrinsic dimensions and this exact same
+   sizing/position rule, so they land pixel-for-pixel on top of each other:
+   full pin height, width auto (overflow cropped equally by the centering),
+   flush to the pin's bottom edge. */
+.reveal__img {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  width: auto;
+  max-width: none;
+  display: block;
+}
+
+.reveal__img--normal {
+  /* Starts fully visible; js/main.js clips this away from the bottom by
+     the same amount the x-ray reveals, so the two never overlap. */
+  clip-path: inset(0 0 0 0);
+}
+
+/* Wraps the x-ray image + the ring, sized/positioned identically to
+   .reveal__img above (same intrinsic aspect ratio, so it lands pixel-for-
+   pixel on top of the normal/x-ray images). js/main.js applies the reveal
+   clip-path to THIS wrapper rather than to the x-ray image directly, so
+   the ring reveals in lockstep with the x-ray automatically instead of
+   needing its own separately-synced clip. */
+.reveal__xray-group {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  width: auto;
+  aspect-ratio: 3840 / 2160; /* same 16:9 as hand_xray.webp (3840x2160) and hand-rings-under-flesh_4k.webp (5760x3240) */
+  /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
+     the section scrolls, revealing from the bottom edge upward. */
+  clip-path: inset(100% 0 0 0);
+}
+
+/* A background layer living behind the product grid (not inside
+   .reveal__pin, no scroll/clip-path logic of its own) — this is
+   deliberately the simple half of the split: hand_xray.webp used to be
+   one taller file with this appended below it, but making that work with
+   the reveal's sticky/overflow setup kept causing viewport bugs on
+   mobile. Positioned absolutely within .products (which is
+   position: relative), pinned to its top so it continues directly from
+   the hero above, with .product-grid's z-index: 1 keeping it in front —
+   the image shows through in the grid's gaps/margins, like a backdrop.
+   Two panels rather than one — hand_xray_extension_1.webp then
+   hand_xray_extension_2.webp, stacked top to bottom — continuing the
+   lines that run off the bottom of hand_xray.webp across both seams.
+   overflow: hidden here only crops horizontally (same reason the hand
+   images need it: wider than the viewport on narrow screens) — safe to
+   do with plain overflow: hidden since unlike .reveal__pin there's no
+   sticky element anywhere in this chain to trigger that WebKit bug. */
+.reveal__extension-crop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  overflow: hidden;
+  /* Two stacked panels. Both extension images share hand_xray.webp's own
+     3840:2160 intrinsic ratio, so each one renders at exactly one
+     pin-height tall (same logic as .reveal__img's height: 100%) — no
+     per-image ratio math needed here, just double the height. */
+  height: calc(var(--reveal-pin-height) * 2);
+}
+
+/* Same width formula as .reveal__img (uncapped, cropped by the wrapper
+   above rather than letterboxed) so it lines up edge-to-edge with the
+   hand images' rendered width — no width mismatch at the seams. Centered
+   via left: 50% + transform (not margin: auto) because auto margins
+   collapse to 0 instead of centering once width exceeds the container —
+   the same reason .reveal__img uses this same technique. Each panel is
+   exactly one pin-height tall; the --1/--2 modifiers stack them so the
+   second continues directly where the first leaves off. */
+.reveal__extension {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(var(--reveal-pin-height) * 3840 / 2160);
+  max-width: none;
+  height: var(--reveal-pin-height);
+  display: block;
+  opacity: var(--reveal-xray-opacity);
+}
+.reveal__extension--1 { top: 0; }
+.reveal__extension--2 { top: var(--reveal-pin-height); }
+
+.reveal__xray-group .reveal__img--xray {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: var(--reveal-xray-opacity);
+}
+
+.reveal__ring {
+  position: absolute;
+  left: var(--ring-x);
+  top: var(--ring-y);
+  width: var(--ring-size);
+  height: auto;
+  /* translate centers the ring on (--ring-x, --ring-y) first; rotate then
+     spins it around that same center point (the default transform-origin)
+     to align with the finger. */
+  transform: translate(-50%, -50%) rotate(var(--ring-rotation));
+  pointer-events: none;
+}
+
+/* The "frontier" scan band. Full screen width, tunable height via
+   --reveal-frontier-height. Starts sitting just below the pin (fully
+   invisible below the viewport). js/main.js drives its `bottom` in two
+   phases: first lifting it up until flush with the pin's bottom edge (=
+   the normal image's bottom), then — once flush — riding it upward in
+   lockstep with the reveal boundary for the rest of the scroll. Inverts
+   whatever's directly behind it via backdrop-filter, rather than painting
+   its own color. */
+.reveal__frontier {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--reveal-frontier-height);
+  bottom: calc(-1 * var(--reveal-frontier-height));
+  z-index: 2;
+  pointer-events: none;
+  border: 0;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+}

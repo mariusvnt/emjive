@@ -1,0 +1,40 @@
+<!-- Bones — hero markup, injected into index.html by js/series.js.
+
+     One <template data-series-slot="..."> per destination slot; the loader
+     clones each into the matching element id. A series can supply any
+     subset of the slots (or extra ones, given a matching id in the page)
+     without index.html changing.
+
+     <img src> here resolves against the PAGE, not this file, because the
+     elements are cloned into the live document — so these stay
+     repo-root-relative, same as the paths in data/. (hero.css's url() would
+     resolve the other way; see its header.)
+
+     No <script> tags: behavior lives in hero.js. -->
+
+<template data-series-slot="seriesHero">
+  <section class="reveal" id="revealSection">
+    <div class="reveal__pin">
+      <div class="reveal__stage">
+        <img class="reveal__img reveal__img--normal" src="assets/series/bones/hero/hand-rings-under-flesh_4k.webp" alt="" />
+        <div class="reveal__xray-group" id="revealXrayGroup">
+          <img class="reveal__img--xray" src="assets/series/bones/hero/hand_xray.webp" alt="" />
+          <!-- .reveal__ring <img>s are inserted here by hero.js's
+               updateHeroRings() — one per product whose onHand.visible is
+               true in this series' products.json, not a fixed single element. -->
+        </div>
+      </div>
+      <div class="reveal__frontier" id="revealFrontier"></div>
+    </div>
+  </section>
+</template>
+
+<!-- The x-ray hand continues below the fold, behind the product grid — a
+     second slot because it has to live inside .products (which is
+     position: relative and stacks the grid above it), not inside .reveal. -->
+<template data-series-slot="seriesBackdrop">
+  <div class="reveal__extension-crop">
+    <img class="reveal__extension reveal__extension--1" src="assets/series/bones/hero/hand_xray_extension_1.webp" alt="" />
+    <img class="reveal__extension reveal__extension--2" src="assets/series/bones/hero/hand_xray_extension_2.webp" alt="" />
+  </div>
+</template>

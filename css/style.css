@@ -42,18 +42,6 @@
      flat --gutter: 1.25rem token (which only ever matched this at its
      20px floor, never past it) was retired in favor of this one. */
   --edge-px: clamp(20px, 2.5vw, 28px);
-
-  /* Global (not scoped to .reveal) because .reveal__extension-crop, which
-     also uses this, lives in .products — a sibling section, not a
-     descendant of .reveal, so a variable defined only there wouldn't be
-     visible here. */
-  --reveal-pin-height: 100vh;
-
-  /* Shared by the x-ray hand image and its two extension panels below the
-     fold (same reason --reveal-pin-height is global above) so the x-ray
-     effect reads as one continuous image at one consistent opacity rather
-     than three separately-tuned values drifting apart. */
-  --reveal-xray-opacity: 1;
 }
 
 /* DINish isn't on Google Fonts — it's a free (SIL OFL) font by Bert
@@ -385,182 +373,32 @@ button, input, textarea {
 }
 
 /* ==========================================================================
-   Entry reveal — scroll pins the stage for --reveal-scroll-vh, during which
-   js/main.js clips hand_xray.webp open from the bottom up over
-   hand-rings-under-flesh_4k.webp.
+   Series hero slots — the two empty containers index.html hands to
+   js/series.js, which clones the featured series' hero fragment into them.
+   The hero's own look lives in that series' bundle (series/<slug>/hero.css);
+   only the slots themselves are chrome, so only they belong here.
    ========================================================================== */
 
-.reveal {
-  position: relative;
-  --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
-  --reveal-frontier-height: clamp(0.4875rem, 1.3vw, 0.75rem); /* height of the scanning band (narrow-screen floor is 30% taller than it once was); width is always full screen */
-  /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
-     which also needs it, lives outside .reveal entirely. */
+/* Reserves the above-the-fold box before the bundle lands, so the product
+   grid never flashes up into the viewport and then gets pushed back down.
+   The bundle's own CSS sets the real height (a multiple of the viewport,
+   since the hero is scroll-driven); this only has to cover the first paint.
 
-  /* Ring placement on the x-ray hand: x/y are a ring's center as a % of
-     the hand image's own width/height (not the viewport), size is the
-     ring's width as a % of the hand image's width, rotation spins it in
-     place around that same center point. These four are only the
-     fallback values, inherited by a .reveal__ring <img> if nothing more
-     specific overrides them — js/main.js's updateHeroRings() creates one
-     .reveal__ring per product whose data/products.json "onHand.visible"
-     is true, each with these same four set inline (from that product's
-     own onHand.x/y/scale/rotation) directly on that specific <img>, so
-     several rings on screen at once don't all read the one shared set
-     defined here. */
-  --ring-x: 58.5%;
-  --ring-y: 51%;
-  --ring-size: 6%;
-  --ring-rotation: 0deg;
-
-  height: var(--reveal-scroll-vh);
-}
-
-.reveal__pin {
-  position: sticky;
-  top: 0;
-  height: var(--reveal-pin-height);
-  overflow: hidden;
+   Must stay a plain box: .reveal__pin inside it is position: sticky, which
+   silently stops working if any ancestor gets overflow (other than
+   visible), transform, filter, contain or will-change. Don't "just add
+   overflow: hidden" here to fix some horizontal-scroll bug. */
+.series-hero {
+  min-height: 100svh;
   background: var(--bg);
 }
 
-.reveal__stage {
-  position: relative;
-  height: 100%;
-}
-
-/* Both images share identical intrinsic dimensions and this exact same
-   sizing/position rule, so they land pixel-for-pixel on top of each other:
-   full pin height, width auto (overflow cropped equally by the centering),
-   flush to the pin's bottom edge. */
-.reveal__img {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 100%;
-  width: auto;
-  max-width: none;
-  display: block;
-}
-
-.reveal__img--normal {
-  /* Starts fully visible; js/main.js clips this away from the bottom by
-     the same amount the x-ray reveals, so the two never overlap. */
-  clip-path: inset(0 0 0 0);
-}
-
-/* Wraps the x-ray image + the ring, sized/positioned identically to
-   .reveal__img above (same intrinsic aspect ratio, so it lands pixel-for-
-   pixel on top of the normal/x-ray images). js/main.js applies the reveal
-   clip-path to THIS wrapper rather than to the x-ray image directly, so
-   the ring reveals in lockstep with the x-ray automatically instead of
-   needing its own separately-synced clip. */
-.reveal__xray-group {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 100%;
-  width: auto;
-  aspect-ratio: 3840 / 2160; /* same 16:9 as hand_xray.webp (3840x2160) and hand-rings-under-flesh_4k.webp (5760x3240) */
-  /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
-     the section scrolls, revealing from the bottom edge upward. */
-  clip-path: inset(100% 0 0 0);
-}
-
-/* A background layer living behind the product grid (not inside
-   .reveal__pin, no scroll/clip-path logic of its own) — this is
-   deliberately the simple half of the split: hand_xray.webp used to be
-   one taller file with this appended below it, but making that work with
-   the reveal's sticky/overflow setup kept causing viewport bugs on
-   mobile. Positioned absolutely within .products (which is
-   position: relative), pinned to its top so it continues directly from
-   the hero above, with .product-grid's z-index: 1 keeping it in front —
-   the image shows through in the grid's gaps/margins, like a backdrop.
-   Two panels rather than one — hand_xray_extension_1.webp then
-   hand_xray_extension_2.webp, stacked top to bottom — continuing the
-   lines that run off the bottom of hand_xray.webp across both seams.
-   overflow: hidden here only crops horizontally (same reason the hand
-   images need it: wider than the viewport on narrow screens) — safe to
-   do with plain overflow: hidden since unlike .reveal__pin there's no
-   sticky element anywhere in this chain to trigger that WebKit bug. */
-.reveal__extension-crop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 0;
-  overflow: hidden;
-  /* Two stacked panels. Both extension images share hand_xray.webp's own
-     3840:2160 intrinsic ratio, so each one renders at exactly one
-     pin-height tall (same logic as .reveal__img's height: 100%) — no
-     per-image ratio math needed here, just double the height. */
-  height: calc(var(--reveal-pin-height) * 2);
-}
-
-/* Same width formula as .reveal__img (uncapped, cropped by the wrapper
-   above rather than letterboxed) so it lines up edge-to-edge with the
-   hand images' rendered width — no width mismatch at the seams. Centered
-   via left: 50% + transform (not margin: auto) because auto margins
-   collapse to 0 instead of centering once width exceeds the container —
-   the same reason .reveal__img uses this same technique. Each panel is
-   exactly one pin-height tall; the --1/--2 modifiers stack them so the
-   second continues directly where the first leaves off. */
-.reveal__extension {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(var(--reveal-pin-height) * 3840 / 2160);
-  max-width: none;
-  height: var(--reveal-pin-height);
-  display: block;
-  opacity: var(--reveal-xray-opacity);
-}
-.reveal__extension--1 { top: 0; }
-.reveal__extension--2 { top: var(--reveal-pin-height); }
-
-.reveal__xray-group .reveal__img--xray {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  opacity: var(--reveal-xray-opacity);
-}
-
-.reveal__ring {
-  position: absolute;
-  left: var(--ring-x);
-  top: var(--ring-y);
-  width: var(--ring-size);
-  height: auto;
-  /* translate centers the ring on (--ring-x, --ring-y) first; rotate then
-     spins it around that same center point (the default transform-origin)
-     to align with the finger. */
-  transform: translate(-50%, -50%) rotate(var(--ring-rotation));
-  pointer-events: none;
-}
-
-/* The "frontier" scan band. Full screen width, tunable height via
-   --reveal-frontier-height. Starts sitting just below the pin (fully
-   invisible below the viewport). js/main.js drives its `bottom` in two
-   phases: first lifting it up until flush with the pin's bottom edge (=
-   the normal image's bottom), then — once flush — riding it upward in
-   lockstep with the reveal boundary for the rest of the scroll. Inverts
-   whatever's directly behind it via backdrop-filter, rather than painting
-   its own color. */
-.reveal__frontier {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: var(--reveal-frontier-height);
-  bottom: calc(-1 * var(--reveal-frontier-height));
-  z-index: 2;
-  pointer-events: none;
-  border: 0;
-  -webkit-backdrop-filter: invert(1);
-  backdrop-filter: invert(1);
+/* display: contents so the injected backdrop behaves as a direct child of
+   .products for layout — its containing block stays .products (which is
+   position: relative), and every .reveal__extension-crop rule in the bundle
+   applies verbatim, with no geometry change from the extra wrapper. */
+.series-hero-backdrop {
+  display: contents;
 }
 
 .btn {
@@ -1620,20 +1458,28 @@ body.is-modal-open { overflow: hidden; }
   will-change: transform;
   transform: translateY(0) translateZ(0);
 }
-/* Pages with a homepage hero (#revealSection) start hidden instead of
-   using the default above — purely to cover the brief instant between
-   this bar being appended (js/selection-bar.js runs synchronously,
-   before js/main.js's deferred code) and updateReveal()'s first real,
-   scroll-position-computed inline transform landing a moment later;
-   without this, a page load starting at the very top of the hero would
-   flash the bar visible for a frame before JS hides it. That first
-   inline style (computed from scroll position 0) resolves to this exact
-   same hidden transform, so there's nothing to visibly jump between the
-   two. Scoped with :has() rather than in js/selection-bar.js itself so
+/* Pages carrying a series hero start hidden instead of using the default
+   above — purely to cover the brief instant between this bar being appended
+   (js/selection-bar.js runs synchronously) and the hero's first real,
+   scroll-position-computed transform landing a moment later; without this,
+   a page load starting at the very top of the hero would flash the bar
+   visible for a frame before JS hides it. That first published position
+   (scroll 0) resolves to this exact same hidden transform, so there's
+   nothing to visibly jump between the two.
+
+   Scoped by a class on <body> rather than in js/selection-bar.js itself, so
    that script stays page-agnostic (see its own comment) — pages with no
-   hero at all (product.html) never match this selector, so the bar
-   there is just always visible, no scroll dependency whatsoever. */
-body:has(#revealSection) .selection-bar {
+   hero (product.html) never match, so the bar there is just always visible,
+   no scroll dependency whatsoever.
+
+   It used to be body:has(#revealSection), which broke the moment the hero
+   became a runtime-injected bundle: :has() is live, so at first paint there
+   is no #revealSection, the bar paints visible, and it snaps away when the
+   fragment lands — precisely the flash this rule exists to prevent, just
+   later and more visible. The class is in index.html's parsed markup, and
+   js/series.js strips it if the bundle fails to load (otherwise nothing
+   would ever publish a scroll position and the bar would stay hidden). */
+body.has-series-hero .selection-bar {
   transform: translateY(100%) translateZ(0);
 }
 

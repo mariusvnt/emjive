@@ -34,7 +34,13 @@
 <!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) -->
 <script type="module" src="js/three-viewer.js"></script>
 </head>
-<body id="top">
+<!-- has-series-hero is static markup on purpose: css/style.css uses it to
+     keep the floating selection bar off-screen until the hero's scroll
+     publishes a position. The rule it replaced, body:has(#revealSection),
+     can't work now that the hero arrives at runtime — :has() is live, so it
+     wouldn't match at first paint and the bar would flash in, then snap
+     away once the fragment landed. -->
+<body id="top" class="has-series-hero">
 
 
 <header class="site-header">
@@ -64,26 +70,15 @@
 
 <main>
 
-  <section class="reveal" id="revealSection">
-    <div class="reveal__pin">
-      <div class="reveal__stage">
-        <img class="reveal__img reveal__img--normal" src="assets/series/bones/hero/hand-rings-under-flesh_4k.webp" alt="" />
-        <div class="reveal__xray-group" id="revealXrayGroup">
-          <img class="reveal__img--xray" src="assets/series/bones/hero/hand_xray.webp" alt="" />
-          <!-- .reveal__ring <img>s are inserted here by js/main.js's
-               updateHeroRings() — one per product whose onHand.visible
-               is true in data/products.json, not a fixed single element. -->
-        </div>
-      </div>
-      <div class="reveal__frontier" id="revealFrontier"></div>
-    </div>
-  </section>
+  <!-- The featured series' hero is injected here by js/series.js, from that
+       series' hero bundle (series/<slug>/hero.{html,css,js}). Which series
+       is featured is one field — "featured" — in data/series.json. -->
+  <div class="series-hero" id="seriesHero"></div>
 
   <section class="products" id="products">
-    <div class="reveal__extension-crop">
-      <img class="reveal__extension reveal__extension--1" src="assets/series/bones/hero/hand_xray_extension_1.webp" alt="" />
-      <img class="reveal__extension reveal__extension--2" src="assets/series/bones/hero/hand_xray_extension_2.webp" alt="" />
-    </div>
+    <!-- Second hero slot: art that has to sit inside .products, behind the
+         grid, rather than inside the hero section itself. -->
+    <div class="series-hero-backdrop" id="seriesBackdrop"></div>
 
     <div class="product-grid" id="productGrid">
       <!-- Product cards are rendered here by js/main.js from data/products.json -->

@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 // Vite's static asset pipeline only ever sees paths it can trace at build
 // time: <script>/<link>/<img> attributes in the HTML entries themselves,
 // and url()/import references inside processed CSS/JS. This site's real
-// asset paths mostly come from data/products.json (icons/top-shot/model
+// asset paths mostly come from a series' products.json (icons/top-shot/model
 // paths, fetched and read as plain string data at runtime) or from a bare
 // string constant in js/three-viewer.js (HDRI_SRC) — none of that is
 // something Vite's build can see, so those folders would silently be left
@@ -23,11 +23,17 @@ import { defineConfig } from "vite";
 // output for whatever Vite's own pipeline *did* catch (e.g. CSS url()s,
 // the header's static <img> tags, three-viewer.js's own module bundle),
 // but that's harmless.
+//
+// series/ is on the list for the same reason as data/: it holds each
+// series' hero bundle (hero.html/hero.css/hero.js), which is referenced
+// only as string paths inside data/series.json and injected at runtime, so
+// Vite's build has no way to see it. That's also why a hero bundle's JS can
+// never use a bare specifier — nothing resolves it.
 function copyFilesVitesBuildCantTrace() {
   return {
     name: "copy-files-vites-build-cant-trace",
     closeBundle() {
-      for (const dir of ["assets", "data", "js"]) {
+      for (const dir of ["assets", "data", "js", "series"]) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
           cpSync(src, resolve(__dirname, "dist", dir), { recursive: true });

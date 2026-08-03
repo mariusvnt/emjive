@@ -300,4 +300,29 @@
 
   window.addEventListener("emjive:selection-changed", render);
   render();
+
+  // The homepage bar doesn't just sit fixed at the bottom — it slides in as
+  // a continuation of the hero's own wipe. The hero owns all that geometry
+  // and publishes one number (how far past its trigger point the page has
+  // scrolled); how far the BAR has to travel is measured here, since it's a
+  // property of the bar, not the hero. No CSS transition on either side —
+  // every value is set directly per scroll frame, in both directions, so
+  // scrolling back up un-reveals it exactly as readily.
+  //
+  // Subscribing unconditionally keeps this file page-agnostic, which was
+  // always the point (see the header comment): on a page with no hero
+  // nothing ever publishes, so nothing ever happens and the bar just stays
+  // visible — no special-casing, same as before.
+  if (window.EmjiveHero) {
+    window.EmjiveHero.onScroll(function (pastTriggerPx, hasScrollRange) {
+      // The summary row specifically, not .selection-bar as a whole: the
+      // bar's own rendered height grows whenever its drawer is open, which
+      // would make "how far to scroll" fluctuate with unrelated drawer
+      // state instead of staying tied to the one constant, always-visible
+      // part of the bar.
+      var revealDistance = Math.max(summary.getBoundingClientRect().height, 1);
+      var progress = hasScrollRange ? Math.min(1, pastTriggerPx / revealDistance) : 1;
+      bar.style.transform = "translateY(" + (100 - progress * 100) + "%) translateZ(0)";
+    });
+  }
 })();
