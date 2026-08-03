@@ -40,20 +40,47 @@
   function showNotFound() {
     loadingEl.textContent = "Product not found — ";
     var link = el("a", "btn", "Browse the collection");
-    link.href = "index.html#products";
+    // Back to whichever series was being browsed, not always the featured
+    // one — mainHref() drops the ?series= for the featured slug anyway.
+    var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
+    link.href = (slug ? window.EmjiveSeries.mainHref(slug) : "index.html") + "#products";
     loadingEl.appendChild(link);
+  }
+
+  // Product ids are only unique WITHIN a series now, so a bare ?id= (an old
+  // bookmark, or a link built before this refactor) can't identify a product
+  // on its own. Resolution order: the active series first — which is the
+  // featured one unless ?series= says otherwise — then every other series in
+  // index order. The scan costs nothing in the normal case, since step 1
+  // hits, and it's bounded by the number of series. If two series ever share
+  // an id and the URL carries no ?series=, the active one wins, which is the
+  // friendliest resolution available.
+  function findProduct(slug, id) {
+    return window.EmjiveSeries.loadProducts(slug).then(function (products) {
+      var product = products.find(function (p) { return p.id === id; });
+      if (product) return { product: product, slug: slug };
+
+      var others = window.EmjiveSeries.all()
+        .map(function (s) { return s.slug; })
+        .filter(function (s) { return s !== slug; });
+
+      return others.reduce(function (chain, otherSlug) {
+        return chain.then(function (found) {
+          if (found) return found;
+          return window.EmjiveSeries.loadProducts(otherSlug).then(function (list) {
+            var hit = list.find(function (p) { return p.id === id; });
+            return hit ? { product: hit, slug: otherSlug } : null;
+          });
+        });
+      }, Promise.resolve(null));
+    });
   }
 
   function init() {
     window.EmjiveSeries.ready
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];
-        return window.EmjiveSeries.loadProducts(ctx.slug).then(function (products) {
-          var id = getIdFromQuery();
-          var product = products.find(function (p) { return p.id === id; });
-          if (product) return { product: product, slug: ctx.slug };
-          return null;
-        });
+        return findProduct(ctx.slug, getIdFromQuery());
       })
       .then(function (found) {
         if (!found) return showNotFound();
@@ -714,6 +741,9 @@
       if (!state.selectedSize) return;
       var details = (product.metalDetails && product.metalDetails[state.selectedMetal]) || {};
       window.EmjiveSelection.addItem({
+        // Which series this came from — product ids are only unique within
+        // one, so the id alone no longer identifies a piece.
+        series: state.seriesSlug,
         productId: product.id,
         name: product.name,
         category: product.category,

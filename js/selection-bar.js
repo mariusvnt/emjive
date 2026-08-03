@@ -28,8 +28,12 @@
     return node;
   }
 
+  // productId is only unique within a series, hence the series prefix. The
+  // `|| ""` covers selections saved before that field existed: it keeps
+  // their key stable across renders, so an existing cart doesn't read as
+  // all-new and replay the entrance animation on every row.
   function itemKey(item) {
-    return item.productId + "|" + item.metal + "|" + item.size;
+    return (item.series || "") + "|" + item.productId + "|" + item.metal + "|" + item.size;
   }
 
   /* ---- build the DOM once ------------------------------------------------ */

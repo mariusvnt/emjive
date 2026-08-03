@@ -35,9 +35,15 @@
     return readAll();
   }
 
-  // item: { productId, name, category, metal, size, price, image } — a
-  // self-contained snapshot, so launch-order.html never needs to re-fetch/
-  // join against products.json to render itself.
+  // item: { series, productId, name, category, metal, size, price, image } —
+  // a self-contained snapshot, so launch-order.html never needs to re-fetch/
+  // join against any products.json to render itself.
+  //
+  // `series` is what makes productId meaningful: ids are only unique within
+  // one series' catalog. Selections saved before it existed simply have no
+  // series field, which is fine — nothing here reads it, and the one
+  // consumer that keys off productId tolerates it being absent (see
+  // itemKey() in js/selection-bar.js).
   function addItem(item) {
     var items = readAll();
     items.push(item);

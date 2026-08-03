@@ -37,6 +37,10 @@
   /* ---- product grid ------------------------------------------------------ */
 
   var grid = document.getElementById("productGrid");
+  // Which series the grid is showing — set before any card is built, and
+  // carried into every product link so a card in a past series opens that
+  // series' product page rather than the featured one's.
+  var activeSlug = null;
 
   function el(tag, className, html) {
     var node = document.createElement(tag);
@@ -74,7 +78,7 @@
   function buildCard(product) {
     var card = el("article", "product-card");
     var figure = el("div", "product-card__figure");
-    var href = "product.html?id=" + encodeURIComponent(product.id);
+    var href = window.EmjiveSeries.productHref(product, activeSlug);
 
     // No metal picker on the homepage grid — always the product's own
     // default metal (product.metal). window.EmjiveModelViewer is exposed
@@ -142,6 +146,7 @@
   if (grid) {
     window.EmjiveSeries.ready
       .then(function (ctx) {
+        activeSlug = ctx.slug;
         return window.EmjiveSeries.loadProducts(ctx.slug);
       })
       .then(function (products) {
