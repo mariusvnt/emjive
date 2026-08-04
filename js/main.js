@@ -15,11 +15,23 @@
 
   var menuToggle = document.getElementById("menuToggle");
   var siteHeaderMenu = document.getElementById("siteHeaderMenu");
+  var siteHeader = document.querySelector(".site-header");
+  var siteHeaderRow = document.querySelector(".site-header__row");
+
+  // Registered with window.EmjiveMenus (js/series.js) so a click away from
+  // the header closes it — root spans the whole header (toggle included),
+  // not just the menu panel, so clicking the toggle itself is never
+  // mistaken for "away" by that shared listener.
+  var headerMenuPanel = { root: siteHeader, close: function () { setHeaderMenuOpen(false); } };
 
   function setHeaderMenuOpen(isOpen) {
     menuToggle.classList.toggle("is-open", isOpen);
     siteHeaderMenu.classList.toggle("is-open", isOpen);
     menuToggle.setAttribute("aria-expanded", String(isOpen));
+    if (window.EmjiveMenus) {
+      if (isOpen) window.EmjiveMenus.opened(headerMenuPanel);
+      else window.EmjiveMenus.closed(headerMenuPanel);
+    }
   }
 
   // Only this page can filter in place; everywhere else a category click is
@@ -30,6 +42,17 @@
     menuToggle.addEventListener("click", function () {
       setHeaderMenuOpen(!menuToggle.classList.contains("is-open"));
     });
+
+    // The empty space in the header row (outside the brand logo and the
+    // toggle button itself, both of which already have their own handlers
+    // — the logo navigates home, the toggle would otherwise double-fire)
+    // toggles the menu too, same as clicking the +/- icon.
+    if (siteHeaderRow) {
+      siteHeaderRow.addEventListener("click", function (e) {
+        if (e.target.closest(".site-header__brand") || e.target.closest(".menu-toggle")) return;
+        setHeaderMenuOpen(!menuToggle.classList.contains("is-open"));
+      });
+    }
 
     // Delegated rather than bound per link: the category buttons are
     // rendered from data after this runs, so a per-link listener would
@@ -60,6 +83,7 @@
   // the series a click will land on, so the buttons never advertise a
   // category the destination can't show.
   var filterOptions = document.getElementById("headerFilterOptions");
+  var filterRow = document.getElementById("siteHeaderFilter");
   var activeCats = [];
 
   function parseCatsFromQuery(valid) {
@@ -88,7 +112,11 @@
   function renderHeaderFilter() {
     if (!filterOptions) return;
     filterOptions.innerHTML = "";
-    window.EmjiveSeries.categories().forEach(function (cat) {
+    var cats = window.EmjiveSeries.categories();
+    // One category (or zero) means there's nothing to filter — toggling
+    // the sole button on/off can never change what the grid shows.
+    if (filterRow) filterRow.hidden = cats.length <= 1;
+    cats.forEach(function (cat) {
       // Real <a href>, not <button>, on every page: that keeps middle-click
       // and open-in-new-tab working, with the in-place toggle layered on
       // top via preventDefault() where the grid exists.

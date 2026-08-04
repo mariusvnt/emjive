@@ -95,11 +95,24 @@
     drawer.style.maxHeight = isOpen ? drawerInner.offsetHeight + "px" : "0px";
   }
 
-  function toggleDrawer() {
-    var isOpen = !drawer.classList.contains("is-open");
+  // Registered with window.EmjiveMenus (js/series.js) so a click away from
+  // the bar closes the drawer — root is the whole bar (toggle/summary row
+  // included), not just the drawer, so clicking the toggle itself is never
+  // mistaken for "away" by that shared listener.
+  var barMenuPanel = { root: bar, close: function () { setDrawerOpen(false); } };
+
+  function setDrawerOpen(isOpen) {
     drawer.classList.toggle("is-open", isOpen);
     toggleBtn.setAttribute("aria-expanded", String(isOpen));
     syncDrawerHeight();
+    if (window.EmjiveMenus) {
+      if (isOpen) window.EmjiveMenus.opened(barMenuPanel);
+      else window.EmjiveMenus.closed(barMenuPanel);
+    }
+  }
+
+  function toggleDrawer() {
+    setDrawerOpen(!drawer.classList.contains("is-open"));
   }
   toggleBtn.addEventListener("click", toggleDrawer);
   // emptyLabelEl is a sibling of toggleBtn (not inside it — see its own
@@ -293,8 +306,7 @@
     });
 
     if (!items.length) {
-      drawer.classList.remove("is-open");
-      toggleBtn.setAttribute("aria-expanded", "false");
+      setDrawerOpen(false);
     }
     // Re-measures against the just-rebuilt rows — if the drawer is open,
     // this is what makes it shrink/grow smoothly as items are removed or

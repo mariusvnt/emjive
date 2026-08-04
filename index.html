@@ -56,16 +56,18 @@
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
       <nav class="site-header__nav">
-        <!-- Row 1: filter. The buttons are rendered by js/main.js from the
+        <a href="creation-process.html" class="is-info">Creation process</a>
+        <a href="archives.html" class="is-info">Archives</a>
+        <!-- Filter row: the buttons are rendered by js/main.js from the
              ACTIVE series' own category list (data/series.json) — don't
              hand-write them, and don't assume three: each series declares
-             its own subset of the global vocabulary. -->
-        <div class="site-header__filter">
+             its own subset of the global vocabulary. That same script
+             hides this whole row ([hidden]) when the subset has one
+             category or fewer, since there's nothing to filter. -->
+        <div class="site-header__filter" id="siteHeaderFilter">
           <span class="site-header__filter-label">Filter by</span>
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
         </div>
-        <a href="archives.html" class="is-info">Archives</a>
-        <a href="creation-process.html" class="is-info">Creation process</a>
       </nav>
     </div>
   </div>

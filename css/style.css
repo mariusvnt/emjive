@@ -275,6 +275,10 @@ button, input, textarea {
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
+  /* The empty space between the brand and the toggle also opens/closes the
+     menu (js/main.js) — the brand and toggle each keep their own cursor
+     (link, button), this just signals the rest of the row is clickable too. */
+  cursor: pointer;
 }
 
 .site-header__brand {
@@ -404,12 +408,24 @@ button, input, textarea {
   font-size: 14px;
   color: var(--black);
 }
+/* js/main.js hides the whole row (single- or zero-category series — nothing
+   to filter) by setting [hidden] on it. Same trap as .product-card[hidden]
+   below: .site-header__filter { display: flex } above is an author rule, so
+   it beats the UA [hidden] { display: none } regardless of specificity —
+   needs an explicit override to actually disappear. */
+.site-header__filter[hidden] {
+  display: none;
+}
 
 /* Adds on top of the normal --header-rubric-gap at the boundary between the
-   filter row and the informative links. (Replaces an .is-cat + .is-info
-   adjacency pair — those two kinds stopped being siblings once the category
-   buttons moved inside .site-header__filter.) */
-.site-header__filter + a.is-info {
+   informative links and the filter row that follows them. (Replaces an
+   .is-cat + .is-info adjacency pair — those two kinds stopped being
+   siblings once the category buttons moved inside .site-header__filter.)
+   Contributes nothing when the filter row is [hidden]: a display:none
+   element's margin has no effect, and the nav's own `gap` likewise drops
+   out for a display:none child — so a hidden filter row leaves no orphaned
+   gap behind it either. */
+a.is-info + .site-header__filter {
   margin-top: var(--header-kind-gap);
 }
 

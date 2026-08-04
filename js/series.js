@@ -128,6 +128,45 @@
   };
 
   /* ---------------------------------------------------------------------
+   * Click-away coordination for independently-opened chrome panels — the
+   * header menu (js/main.js) and the selection-bar drawer (js/selection-
+   * bar.js). Neither file knows about the other, so a plain outside-click
+   * listener in either one would either fight the other's own toggle or
+   * close both panels on a single click. Instead each panel registers a
+   * `root` (spanning both its trigger and its content, so clicking the
+   * trigger is never mistaken for "away") and reports its own open/close
+   * transitions here. A click landing outside every currently-open
+   * panel's root closes only the most-recently-opened one — so if both
+   * happen to be open at once, a second outside click is needed to close
+   * the other.
+   * ------------------------------------------------------------------- */
+  var openPanels = []; // oldest-opened first
+
+  window.EmjiveMenus = {
+    opened: function (panel) {
+      var i = openPanels.indexOf(panel);
+      if (i !== -1) openPanels.splice(i, 1);
+      openPanels.push(panel);
+    },
+    closed: function (panel) {
+      var i = openPanels.indexOf(panel);
+      if (i !== -1) openPanels.splice(i, 1);
+    }
+  };
+
+  document.addEventListener("click", function (e) {
+    if (!openPanels.length) return;
+    // A click inside any currently-open panel is that panel's own concern
+    // (its toggle, an in-place filter click, etc.) — never "away".
+    for (var i = 0; i < openPanels.length; i++) {
+      if (openPanels[i].root.contains(e.target)) return;
+    }
+    var top = openPanels[openPanels.length - 1];
+    openPanels.pop();
+    top.close();
+  });
+
+  /* ---------------------------------------------------------------------
    * Hero bundle loading (index.html only — guarded on #seriesHero, the
    * same pattern main.js uses for #productGrid).
    * ------------------------------------------------------------------- */
