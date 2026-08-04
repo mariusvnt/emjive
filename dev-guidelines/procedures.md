@@ -147,8 +147,9 @@ custom-size field available.
 Nothing else. The header's filter buttons render from that per-series array,
 so there's no markup to touch on any of the seven pages. `npm run auto-render`
 warns if a series declares a category the global map doesn't define. Note
-that the whole filter row stays hidden until a series' array has at least
-two entries — see "Header rubrics" above.
+that on the main page the row shows a single, non-interactive tag instead of
+the full label + list until a series' array has at least two entries — see
+"Header rubrics" above; it only fully hides for a series with none at all.
 
 ## Adding a series
 
@@ -332,20 +333,34 @@ just for retina-sharp source pixels before the final resize.
 ## Header rubrics (nav vs. informative)
 
 The dropdown menu (`.site-header__nav`) has exactly three rows, in this
-order: Creation process, then Archives, then the category filter row.
-Links come in two kinds, styled identically except for font:
+order: the filter row, then Archives, then Creation process. Links come in
+two kinds, styled identically except for font:
 
-- `class="is-info"` — DINish, used for the two informative links (Creation
-  process, Archives).
+- `class="is-info"` — DINish, used for the two informative links (Archives,
+  Creation process) and the filter row's own "Gallery" link (below).
 - `class="is-cat"` — Geist Mono (loaded from Google Fonts already), used for
-  the category filter buttons. **These are rendered by `js/main.js` from the
-  active series' own category list — never hand-write them**, and don't
-  assume there are three. `.is-active` marks the selected ones. The whole
-  row hides itself (`hidden` on `#siteHeaderFilter`) once that list is down
-  to one category or fewer — there's nothing to filter with a single button.
+  the category filter tags. **These are rendered by `js/main.js`'s
+  `renderHeaderFilter()` from the active series' own category list — never
+  hand-write them**, and don't assume there are three.
+
+The filter row is dual-purpose:
+
+- On `index.html` — a "Filter gallery by" label plus one tag per category,
+  when there's more than one. Exactly one category drops the label and
+  shows that lone tag alone, permanently `.is-active` and non-interactive
+  (no `href`) — nothing to actually filter. Zero categories hides the row
+  entirely (`hidden` on `#siteHeaderFilter`).
+- On every other page — an unconditional "Gallery" link back to
+  `index.html#products`, regardless of category count.
+
+Selection (which tag(s) are active, or the lone tag's default state) is a
+small dot before the text — the same always-rendered, background-toggled
+recipe size/metal selection uses elsewhere (see `styling.md`) — not a color
+change. `syncFilterButtons()` toggles `.is-active`; "Gallery" never carries
+a dot.
 
 Filtering is multi-select and in-place on `index.html`, reflected as
-`?cat=ring,neck`; from any other page the same button is an ordinary link
+`?cat=ring,neck`; from any other page the same tag is an ordinary link
 that navigates to the grid with that one category applied.
 
 The header row's empty space (excluding the brand logo and the toggle
