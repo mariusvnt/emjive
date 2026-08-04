@@ -299,10 +299,11 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       wrapper.appendChild(posterEl);
     }
 
-    var nudgeHandEl = document.createElement("img");
+    // A <div>, not an <img> — its visible pixels come entirely from the
+    // backdrop-filter invert clipped to the SVG's mask shape (see the CSS
+    // rule), not from any fill/stroke painted by the element itself.
+    var nudgeHandEl = document.createElement("div");
     nudgeHandEl.className = "emjive-3d-viewer__nudge-hand";
-    nudgeHandEl.src = "assets/hand-pointer-thumb-opened.svg";
-    nudgeHandEl.alt = "";
     wrapper.appendChild(nudgeHandEl);
 
     var scene = new THREE.Scene();

@@ -131,7 +131,7 @@
     checkoutTotalEl.textContent = window.EmjiveSelection.formatPrice(total);
   }
 
-  // Smooths the switch from the list into the "No item selected" empty
+  // Smooths the switch from the list into the "No selected item" empty
   // state — a plain sequential opacity crossfade (list fades out, then
   // the empty state fades in), hand-orchestrated because [hidden] means
   // display:none, which can't itself transition. Sequential, not

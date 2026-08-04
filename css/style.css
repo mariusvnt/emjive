@@ -217,20 +217,33 @@ button, input, textarea {
 /* Idle "this is draggable" hint — position/opacity driven per-frame from
    JS (see the nudgeActive branch in buildThreeViewer()'s animate loop),
    this rule only supplies the resting anchor/look and the opacity
-   transition. The source SVG is solid black, which reads fine as-is
-   against these light product-card/carousel backgrounds — no invert
-   filter needed (unlike the dark test-harness panel it was designed for
-   originally). */
+   transition. Paints no fill or border of its own: the SVG (solid black
+   silhouette, edited from its original outline-only fill-opacity:0 form
+   specifically so the whole hand fills the mask, not just its rim) is
+   used only as a mask shape, and a backdrop-filter invert shows through
+   it — so the hint reads as a color-inverted cutout of whatever's
+   underneath (product image or 3D model) rather than a fixed black icon,
+   staying legible over any background without conditional styling. */
 .emjive-3d-viewer__nudge-hand {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 250ms ease;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+  -webkit-mask-image: url("../assets/hand-pointer-thumb-opened.svg");
+  mask-image: url("../assets/hand-pointer-thumb-opened.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+}
+@media (max-width: 640px) {
+  .emjive-3d-viewer__nudge-hand { width: 36px; height: 36px; }
 }
 
 /* ==========================================================================
