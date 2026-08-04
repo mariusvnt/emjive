@@ -113,7 +113,7 @@ tooling, and the assets folder).
 
 This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
-from here. Two of the three current products still have no photography,
+from here. Three of the four current products still have no photography,
 and every product's weight/composition (and most prices) are still
 placeholders waiting on real data. `launch-order.html`'s review page goes
 all the way to a "Proceed to checkout" button, but there's still no real

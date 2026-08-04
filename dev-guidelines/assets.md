@@ -32,18 +32,18 @@ For Bones: WebP (quality 90) rather than PNG, since these are full-bleed photogr
 One folder per product, matching that series' `products.json` path fields:
 
 ```text
-disc_ring/       disc_gltf.glb, disc_icon_{bronze,silver,steel}.webp, disc_top-shot_{bronze,silver,steel}.webp
-foramen_ring/    Foramen_gltf.glb, foramen_icon_{bronze,silver,steel}.webp, foramen_top-shot_{bronze,silver,steel}.webp
-furcula_ring/    furcula_gltf.glb, furcula_icon_{bronze,silver,steel}.webp, furcula_top-shot_{bronze,silver,steel}.webp,
+disc_ring/       disc_gltf.glb, disc_icon_{bronze,silver,steel}.webp, disc_fallback-img_{bronze,silver,steel}.webp, disc_top-shot_{bronze,silver,steel}.webp
+foramen_ring/    Foramen_gltf.glb, foramen_icon_{bronze,silver,steel}.webp, foramen_fallback-img_{bronze,silver,steel}.webp, foramen_top-shot_{bronze,silver,steel}.webp
+furcula_ring/    furcula_gltf.glb, furcula_icon_{bronze,silver,steel}.webp, furcula_fallback-img_{bronze,silver,steel}.webp, furcula_top-shot_{bronze,silver,steel}.webp,
                  furcula-xray.png, Furcula_photo1.png, Furcula_photo2.png
-marrow_ring/     Marrow_gltf.glb, marrow_icon_{bronze,silver,steel}.webp, marrow_top-shot_{bronze,silver,steel}.webp
+marrow_ring/     Marrow_gltf.glb, marrow_icon_{bronze,silver,steel}.webp, marrow_fallback-img_{bronze,silver,steel}.webp, marrow_top-shot_{bronze,silver,steel}.webp
 ```
 
 **Naming conventions:**
-- Folder: `<slug>_<category>` (lowercase product name + underscore + category). **This one is load-bearing now** — `auto-render.js` *constructs* the render output path from `assets/series/<slug>/products/<slug(name)>_<category>/` rather than reading it off `product.model`, so a hand-renamed folder gets a new one created beside it instead of being silently found. It warns when a model sits outside the folder the convention predicts.
+- Folder: `<slug>_<category>` (lowercase product name + underscore + category). **This one is load-bearing now** — `auto-render.js` *constructs* the render output path from `assets/series/<slug>/products/<slug(name)>_<category>/` rather than reading it off `product.assets.model`, so a hand-renamed folder gets a new one created beside it instead of being silently found. It warns when a model sits outside the folder the convention predicts.
 - Model file: `<name>_gltf.glb` — capitalization follows whoever exported it (`Foramen_gltf.glb` and `Marrow_gltf.glb` are capitalized, the other two aren't) — hand-authored/exported, not machine-generated, so don't assume consistent casing when scripting against it.
-- Icons/top-shots: always `<slugified-name>_icon_<metal>.webp` / `<slugified-name>_top-shot_<metal>.webp`, generated and kept in sync by `scripts/auto-render.js` — these ARE consistently lowercase, since the slug function produces them.
-- Extra photography (`photos` field): `<Name>_photo<N>.png` — capitalized to match the product name, `.png` not `.webp`, hand-added (Furcula is currently the only product with any).
+- Icons/fallback images/top-shots: always `<slugified-name>_icon_<metal>.webp` / `<slugified-name>_fallback-img_<metal>.webp` / `<slugified-name>_top-shot_<metal>.webp`, generated and kept in sync by `scripts/auto-render.js` — these ARE consistently lowercase, since the slug function produces them. `icon` and `fallback-img` come from the exact same underlying screenshot (one capture, two saves — see `tooling.md`), just processed differently.
+- Extra photography (`assets.photos` field): `<Name>_photo<N>.png` — capitalized to match the product name, `.png` not `.webp`, hand-added (Furcula is currently the only product with any).
 - X-ray backdrop (`assets.xray` field): `<slug>-xray.png` — hyphenated, hand-added (Furcula only, currently).
 
 ## Global items
