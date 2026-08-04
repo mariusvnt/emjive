@@ -382,10 +382,10 @@ button, input, textarea {
   color: var(--black);
 }
 
-/* Row 1 of the menu: a horizontal row living inside .site-header__nav's
-   right-aligned vertical stack. flex-wrap because a series can declare any
-   number of categories — a long list wraps rather than overflowing the
-   header on a phone. */
+/* The last row of the menu: a horizontal row living inside
+   .site-header__nav's right-aligned vertical stack. flex-wrap because a
+   series can declare any number of categories — a long list wraps rather
+   than overflowing the header on a phone. */
 .site-header__filter {
   display: flex;
   /* baseline, not center: the label is 14px DINish and the buttons are 12px

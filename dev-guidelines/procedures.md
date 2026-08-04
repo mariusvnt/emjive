@@ -146,7 +146,9 @@ custom-size field available.
 
 Nothing else. The header's filter buttons render from that per-series array,
 so there's no markup to touch on any of the six pages. `npm run auto-render`
-warns if a series declares a category the global map doesn't define.
+warns if a series declares a category the global map doesn't define. Note
+that the whole filter row stays hidden until a series' array has at least
+two entries — see "Header rubrics" above.
 
 ## Adding a series
 
@@ -329,20 +331,28 @@ just for retina-sharp source pixels before the final resize.
 
 ## Header rubrics (nav vs. informative)
 
-The dropdown menu (`.site-header__nav`) has exactly three rows: a category
-filter row, then Archives, then Creation process. Links come in two kinds,
-styled identically except for font:
+The dropdown menu (`.site-header__nav`) has exactly three rows, in this
+order: Creation process, then Archives, then the category filter row.
+Links come in two kinds, styled identically except for font:
 
+- `class="is-info"` — DINish, used for the two informative links (Creation
+  process, Archives).
 - `class="is-cat"` — Geist Mono (loaded from Google Fonts already), used for
   the category filter buttons. **These are rendered by `js/main.js` from the
   active series' own category list — never hand-write them**, and don't
-  assume there are three. `.is-active` marks the selected ones.
-- `class="is-info"` — DINish, used for the two informative links (Archives,
-  Creation process).
+  assume there are three. `.is-active` marks the selected ones. The whole
+  row hides itself (`hidden` on `#siteHeaderFilter`) once that list is down
+  to one category or fewer — there's nothing to filter with a single button.
 
 Filtering is multi-select and in-place on `index.html`, reflected as
 `?cat=ring,neck`; from any other page the same button is an ordinary link
 that navigates to the grid with that one category applied.
+
+The header row's empty space (excluding the brand logo and the toggle
+button itself) also opens/closes the menu, same as the `+`/`-` icon —
+see `client-scripts.md`'s `js/main.js` entry. Both the header menu and the
+selection-bar drawer close on an outside click via `window.EmjiveMenus`
+(`js/series.js`) — see the same doc.
 
 DINish isn't on any font CDN — it's a free (SIL OFL licensed) font by Bert
 Driehuis. The family already lives in this repo at `assets/fonts/dinish-woff2/`

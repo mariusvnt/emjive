@@ -1,6 +1,6 @@
 # Styling
 
-One file, `css/style.css` (~1881 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
+One file, `css/style.css` (~1826 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
 
 ## Design tokens (`:root`, lines 5–57)
 
@@ -25,32 +25,32 @@ Regular (400), Bold (700), and Black (900, driven by `--button-font-weight` — 
 
 ## Section map
 
-`css/style.css` is 1810 lines and holds only what's shared across pages. **The homepage hero's styling is no longer here** — it moved wholesale into the featured series' own bundle at `series/<slug>/hero.css`, along with the `--reveal-pin-height` and `--reveal-xray-opacity` tokens it owns (see `pages.md`).
+`css/style.css` is 1826 lines and holds only what's shared across pages. **The homepage hero's styling is no longer here** — it moved wholesale into the featured series' own bundle at `series/<slug>/hero.css`, along with the `--reveal-pin-height` and `--reveal-xray-opacity` tokens it owns (see `pages.md`).
 
 | Lines | Section |
 |---|---|
-| 87–175 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below |
-| 176–225 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
-| 226–415 | Header — including the category filter row (`.site-header__filter`, its wrapping options row, and `.is-cat.is-active`) |
-| 416–462 | Series hero slots (`.series-hero`, `.series-hero-backdrop`) — the two empty containers the hero fragment gets cloned into. See the warning below |
-| 463–498 | Section heads (shared component) |
-| 499–667 | Products (homepage grid) — `.product-card__label` is a fixed-width box (`width: 6.25rem`) centered in its grid column via `justify-self: center`, replacing an earlier viewport-relative `padding-left: 12vw` push that drifted out of proportion against the model column's own sizing on narrow phones. `.product-card[hidden]` lives here too — see the gotcha below |
-| 668–699 | Standalone content pages (`.page-shell`) — archives, creation process, series manifest |
-| 700–774 | Selection / order page |
-| 775–1491 | Product detail page (by far the largest — sub-map below) |
-| 1492–1507 | Footer |
-| 1508–1810 | Floating selection bar |
+| 87–174 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below |
+| 175–224 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
+| 225–431 | Header — including the category filter row (`.site-header__filter`, its wrapping options row, `.is-cat.is-active`, and the `.site-header__filter[hidden]` override — see the gotcha below) |
+| 432–477 | Series hero slots (`.series-hero`, `.series-hero-backdrop`) — the two empty containers the hero fragment gets cloned into. See the warning below |
+| 478–513 | Section heads (shared component) |
+| 514–682 | Products (homepage grid) — `.product-card__label` is a fixed-width box (`width: 6.25rem`) centered in its grid column via `justify-self: center`, replacing an earlier viewport-relative `padding-left: 12vw` push that drifted out of proportion against the model column's own sizing on narrow phones. `.product-card[hidden]` lives here too — see the gotcha below |
+| 683–714 | Standalone content pages (`.page-shell`) — archives, creation process, series manifest |
+| 715–789 | Selection / order page |
+| 790–1506 | Product detail page (by far the largest — sub-map below) |
+| 1507–1522 | Footer |
+| 1523–1826 | Floating selection bar |
 
 **Product detail sub-map** (matches the numbered comments in both this file and `product.html`):
 
-- 841 — label bar
-- 936 — carousel (no rim click zones anymore — dropped in favor of drag-to-scroll plus tap-a-slide-to-center-it, all in JS; see `client-scripts.md`)
-- 1043 — metal selection
-- 1147 — select button
-- 1172 — prose sections (description / characteristics / shipping)
-- 1225 — size-selection modal (1294 standard sizes, 1371 custom size, 1447 size guide, 1465 confirm button)
+- 830 — label bar
+- 924 — carousel (no rim click zones anymore — dropped in favor of drag-to-scroll plus tap-a-slide-to-center-it, all in JS; see `client-scripts.md`)
+- 1057 — metal selection
+- 1161 — select button
+- 1187 — prose sections (description / characteristics / shipping)
+- 1238 — size-selection modal (1309 standard sizes, 1382 custom size, 1462 size guide, 1476 confirm button)
 
-**Floating selection bar sub-map**: 1589 — summary row (always visible in the DOM/markup sense — see the scroll-driven entrance note below for the one page where it isn't always *shown*), 1726 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
+**Floating selection bar sub-map**: 1585 — summary row (always visible in the DOM/markup sense — see the scroll-driven entrance note below for the one page where it isn't always *shown*), 1730 — drawer (item list, height driven by an inline px value `js/selection-bar.js` sets — see `client-scripts.md`).
 
 **`.series-hero` must stay a plain box.** `.reveal__pin` inside it is `position: sticky`, which silently stops working if any ancestor picks up `overflow` (other than `visible`), `transform`, `filter`, `contain` or `will-change`. Its `min-height: 100svh` exists to reserve the above-the-fold box before the hero bundle lands, so the grid never flashes into the viewport. `.series-hero-backdrop` is `display: contents` so the injected backdrop keeps `.products` as its containing block and every `.reveal__extension-crop` rule applies with no geometry change.
 
@@ -75,12 +75,12 @@ Per-context sizing of the wrapper itself lives with each context instead (`.prod
 - `html { scrollbar-gutter: stable both-edges; overflow-x: hidden; }` — reserves vertical scrollbar space unconditionally and forbids horizontal scroll, specifically so the fixed `.selection-bar`'s `left:0; right:0` stays consistent across pages. `both-edges` (not plain `stable`) matters for a second reason too: the site leans on a lot of "re-center on my own midpoint, then breakout to `100vw`" tricks (`.product-card__bar-link`, the hero images, the carousel frame, `.product-detail__select`), and plain `stable` reserves its gutter on one edge only — which, on any engine that honors it even with no scrollbar actually visible (observed on Chrome for Android), quietly shifts those midpoints off the true viewport center. `both-edges` reserves the same gutter on both sides instead, keeping centering symmetric. On iOS Safari specifically, a real reported instance of this same gap-on-one-edge/scrollable-on-the-other symptom turned out to be unrelated to scrollbar-gutter at all — see `.product-card`'s own `min-width: 0` note in the Products row of the section map above.
 - `html`/`body { overscroll-behavior-x: none; }` — a separate concern from the `overflow-x: hidden` above: that stops actual horizontal scrolling, but browsers still show a rubber-band bounce for a left/right drag at the document edge regardless of whether there's anything to scroll to (narrow screens make that gesture easy to trigger by accident). Vertical overscroll bounce is deliberately left alone — scoped to `-x` only.
 - `body:has(.selection-bar) { padding-bottom: var(--selection-bar-height); }` — `:has()` auto-scopes the bottom-padding reservation to only the pages that actually render the bar (not `launch-order.html`).
-- **`[hidden]` loses to any explicit `display`.** The UA stylesheet's `[hidden] { display: none }` is beaten by a rule that sets `display` itself, so hiding such an element via the `hidden` attribute silently does nothing without a matching `[hidden]` rule. Three places in this file exist purely for that: `.product-card[hidden]` (the header's category filter hides cards this way — see below), `.selection-bar__icons[hidden]`, and `.selection-bar__order`. If you add a `display:` to a block that JS ever hides, add its `[hidden]` companion in the same edit.
+- **`[hidden]` loses to any explicit `display`.** The UA stylesheet's `[hidden] { display: none }` is beaten by a rule that sets `display` itself, so hiding such an element via the `hidden` attribute silently does nothing without a matching `[hidden]` rule. Four places in this file exist purely for that: `.product-card[hidden]` (the header's category filter hides cards this way — see below), `.selection-bar__icons[hidden]`, `.selection-bar__order`, and `.site-header__filter[hidden]` (`js/main.js` hides the whole filter row once a series is down to one category or fewer — see the Header row in the section map above). If you add a `display:` to a block that JS ever hides, add its `[hidden]` companion in the same edit.
 - **The category filter hides cards, it never re-renders them.** `js/main.js` builds every `.product-card` once and toggles `hidden`. Rebuilding the grid per toggle would destroy and recreate every three.js `WebGLRenderer`, and nothing on the live site disposes contexts — past the browser's per-page budget the viewer returns `null` and the whole grid degrades to static icons, permanently. Keep any future filter/sort work on the same "hide, don't rebuild" footing.
 
-## Floating selection bar (lines 1508–1810) — scroll-driven on the homepage only
+## Floating selection bar (lines 1523–1826) — scroll-driven on the homepage only
 
-`.selection-bar` itself (line 1518) is visible (`transform: translateY(0)`) by default, with no `transition` on `transform` at all — deliberately, see below. `body.has-series-hero .selection-bar` (line 1565) overrides that to hidden (`translateY(100%)`) purely to cover the instant between the bar being appended (`js/selection-bar.js` runs synchronously) and that page's first real scroll-computed position landing a moment later; it isn't the thing actually driving the entrance.
+`.selection-bar` itself (line 1534) is visible (`transform: translateY(0)`) by default, with no `transition` on `transform` at all — deliberately, see below. `body.has-series-hero .selection-bar` (line 1581) overrides that to hidden (`translateY(100%)`) purely to cover the instant between the bar being appended (`js/selection-bar.js` runs synchronously) and that page's first real scroll-computed position landing a moment later; it isn't the thing actually driving the entrance.
 
 That selector used to be `body:has(#revealSection)`, which broke the moment the hero became a runtime-injected bundle: `:has()` is live, so at first paint there is no `#revealSection`, the bar paints visible, and it snaps away when the fragment lands — exactly the flash the rule exists to prevent. The class is static markup in `index.html` instead, and `js/series.js` strips it if the bundle fails to load, so the bar isn't stranded off-screen with nothing left to publish a scroll position.
 

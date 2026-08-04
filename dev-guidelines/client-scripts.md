@@ -21,7 +21,7 @@ The single shared construction path for every 3D product view on the site (homep
 
 **Exposes**: `window.EmjiveModelViewer = buildThreeViewer` — consumed by `main.js`'s grid and `product.js`'s carousel. Also `window.EmjiveModelViewer.buildMaterialSwatch` — a harness-only second export, see above.
 
-## `js/series.js` (~250 lines) — series resolution
+## `js/series.js` (~320 lines) — series resolution
 
 Loaded blocking in `<head>` on every page (see above). Fetches `data/series.json` once and exposes `window.EmjiveSeries`:
 
@@ -36,17 +36,20 @@ It also owns **hero bundle loading** on `index.html` (guarded on `#seriesHero` e
 
 `window.EmjiveHero` lives here too — a plain function registry (`onScroll`/`publishScroll`), not a `CustomEvent`, because it fires once per animation frame during scroll and a registry costs no allocation per publish.
 
+`window.EmjiveMenus` also lives here — click-away coordination for the header menu (`main.js`) and the selection-bar drawer (`selection-bar.js`), two panels that don't know about each other and can be open at once. Each registers `{ root, close() }` via `opened(panel)`/`closed(panel)` when its own open state changes; `root` spans both the panel's trigger and its content, so clicking the trigger itself is never mistaken for "away". A single `document` click listener here closes only the most-recently-opened panel when a click lands outside every currently-open one's `root` — a second outside click is needed to close the other if both happened to be open together.
+
 ## `series/<slug>/hero.js` — one per series
 
 The hero's behavior, loaded at runtime. Assigns `window.EmjiveSeriesHero = { init(root, ctx), onProducts(products) }` and does nothing else at execution time. For Bones that means the frontier-band lift, the scroll-driven x-ray wipe, and `updateHeroRings()` — one `.reveal__ring` `<img>` per product with `onHand.visible: true` (see `data.md`), each positioned/sized/rotated via inline custom properties set from that product's own `onHand` object, so multiple rings on screen don't fight over one shared set. It gets the **full, unfiltered** product list: the rings are hero art, not a listing.
 
 Two rules any hero bundle has to keep: no side effects at execution time (the loader parallelizes on that assumption), and no bare specifiers (Vite never sees this file, so `import "three"` would ship unresolved — call `window.EmjiveModelViewer` instead).
 
-## `js/main.js` (~290 lines)
+## `js/main.js` (~365 lines)
 
 Loads on **every** page. Owns:
 
-- The header hamburger menu toggle, and the **category filter row**. The buttons are rendered from `EmjiveSeries.categories()` — the active series' own subset — so the row renders identically on pages that load no product data at all. The menu-close handler is **delegated** to the menu container, because those buttons are created after the script runs; a per-link listener would never reach them.
+- The header hamburger menu toggle. A delegated click handler on `.site-header__row` also toggles it from anywhere in the row's empty space — same as the `+`/`-` icon — while ignoring clicks on the brand logo (which navigates home instead) or on `.menu-toggle` itself (which already has its own listener, and would double-toggle otherwise). Registers a panel with `window.EmjiveMenus` (`js/series.js`) so a click away from the whole header closes it too — see that file's doc above.
+- The **category filter row**. The buttons are rendered from `EmjiveSeries.categories()` — the active series' own subset — so the row renders identically on pages that load no product data at all. It's hidden outright (`hidden` on `#siteHeaderFilter`) when that subset has one category or fewer, since there's nothing to toggle. The menu-close handler is **delegated** to the menu container, because those buttons are created after the script runs; a per-link listener would never reach them.
 - **Filtering** (`applyFilter`/`toggleCategory`/`setCategories`), on the grid page only. Multi-select toggles that hide already-built cards, sync `?cat=` via `history.replaceState`, and leave the menu open so successive toggles are usable. Elsewhere the same buttons are ordinary links that navigate to the grid with one category applied. Unknown `?cat=` values are dropped against the active series' categories, so a typo shows everything rather than nothing.
 - `wireModelClickNavigation(el, href)` — the 6px drag-distance-threshold click-vs-drag disambiguation, attached to a viewer's wrapper so rotating a model doesn't accidentally navigate.
 - The grid rendering (`buildCard`/`renderProducts`) — one card per product from `EmjiveSeries.loadProducts()`, calling `window.EmjiveModelViewer(product, product.metal)` for any product with a `model` set. Cards are built **once** and kept in a module-scope array; see the WebGL note in `pages.md` for why filtering must never rebuild them.
@@ -76,11 +79,11 @@ All page state lives in one `state` object (product, metals, selected metal/size
 
 **Notable gotchas** (from the file's own comments): `img.draggable = false` + `dragstart` prevention stops the browser's native image-drag gesture from fighting the custom pointer-drag scroll; a `pointercancel` doesn't reliably carry the pointer's final coordinates, so settling a drag interrupted mid-gesture falls back to the strip's own live position instead of the event's `clientX`; a drag that starts on the 3D model slide is left alone entirely (no `pointerdown` tracking at all) so it rotates the model via `TrackballControls` instead of paging the carousel.
 
-## `js/selection-bar.js` (~300 lines)
+## `js/selection-bar.js` (~340 lines)
 
 The floating bar shown on `index.html` and `product.html` only (not `launch-order.html` — that page isn't in its script list at all, plus it self-guards with `if (!window.EmjiveSelection) return;`). Builds its whole DOM programmatically and appends to `<body>`.
 
-Shows either "No selected item" or a thumbnail strip + "Order ›" link; clicking the bar (not the Order link) opens a drawer with per-item "Unselect" rows. The drawer's `max-height` is set to a real measured pixel value in JS (not a CSS trick) — this is the piece `styling.md`'s drawer note points back to — specifically so it can animate smoothly both on open/close *and* on shrinking while already open (removing a row).
+Shows either "No selected item" or a thumbnail strip + "Order ›" link; clicking the bar (not the Order link) opens a drawer with per-item "Unselect" rows. The drawer's `max-height` is set to a real measured pixel value in JS (not a CSS trick) — this is the piece `styling.md`'s drawer note points back to — specifically so it can animate smoothly both on open/close *and* on shrinking while already open (removing a row). `setDrawerOpen(isOpen)` is the one place that changes the drawer's open state — it also registers a panel with `window.EmjiveMenus` so a click away from the bar closes the drawer, same mechanism the header menu uses (see `js/series.js` above).
 
 This file has no notion of **which page it's on**, which was always the point. It does now subscribe to `window.EmjiveHero.onScroll` for the homepage's scroll-driven entrance — but unconditionally: the active series' hero owns all the geometry and publishes how far past its trigger the page has scrolled, and this file measures its own `.selection-bar__summary` height to turn that into a transform. On a page with no hero nothing ever publishes, so nothing ever happens and the bar just stays visible — still zero special-casing. The starting-hidden state is `css/style.css`'s `body.has-series-hero` scoping (see `pages.md` for why that stopped being `:has()`).
 
@@ -94,6 +97,7 @@ Renders `launch-order.html`'s full list + running total from `window.EmjiveSelec
 
 - **`window.EmjiveSeries`** — set by `js/series.js` (blocking, in `<head>`), consumed by `main.js`, `product.js` and `series-page.js`. The one place "which series is this, and where's its data" lives.
 - **`window.EmjiveHero`** — set by `js/series.js`, published to by the active series' `hero.js`, subscribed to by `selection-bar.js`. A plain function registry, one number: how far past the hero's trigger point the page has scrolled.
+- **`window.EmjiveMenus`** — set by `js/series.js`, registered with by `main.js` (header menu) and `selection-bar.js` (drawer). Click-away coordination: a click outside every currently-open panel's root closes only the most-recently-opened one.
 - **`window.EmjiveSeriesHero`** — set by a series' `hero.js`, called by `js/series.js`. `{ init(root, ctx), onProducts(products) }`.
 - **`window.EmjiveModelViewer`** — set by `three-viewer.js`, consumed by `main.js` (grid) and `product.js` (carousel). The one place 3D viewer construction/materials/camera behavior lives.
 - **`window.EmjiveSelection`** — set by `selection.js`, consumed by `product.js` (add), `selection-bar.js` (add/remove/read), `selection-page.js` (remove/read).

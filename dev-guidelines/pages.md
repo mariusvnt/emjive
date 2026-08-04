@@ -6,13 +6,17 @@ The 6 HTML files at the repo root.
 
 ## Shared header — one byte-identical nav
 
-All six pages open with the same `<header class="site-header">`: brand logo linking home, a `+`/`-` hamburger toggle, and a dropdown nav with exactly three rows:
+All six pages open with the same `<header class="site-header">`: brand logo linking home, a `+`/`-` hamburger toggle, and a dropdown nav with exactly three rows, in this order:
 
-1. **Filter row** — a DINish "Filter by" label plus one Geist Mono `.category` button per category, all on one wrapping row. **Rendered by `js/main.js` from the active series' own category list**, never hand-written — don't add markup for them, and don't assume there are three, since each series declares its own subset (see `data.md`).
-2. **Archives** (`archives.html`) — DINish, `class="is-info"`.
-3. **Creation process** (`creation-process.html`) — same.
+1. **Creation process** (`creation-process.html`) — DINish, `class="is-info"`.
+2. **Archives** (`archives.html`) — same.
+3. **Filter row** — a DINish "Filter by" label plus one Geist Mono `.category` button per category, all on one wrapping row. **Rendered by `js/main.js` from the active series' own category list**, never hand-written — don't add markup for them, and don't assume there are three, since each series declares its own subset (see `data.md`). That same script **hides the whole row** (`hidden` on `#siteHeaderFilter`) once that subset is down to one category or fewer — toggling a single button can never narrow the grid. `css/style.css` needs an explicit `.site-header__filter[hidden] { display: none }` for that to actually work, same trap as `.product-card[hidden]` below: the row's own `display: flex` is an author rule and beats the UA `[hidden]` regardless of specificity. A hidden row costs no layout either — its flex gap and the extra `--header-kind-gap` margin (`a.is-info + .site-header__filter`) both vanish for free once it's `display: none`.
 
 The `<nav>` block is now **byte-identical across all six pages** (verified by hashing it in each). The one remaining difference anywhere in the header is `.site-header__brand`'s href: `#top` on `index.html`, `index.html#top` everywhere else. That has to stay — `index.html#top` on the index itself triggers a reload instead of the CSS `scroll-behavior: smooth` scroll.
+
+**Opening the menu isn't limited to the `+`/`-` icon.** `js/main.js` also delegates a click handler to `.site-header__row` itself, so any empty space in that row toggles the menu the same way the icon does — it just ignores clicks that land on the brand logo (`.site-header__brand`, which keeps navigating home) or on `.menu-toggle` (which already has its own listener; letting the row's handler also fire there would double-toggle).
+
+**Closing it isn't limited to picking a link, either.** `window.EmjiveMenus` (`js/series.js`) coordinates "click away to close" between the header menu and the floating selection bar's drawer (`js/selection-bar.js`) — two panels that don't know about each other and can be open at once. A click outside every currently-open panel's root closes only the most-recently-opened one; a second outside click is needed to close the other if both happened to be open together. See `client-scripts.md` for the mechanism.
 
 The old `.ring`/`.neck`/`.wrist` links (three dead anchors all pointing at the same `#products`) and the "About us" link (pointing at a `#contact` section that never existed on any page) are both gone. `js/main.js` still carries a guarded `#contactForm` stub that no-ops, kept for whenever a contact form actually gets built — see `procedures.md`.
 
