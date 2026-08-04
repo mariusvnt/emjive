@@ -65,30 +65,82 @@
 </header>
 
 <main class="selection-page">
-  <div class="section-head">
-    <span class="section-head__index">order</span>
-    <h2>Your Order</h2>
-  </div>
-
   <div class="selection-empty" id="selectionEmpty">
-    <p>Nothing selected yet.</p>
-    <a class="btn" href="index.html#products">Browse the collection</a>
+    <p>No item selected.</p>
+    <a class="selection-empty__back" href="index.html#products">Back to gallery</a>
   </div>
 
   <div class="selection-list" id="selectionList" hidden>
-    <ul class="selection-list__items" id="selectionItems"></ul>
-    <div class="selection-list__total">
-      <span>Total</span>
-      <span id="selectionTotal"></span>
+    <!-- Item rows: full-bleed dark panel, same weight as the product page's
+         black CTA bars. Rows built by js/selection-page.js. -->
+    <ul class="order-items" id="selectionItems"></ul>
+
+    <section class="order-shipping">
+      <div class="order-shipping__options" id="orderShippingOptions"></div>
+    </section>
+
+    <div class="order-terms" id="orderTerms">
+      <p class="order-terms__text">I have read and accept the <a href="terms.html">terms &amp; conditions</a>.</p>
+      <button type="button" class="order-terms__toggle" id="orderTermsToggle" aria-pressed="false" aria-label="Accept the terms and conditions"></button>
     </div>
-    <a class="btn selection-list__continue" href="index.html#products">Continue shopping</a>
   </div>
 </main>
 
-<footer class="site-footer">
-  <span>em&middot;ji&middot;ve — &copy; 2026</span>
-  <a href="index.html">Back to shop ↑</a>
-</footer>
+<!-- Checkout bar: page-specific, not the site-wide js/selection-bar.js
+     (this page has never carried that — see pages.md). Liquid-glass style,
+     same height as the standard bar, single "Proceed to checkout" CTA. -->
+<div class="order-checkout-bar" id="orderCheckoutBar" hidden>
+  <div class="order-checkout-bar__row">
+    <span class="order-checkout-bar__total" id="orderCheckoutTotal"></span>
+    <button type="button" class="order-checkout-bar__button" id="orderCheckoutButton" disabled>Proceed to checkout</button>
+  </div>
+</div>
+
+<!-- "Modify" popup, opened from an item row's overlay — same size-modal
+     pattern product.html's Select button uses, with a metal picker added
+     above the size row. Static/empty here; js/selection-page.js
+     repopulates both per item each time it opens, since different rows
+     can be different products (even different series). -->
+<div class="size-modal" id="modifyModal" aria-hidden="true">
+  <div class="size-modal__backdrop" id="modifyModalBackdrop"></div>
+  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modifyModalTitle">
+    <div class="size-modal__content">
+      <h3 class="size-modal__title" id="modifyModalTitle"><span class="product-detail__label-name" id="modifyModalTitleName"></span><span class="product-detail__label-type" id="modifyModalTitleType"></span></h3>
+
+      <div class="product-metals">
+        <span class="product-metals__label">Metal</span>
+        <div class="product-metals__options" id="modifyModalMetalOptions"></div>
+      </div>
+
+      <div class="size-modal__standard-row" id="modifyModalStandardRow">
+        <span class="size-modal__standard-label">Standard sizes</span>
+        <div class="size-modal__standard-options" id="modifyModalStandardOptions"></div>
+      </div>
+
+      <div class="size-modal__custom-row" id="modifyModalCustomRow">
+        <span class="size-modal__custom-label">Custom size</span>
+        <div class="size-modal__custom-field">
+          <span class="size-modal__custom-underline">
+            <input class="size-modal__custom-input" id="modifyModalCustomInput" type="text" inputmode="decimal" />
+            <span class="size-modal__custom-unit" id="modifyModalCustomUnit"></span>
+          </span>
+        </div>
+      </div>
+
+      <div class="size-modal__guide-row">
+        <button class="size-modal__size-guide-toggle" id="modifyModalGuideToggle" type="button">Size guide</button>
+      </div>
+
+      <div class="size-modal__size-guide" id="modifyModalGuide">
+        <div class="size-modal__size-guide-inner">
+          <div class="size-modal__size-guide-content" id="modifyModalGuideContent"></div>
+        </div>
+      </div>
+
+      <button class="size-modal__confirm" id="modifyModalConfirm" type="button" disabled>Save</button>
+    </div>
+  </div>
+</div>
 
 <script src="js/main.js"></script>
 <script src="js/selection.js"></script>

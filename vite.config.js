@@ -63,7 +63,8 @@ export default defineConfig({
         launchOrder: resolve(__dirname, "launch-order.html"),
         archives: resolve(__dirname, "archives.html"),
         creationProcess: resolve(__dirname, "creation-process.html"),
-        series: resolve(__dirname, "series.html")
+        series: resolve(__dirname, "series.html"),
+        terms: resolve(__dirname, "terms.html")
       }
     }
   }

@@ -60,6 +60,29 @@
     return items;
   }
 
+  // Reinserts an item at a specific position — launch-order.html's "Undo"
+  // after Unselect, so the item lands back where it was rather than at the
+  // end the way addItem would.
+  function insertItem(index, item) {
+    var items = readAll();
+    items.splice(index, 0, item);
+    writeAll(items);
+    notify();
+    return items;
+  }
+
+  // Patches an existing item in place (e.g. launch-order.html's "Modify" —
+  // changing metal/size, and the price that comes with them — without
+  // moving the item to the end of the list the way remove+add would).
+  function updateItem(index, patch) {
+    var items = readAll();
+    if (!items[index]) return items;
+    items[index] = Object.assign({}, items[index], patch);
+    writeAll(items);
+    notify();
+    return items;
+  }
+
   function clear() {
     writeAll([]);
     notify();
@@ -73,6 +96,8 @@
     getSelection: getSelection,
     addItem: addItem,
     removeItem: removeItem,
+    insertItem: insertItem,
+    updateItem: updateItem,
     clear: clear,
     formatPrice: formatPrice
   };

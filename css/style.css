@@ -724,68 +724,454 @@ a.is-info + .site-header__filter {
 }
 
 .selection-empty {
-  border-top: 1px solid var(--black);
   padding-top: 3rem;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 1.5rem;
-  color: var(--category-col);
 }
+/* display: flex above beats the UA [hidden]{display:none} rule (author
+   styles always win over UA ones regardless of selector specificity) —
+   same trap .product-card[hidden]/.selection-bar__icons[hidden] exist for
+   elsewhere in this file. */
+.selection-empty[hidden] { display: none; }
+.selection-empty p {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: 1rem;
+  color: var(--black);
+}
+/* Plain text button, not the bordered .btn box — same "text only" recipe
+   as .order-checkout-bar__button below. */
+.selection-empty__back {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--black);
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.selection-empty__back:hover { opacity: 0.6; }
 
-.selection-list__items {
-  border-top: 1px solid var(--black);
-  padding-top: 2rem;
+/* No border/rule anywhere below — every section (item panel, total,
+   shipping, terms, continue link) is told apart purely by this gap, per
+   the design brief. */
+.selection-list {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: clamp(3rem, 6vw, 5rem);
 }
-.selection-item {
-  display: grid;
-  grid-template-columns: 4rem 1fr auto auto;
+.selection-list[hidden] { display: none; }
+
+/* ---- item rows: full-bleed dark panel, same "break out to the true
+   viewport edge" technique as .product-detail__select below — breaks out
+   of .selection-page's own centered/padded column the same way that
+   button breaks out of .product-detail's. Rows carry their own edge-px
+   inset (mirroring .selection-bar__row's alignment recipe) so their
+   content still lines up with the page column above/below them. No
+   divider between rows — generous vertical padding is the only thing
+   separating them. ---- */
+.order-items {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  /* Black-on-black gaps above the first row and below the last, rather
+     than plain margins (which would expose the page's light background
+     instead) — same height on both ends, bookending the row list. */
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  background: var(--black-bg);
+  display: flex;
+  flex-direction: column;
+}
+/* position: relative + isolation: isolate for the same reason as
+   .product-detail__label-bar above it in this file: ::before below needs
+   its own stacking context so its z-index is scoped to this row's own
+   content instead of the page's root stacking context. Also what
+   .order-item__overlay's inset: 0 below positions/sizes itself against. */
+/* max-height/overflow below exist purely for the removal animation
+   (js/selection-page.js's "is-removing", added by Unselect): a real content
+   height can't be transitioned directly (it's auto), so this caps it at a
+   value comfortably above the row's actual rendered height (thumb + its
+   own padding, ~5.5rem) and animates that cap to 0 alongside both padding
+   sides and opacity. Collapsing this one row's own box is what makes the
+   rows below it slide up smoothly as a side effect of .order-items' flex
+   layout recalculating every frame — same principle as the floating
+   selection bar's icon-collapse animation, just on the vertical axis. */
+.order-item {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 1.25rem var(--edge-px);
+  max-height: 6.5rem;
+  overflow: hidden;
+  transition:
+    max-height 0.3s ease,
+    padding-top 0.3s ease,
+    padding-bottom 0.3s ease,
+    opacity 0.25s ease;
+}
+.order-item.is-removing {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+}
+/* Same inverting band technique as .selection-bar__row::before — no ::after
+   companion needed here (unlike .product-detail__label-bar's, which sits on
+   the plain page background): this row already sits directly on
+   .order-items' solid --black-bg, so backdrop-filter: invert(1) inverts
+   that black straight to a light band on its own. Sits above both
+   .order-item__content and .order-item__overlay regardless of which is
+   showing (z-index: 2 vs. their default auto).
+   top: 50% ties this band's position to .order-item's own animating
+   max-height during an enter/exit — opacity is what actually reveals it,
+   not that movement: kept invisible until the row's own height/padding
+   transition is essentially done (same 0.4s delay js/selection-page.js's
+   playRowEnterAnimation uses for .order-item__content, so both fade in
+   together, already basically at their final position), so it reads as
+   the band fading in in place rather than growing/sliding into view. Twice
+   as slow as the row's own height/padding growth (which stays as-is) —
+   deliberately, so the row's elements read as their own, slower motion on
+   top of that box's plain expansion, not tied to its speed. */
+.order-item::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 100vw;
+  height: 1.2rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+  opacity: 1;
+  transition: opacity 0.15s ease 0.4s;
+}
+.order-item.is-removing::before {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.order-item__content {
+  display: flex;
   align-items: center;
   gap: 1rem;
-  border-bottom: 1px solid var(--black);
-  padding-bottom: 1.25rem;
+  /* Same symmetric ease-in-out curve product.js's carousel centering uses
+     (CENTER_TRANSITION) — a real zero-velocity start easing into an
+     equally gentle stop — rather than the generic "ease" keyword, plus a
+     touch longer so the crossfade with .order-item__overlay below reads
+     as smoother, less snapped. */
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
-.selection-item__thumb {
-  width: 4rem;
-  height: 4rem;
+.order-item__thumb {
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
   object-fit: contain;
-  background: var(--white);
-  border: 1px solid var(--black);
+  background: transparent;
 }
-.selection-item__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+/* name + attrs sit in this one box with nothing at all between them
+   (js/selection-page.js appends them back to back) rather than as
+   separately gapped flex items — reads as one continuous label instead of
+   two. min-width: 0 is what lets this flex item shrink below its own
+   text's natural width in the first place; white-space/overflow then clip
+   that single line on a narrow screen instead of wrapping the attrs onto
+   a second line — masked to fade to transparent at the clipped edge
+   (blending into .order-items' own --black-bg) rather than an ellipsis. */
+.order-item__meta {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
 }
-.selection-item__name { font-family: var(--font-main); }
-.selection-item__attrs {
+.order-item__name { font-family: var(--font-main); color: var(--white); }
+.order-item__attrs {
+  font-size: 0.75rem;
   font-family: var(--font-secondary);
   color: var(--category-col);
 }
-.selection-item__price { white-space: nowrap; }
-.selection-item__remove {
+.order-item__price {
+  flex: 0 0 auto;
+  font-family: var(--font-main);
+  color: var(--white);
+  white-space: nowrap;
+}
+/* ---- overlay: replaces the row's whole content on hover (mouse) or tap/
+   focus (touch, keyboard) — js/selection-page.js's openRowOverlay()/
+   closeOpenRow(). inset: 0 sizes this to exactly match .order-item__content's
+   box, so the crossfade below reads as one thing swapping for another
+   in place rather than the row resizing. ---- */
+.order-item__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  opacity: 0;
+  pointer-events: none;
+  /* Matches .order-item__content's own transition exactly (see its
+     comment) — the two are crossfading against each other, so they need
+     identical timing for a clean simultaneous swap. */
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+}
+.order-item.is-open .order-item__content { opacity: 0; pointer-events: none; }
+.order-item.is-open .order-item__overlay { opacity: 1; pointer-events: auto; }
+/* Both the same static color, no hover/tap shift — .order-item::before's
+   invert band (z-index: 2, crossing right through this centered row) is
+   what reads them as dark wherever it overlaps, rather than a color rule
+   here doing it directly. #e5e5e5, not white — same trick
+   .product-detail__label-bar::after uses: inverting it (255 - 26 per
+   channel) lands exactly on var(--black-bg)'s #1a1a1a, so the band reads
+   as a seamless --black-bg patch over the text rather than snapping to
+   pure black. Still effectively white against the row's own --black-bg
+   everywhere the band isn't crossing it. */
+.order-item__overlay-btn {
   border: none;
   background: none;
-  color: var(--category-col);
   cursor: pointer;
+  color: #e5e5e5;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: var(--button-font-size);
   letter-spacing: var(--button-letter-spacing);
   text-transform: var(--button-text-transform);
 }
-.selection-item__remove:hover { color: var(--black); }
-.selection-list__total {
+
+/* ---- undo: after Unselect, a plain centered text button at the top of
+   the list for a few seconds, offering to put the just-removed item back
+   (js/selection-page.js's showUndoBar()/hideUndoBar()/dismissUndo()).
+   Built as an .order-item itself (same class, alongside this one) rather
+   than a new component, so it gets that class's collapse animation for
+   free — only its own inner layout (a single centered button instead of
+   thumb/meta/price) is new here. Unlike a real row, this isn't an item, so
+   .order-item::before's invert band is suppressed below: plain white text,
+   no black-through-the-middle effect. ---- */
+.order-items__undo {
   display: flex;
-  justify-content: space-between;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--black);
+  align-items: center;
+  justify-content: center;
 }
-.selection-list__continue { margin-top: 2rem; }
+.order-items__undo::before {
+  content: none;
+}
+/* Its own quick opacity transition, decoupled from — and faster than —
+   .order-item's own box collapse (0.3s max-height/0.25s opacity): without
+   this, the text just sat there fully opaque while the box shrank around
+   it, getting visibly squeezed/clipped by overflow: hidden right at the
+   end, which read as a harsh, abrupt disappearance rather than a clean
+   fade. Fading the text out well before the box is done closing avoids
+   that entirely. */
+.order-items__undo-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--white);
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  opacity: 1;
+  transition: opacity 0.1s ease;
+}
+.order-items__undo.is-removing .order-items__undo-btn {
+  opacity: 0;
+}
+
+/* ---- shipping: reuses the size modal's "dot + label" pick recipe
+   (.size-modal__standard-option further down, though this one stays in
+   the site's plain main font rather than that one's Geist Mono), extended
+   with a right-aligned price. Rendered from a small array in
+   js/selection-page.js — a third option later is a one-line addition
+   there, not a restructure here. No section heading any more — the panel
+   above already establishes this row is about the order. ---- */
+.order-shipping__options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  /* Optical correction, not a rhythm value (hence a flat px, not a --edge-px/
+     rem-scale one): the small round dot right at the row's own left edge
+     reads as sitting further left than the page's actual margin (the same
+     illusion that's why round letterforms are conventionally sized/inset
+     differently from flat-sided ones) — nudged right to correct the feel,
+     not because the box itself is actually misaligned. */
+  margin-left: 7px;
+}
+.order-shipping__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: var(--font-main);
+  color: var(--category-col);
+  cursor: pointer;
+  text-align: left;
+}
+/* Same dot used to mark the selected metal/size elsewhere on the site —
+   rendered on every option, only its background toggles, so the option
+   name never shifts horizontally when a dot appears. */
+.order-shipping__option::before {
+  content: "";
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background: transparent;
+}
+.order-shipping__option.is-selected::before { background: var(--category-col); }
+.order-shipping__option-name { flex: 1; }
+.order-shipping__option-price { flex: 0 0 auto; margin-left: 1rem; }
+
+/* ---- terms: text hugs the left margin, the tick box hugs the right —
+   .order-terms__text is flex:1 (DOM order: text first, box second), so it
+   fills the row up to just before the box without needing its own
+   justify-content. The box itself is a square (no outline/border), same
+   always-rendered/opacity-toggled dot convention the metal picker and size
+   modal use elsewhere for a selection state, just scaled up and squared
+   off since here it IS the whole control rather than an accent beside
+   other text. ---- */
+.order-terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+.order-terms__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 0 7px;
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--category-col);
+}
+.order-terms__text a { color: var(--black); }
+.order-terms__toggle {
+  flex: 0 0 auto;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.2rem;
+  border: none;
+  padding: 0;
+  background: var(--category-col);
+  opacity: 0.35;
+  cursor: pointer;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.order-terms__toggle.is-checked {
+  opacity: 1;
+  background: var(--black-bg);
+}
+
+/* ==========================================================================
+   Checkout bar — "liquid glass": a translucent frosted strip over the page,
+   unlike the site's other black-bg chrome. Same height as the standard
+   floating selection bar (--selection-bar-height), but page-specific to
+   launch-order.html — built as static markup here, not js/selection-bar.js
+   (this page has never carried that bar — see pages.md).
+
+   CSS-only glass (no SVG refraction filter — true feDisplacementMap-based
+   refraction only renders via backdrop-filter: url(#filter) in Chromium
+   today, with zero fallback visual in Safari/Firefox): backdrop-filter
+   blur+saturate for the frosted base — body alpha kept low (0.05–0.16) so
+   whatever's actually scrolled underneath still reads through it, blurred
+   and saturated, rather than washing out into a near-opaque white panel —
+   a soft directional radial "glare" (::before) standing in for a real
+   specular reflection, and a stack of inset box-shadows for the rim
+   highlight — bright along the top edge where light would catch a curved
+   glass lip, dimmer along the bottom, plus a hairline all around for the
+   glass's own edge, which is what still reads as a distinct surface once
+   the body itself is this transparent. ---- */
+.order-checkout-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  height: var(--selection-bar-height);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  backdrop-filter: blur(24px) saturate(200%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 -8px 30px rgba(0, 0, 0, 0.08);
+}
+/* Soft directional glare standing in for a specular highlight — sits
+   behind .order-checkout-bar__row in DOM order, so it paints underneath
+   the total/button without needing an explicit z-index. */
+.order-checkout-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    140% 120% at 12% 0%,
+    rgba(255, 255, 255, 0.35),
+    rgba(255, 255, 255, 0) 55%
+  );
+  pointer-events: none;
+}
+/* Reserves the same bottom space body:has(.selection-bar) does elsewhere —
+   this page has just never needed it before now. */
+body:has(.order-checkout-bar:not([hidden])) {
+  padding-bottom: var(--selection-bar-height);
+}
+.order-checkout-bar__row {
+  height: 100%;
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--edge-px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.order-checkout-bar__total {
+  font-family: var(--font-main);
+  color: var(--black);
+}
+/* Text-only, hugging the row's right edge (.order-checkout-bar__row's own
+   justify-content: space-between already puts it there) — no button box,
+   unlike the rest of the site's black-bg CTAs. */
+.order-checkout-bar__button {
+  flex: 0 0 auto;
+  padding: 0;
+  background: none;
+  color: var(--black);
+  border: none;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.order-checkout-bar__button:hover { opacity: 0.6; }
+.order-checkout-bar__button:disabled { opacity: 0.35; cursor: not-allowed; }
+.order-checkout-bar__button:disabled:hover { opacity: 0.35; }
 
 /* ==========================================================================
    Product detail page
@@ -1305,6 +1691,31 @@ a.is-info + .site-header__filter {
   font-weight: 400;
   margin-bottom: 2rem;
 }
+/* launch-order.html's Modify modal only: name.category, in the same
+   .product-detail__label-name/__type recipe the product page's own label
+   bar uses for the identical pairing — scoped to these two ids (not the
+   shared .product-detail__label-name/__type classes) so product.html's
+   own label bar is untouched. Zeroing __type's inherited margin-left is
+   what makes the two hug each other instead of the label bar's own
+   small gap. */
+#modifyModalTitleName {
+  font-size: 1rem;
+  color: var(--black);
+}
+#modifyModalTitleType {
+  font-size: 0.75rem;
+  color: var(--category-col);
+  margin-left: 0;
+}
+/* Same gap as .size-modal__standard-row's own margin-bottom (below) — the
+   space before the size row after the metal picker matches the space
+   between the standard and custom size rows. Scoped to this container
+   (.size-modal__content, not .product-metals directly) so product.html's
+   own metal picker — inside .product-detail__intro's separate flex gap —
+   isn't affected. */
+.size-modal__content .product-metals {
+  margin-bottom: 1.5rem;
+}
 
 /* ---- standard sizes: one plain-text line, no boxes ---- */
 .size-modal__standard-row {
@@ -1388,10 +1799,6 @@ a.is-info + .site-header__filter {
   display: flex;
   align-items: center;
   gap: 1rem;
-  /* Matches .size-modal__guide-row's own margin-bottom below (with
-     .size-modal__confirm's margin-top zeroed out) so the "Size guide"
-     row sits equidistant between the custom-size row above it and the
-     confirm button below. */
   margin-bottom: 1.5rem;
   container-type: inline-size;
 }
@@ -1439,11 +1846,14 @@ a.is-info + .site-header__filter {
   color: var(--category-col);
 }
 /* Its own row, below the custom-size row, centered rather than
-   left/right-anchored like the rows above it. */
+   left/right-anchored like the rows above it. Pulled in closer to the
+   confirm button below than the 1.5rem the rows above it use — .size-
+   modal__confirm's own margin-top stays 0 (see its comment), so this
+   margin-bottom is the entire gap between the two. */
 .size-modal__guide-row {
   display: flex;
   justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 .size-modal__size-guide-toggle {
   flex: 0 0 auto;
@@ -1455,7 +1865,7 @@ a.is-info + .site-header__filter {
   font-size: var(--button-font-size);
   letter-spacing: var(--button-letter-spacing);
   text-transform: var(--button-text-transform);
-  color: var(--black);
+  color: var(--category-col);
   cursor: pointer;
 }
 
@@ -1503,22 +1913,6 @@ a.is-info + .site-header__filter {
 .size-modal__confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 
 body.is-modal-open { overflow: hidden; }
-
-/* ==========================================================================
-   Footer
-   ========================================================================== */
-
-.site-footer {
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 2rem var(--edge-px) 3rem;
-  border-top: 1px solid var(--black);
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--category-col);
-}
-.site-footer a:hover { color: var(--black); }
 
 /* ==========================================================================
    Floating selection bar
