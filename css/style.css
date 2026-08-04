@@ -843,16 +843,11 @@ a.is-info + .site-header__filter {
    that black straight to a light band on its own. Sits above both
    .order-item__content and .order-item__overlay regardless of which is
    showing (z-index: 2 vs. their default auto).
-   top: 50% ties this band's position to .order-item's own animating
-   max-height during an enter/exit — opacity is what actually reveals it,
-   not that movement: kept invisible until the row's own height/padding
-   transition is essentially done (same 0.4s delay js/selection-page.js's
-   playRowEnterAnimation uses for .order-item__content, so both fade in
-   together, already basically at their final position), so it reads as
-   the band fading in in place rather than growing/sliding into view. Twice
-   as slow as the row's own height/padding growth (which stays as-is) —
-   deliberately, so the row's elements read as their own, slower motion on
-   top of that box's plain expansion, not tied to its speed. */
+   Base transition matches .order-item__content/__overlay/__undo-prompt's
+   own 0.3s cubic-bezier crossfade exactly (no delay) — this is what
+   governs the band fading back in when is-pending-undo is removed (Undo,
+   js/selection-page.js's handleUndo), so it toggles in step with the rest
+   of the row instead of lagging behind on its own separate timing. */
 .order-item::before {
   content: "";
   position: absolute;
@@ -866,11 +861,27 @@ a.is-info + .site-header__filter {
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
   opacity: 1;
-  transition: opacity 0.15s ease 0.4s;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
+/* Its own faster, undelayed fade for the row's final collapse-and-discard
+   (confirmRemoval) — unrelated to the crossfade family above, so kept
+   distinct rather than reused. */
 .order-item.is-removing::before {
   opacity: 0;
   transition: opacity 0.15s ease;
+}
+/* Nothing left to invert to anything meaningful once a row's showing its
+   undo prompt instead — the prompt is a single plain var(--bg) button, no
+   invert-tuned pairing needed the way Modify/Unselect's text is (see
+   .order-item__overlay-btn's own comment), so the band is faded out
+   rather than crossing it for no reason. opacity, not content: none —
+   unlike is-removing's own transition above (tuned for the row's
+   height/padding animating alongside it), this crossfades in step with
+   .order-item__content/__overlay/__undo-prompt's own 0.3s swap below,
+   since nothing about the row's size is changing here at all. */
+.order-item.is-pending-undo::before {
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
 .order-item__content {
   display: flex;
@@ -963,45 +974,52 @@ a.is-info + .site-header__filter {
   text-transform: var(--button-text-transform);
 }
 
-/* ---- undo: after Unselect, a plain centered text button at the top of
-   the list for a few seconds, offering to put the just-removed item back
-   (js/selection-page.js's showUndoBar()/hideUndoBar()/dismissUndo()).
-   Built as an .order-item itself (same class, alongside this one) rather
-   than a new component, so it gets that class's collapse animation for
-   free — only its own inner layout (a single centered button instead of
-   thumb/meta/price) is new here. Unlike a real row, this isn't an item, so
-   .order-item::before's invert band is suppressed below: plain white text,
-   no black-through-the-middle effect. ---- */
-.order-items__undo {
+/* ---- undo prompt: a third state a row can crossfade into — same
+   inset: 0 recipe as .order-item__overlay just above, so it swaps in
+   without the row resizing — replacing content/overlay in place once
+   Unselect is clicked, offering to put the just-removed item back for a
+   few seconds (js/selection-page.js's handleUnselect()/handleUndo()/
+   confirmRemoval()). Each row gets its own prompt and its own undo
+   window rather than one shared bar for the whole list, so unselecting
+   several rows in a row never moves any row that isn't the one actually
+   being acted on. Deliberately bare — just the button, nothing else — and
+   .order-item::before's own band is dropped entirely for this state (see
+   its own is-pending-undo rule above), so var(--bg) is a plain, un-tuned
+   color here rather than the invert-paired var(--black-bg-inverted)
+   Modify/Unselect use. ---- */
+.order-item__undo-prompt {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
-.order-items__undo::before {
-  content: none;
-}
-/* Its own quick opacity transition, decoupled from — and faster than —
-   .order-item's own box collapse (0.3s max-height/0.25s opacity): without
-   this, the text just sat there fully opaque while the box shrank around
-   it, getting visibly squeezed/clipped by overflow: hidden right at the
-   end, which read as a harsh, abrupt disappearance rather than a clean
-   fade. Fading the text out well before the box is done closing avoids
-   that entirely. */
-.order-items__undo-btn {
+.order-item__undo-btn {
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--white);
+  color: var(--bg);
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: var(--button-font-size);
   letter-spacing: var(--button-letter-spacing);
   text-transform: var(--button-text-transform);
-  opacity: 1;
-  transition: opacity 0.1s ease;
 }
-.order-items__undo.is-removing .order-items__undo-btn {
+/* Declared after .is-open above so it always wins on the tied
+   specificity if a row is still carrying is-open at the moment this is
+   added (js/selection-page.js deliberately leaves it be rather than
+   clearing it first — see handleUnselect's own comment). */
+.order-item.is-pending-undo .order-item__content,
+.order-item.is-pending-undo .order-item__overlay {
   opacity: 0;
+  pointer-events: none;
+}
+.order-item.is-pending-undo .order-item__undo-prompt {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ---- shipping: reuses the size modal's "dot + label" pick recipe

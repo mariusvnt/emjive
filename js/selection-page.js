@@ -79,200 +79,182 @@
   }
 
   /* ---- undo ----------------------------------------------------------------
-     A plain text row (built on .order-item itself, so it gets that class's
-     collapse animation and invert band for free — see css/style.css) that
-     appears at the top of the list after an Unselect and offers to put the
-     item straight back where it was. Every removal pushes onto undoStack
-     rather than replacing a single pending one, so unselecting several
-     items in a row keeps all of them undo-able — one click brings back the
-     most recent, a second brings back the one before that, and so on
-     (undoStack.pop() below), same order the removals themselves happened
-     in. Each entry's own index was captured relative to the array as it
-     stood right after its own removal, which is exactly what popping in
-     that same reverse order needs to stay correct — no re-shifting math
-     required, since restoring the most recent removal first always exactly
-     reverses just that one mutation. */
-  var UNDO_TIMEOUT_MS = 6000;
-  // How long the bar lingers after the very last pending undo is used,
-  // before it actually goes away — long enough for the restored row's own
-  // grow-in (see playRowEnterAnimation) to have visibly started, rather
-  // than the bar vanishing before that's even begun playing.
-  var UNDO_LINGER_MS = 800;
-  var undoTimer = null;
-  var undoStack = []; // [{ item, index, thumbEl }], oldest first
-  var undoBarEl = null;
+     Unselecting a row crossfades its own content into an "Undo" prompt in
+     place (css/style.css's .order-item__undo-prompt — same inset: 0
+     crossfade recipe .order-item__overlay already uses, so the row never
+     resizes) rather than collapsing it and showing a separate shared bar
+     elsewhere. Every row tracks its own undo window independently, so
+     unselecting several in a row leaves each showing its own prompt —
+     deliberately: a row's own removal never causes any *other* row to
+     move while it's pending, and each row only ever plays exactly one
+     motion of its own (crossfade in place, then — only if its own window
+     runs out unused — its final collapse). No shared stack, no shared
+     timer, no bar to reuse or reposition.
 
-  function clearUndoTimer() {
-    if (undoTimer) {
-      clearTimeout(undoTimer);
-      undoTimer = null;
-    }
-  }
+     rowBindings mirrors itemsEl's children in order, one entry per row:
+     { li, item, index, pending, timer, undoBtn }. index is kept live —
+     shiftIndices below adjusts every other binding's index whenever one
+     row's item is actually removed from or reinserted into storage — so
+     each row always knows its own true current position, however many
+     other rows are simultaneously mid-undo and regardless of which one
+     gets confirmed or undone first. */
+  var UNDO_TIMEOUT_MS = 4000;
+  // How long the list-to-empty-state crossfade takes once the last row's
+  // undo window is truly over — see crossfadeToEmpty().
+  var EMPTY_CROSSFADE_MS = 300;
+  var rowBindings = [];
 
-  // Shrinks the bar away (same is-removing collapse .order-item already
-  // uses elsewhere) and removes it from the DOM once that's actually
-  // finished — onHidden (used by the Undo button itself) only runs then,
-  // so restoring the item and rebuilding the list never yanks the node
-  // this same animation is running on out from under it.
-  function hideUndoBar(onHidden) {
-    if (!undoBarEl) {
-      if (onHidden) onHidden();
-      return;
-    }
-    // Collapsing this bar reflows the row(s) below it up the page under a
-    // possibly-stationary cursor — same phantom-pointerenter risk a row's
-    // own removal has, guarded the same way.
-    suppressHoverUntilMove = true;
-    var bar = undoBarEl;
-    undoBarEl = null;
-    bar.classList.add("is-removing");
-    var done = false;
-    function finish() {
-      if (done) return;
-      done = true;
-      bar.remove();
-      if (onHidden) onHidden();
-    }
-    bar.addEventListener("transitionend", function onEnd(e) {
-      if (e.propertyName !== "max-height") return;
-      bar.removeEventListener("transitionend", onEnd);
-      finish();
-    });
-    setTimeout(finish, 400);
-  }
-
-  // Timeout expired without the user clicking Undo — nothing left to undo.
-  function dismissUndo() {
-    clearUndoTimer();
-    undoStack = [];
-    hideUndoBar();
-  }
-
-  // After the very last pending undo is used, the bar doesn't disappear on
-  // the spot — it's put straight back (reusing the same node, same
-  // no-animation technique showUndoBar()'s reuse branch below uses, since
-  // render() has already detached it from the DOM either way) and left up
-  // for UNDO_LINGER_MS, so there's a real moment where the restored row and
-  // the bar are both visible together before the bar actually fades away.
-  function lingerThenHideUndoBar() {
-    if (!undoBarEl) return;
-    itemsEl.insertBefore(undoBarEl, itemsEl.firstChild);
-    clearUndoTimer();
-    undoTimer = setTimeout(function () {
-      undoTimer = null;
-      hideUndoBar();
-    }, UNDO_LINGER_MS);
-  }
-
-  function buildUndoBar() {
-    var li = document.createElement("li");
-    li.className = "order-item order-items__undo";
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "order-items__undo-btn";
-    btn.textContent = "Undo";
-    // Reads undoStack fresh rather than closing over a particular item, so
-    // this same bar/button (kept alive across consecutive actions — see
-    // showUndoBar()) always undoes whatever's currently on top of it,
-    // regardless of how many times it's been reused since it was built.
-    btn.addEventListener("click", function () {
-      if (!undoStack.length) return;
-      var restore = undoStack.pop();
-      clearUndoTimer();
-
-      // Restored immediately either way — render()'s rebuild detaches the
-      // bar from the DOM as a side effect regardless of whether more is
-      // still pending, so there's nothing to gain by waiting for an exit
-      // animation to finish first (see showUndoBar()'s reuse note).
-      window.EmjiveSelection.insertItem(restore.index, restore.item);
-      render(restore.index, restore.thumbEl);
-
-      if (undoStack.length) {
-        // Still more to undo — keep the bar up for those, same as always.
-        showUndoBar();
-      } else {
-        // Nothing left, but let the restored row actually be seen before
-        // taking the bar away.
-        lingerThenHideUndoBar();
+  // Called right after binding's own item is actually removed from (delta
+  // -1) or reinserted into (delta 1) storage, at fromIndex — updates every
+  // *other* binding still tracked so their own .index stays correct
+  // without needing a full rebuild. binding itself is excluded: its index
+  // already equals fromIndex (that's the position being mutated) and
+  // doesn't need adjusting against its own change.
+  function shiftIndices(binding, fromIndex, delta) {
+    rowBindings.forEach(function (b) {
+      if (b === binding) return;
+      if (delta < 0 ? b.index > fromIndex : b.index >= fromIndex) {
+        b.index += delta;
       }
     });
-    li.appendChild(btn);
-    return li;
   }
 
-  // Ensures a bar exists for whatever's now on top of undoStack and
-  // (re)starts its dismiss timer — called after every removal
-  // (removeRowSmoothly, which pushes onto the stack first) and after an
-  // Undo click that still leaves something pending. Reuses undoBarEl as-is
-  // when one's already up rather than rebuilding: render() (called right
-  // before this in both cases) already wiped .order-items via
-  // innerHTML = "", detaching whatever bar was showing along with every
-  // row, but that doesn't invalidate the element itself — reinserting the
-  // very same node, with no animation, is what makes several unselects or
-  // undos in a row read as the bar having stayed there continuously
-  // instead of flickering out and back in on every single one. It's only
-  // actually built and animated in the first time, when nothing was
-  // showing yet.
-  function showUndoBar() {
-    clearUndoTimer();
-    if (!undoStack.length) return;
+  // Keeps the checkout total/visibility in sync with storage after every
+  // Unselect/Undo — cheap enough to just recompute from scratch rather
+  // than tracking a running total, and decoupled from render() since
+  // neither action rebuilds the row list any more.
+  function updateCheckoutSummary() {
+    var items = window.EmjiveSelection.getSelection();
+    checkoutBar.hidden = !items.length;
+    var total = 0;
+    items.forEach(function (item) { total += item.price || 0; });
+    checkoutTotalEl.textContent = window.EmjiveSelection.formatPrice(total);
+  }
 
-    if (undoBarEl) {
-      itemsEl.insertBefore(undoBarEl, itemsEl.firstChild);
-    } else {
-      var bar = buildUndoBar();
-      // Same enter technique as playEnterAnimation() in js/selection-bar.js,
-      // plus the double-rAF playRowEnterAnimation() above needs: start
-      // collapsed, force a layout flush, then wait a full extra frame
-      // before flipping to the expanded state — a single rAF can still
-      // land in the same frame as the forced layout, before the browser
-      // has actually painted the collapsed state, coalescing the whole
-      // thing into one paint with no transition ever registering.
-      bar.classList.add("is-removing");
-      itemsEl.insertBefore(bar, itemsEl.firstChild);
-      undoBarEl = bar;
-      void bar.offsetWidth;
+  // Smooths the switch from the list into the "No item selected" empty
+  // state — a plain sequential opacity crossfade (list fades out, then
+  // the empty state fades in), hand-orchestrated because [hidden] means
+  // display:none, which can't itself transition. Sequential, not
+  // simultaneous, since the two aren't stacked on top of each other —
+  // fading both at once would show list and empty-state content
+  // overlapping mid-fade. Called instead of a normal per-row collapse
+  // when the very last pending row's own window runs out (confirmRemoval,
+  // below) — one motion, not two: that row stays at full size and rides
+  // out with the rest of the list as this fades it away, rather than
+  // first collapsing itself away on its own and only then having the
+  // (now empty) list separately fade into place.
+  function crossfadeToEmpty() {
+    listEl.style.transition = "opacity " + EMPTY_CROSSFADE_MS + "ms ease";
+    listEl.style.opacity = "0";
+    var swapped = false;
+    function swapToEmpty() {
+      if (swapped) return;
+      swapped = true;
+      listEl.hidden = true;
+      listEl.style.transition = "";
+      listEl.style.opacity = "";
+      checkoutBar.hidden = true;
+
+      emptyEl.hidden = false;
+      emptyEl.style.transition = "none";
+      emptyEl.style.opacity = "0";
+      void emptyEl.offsetWidth;
+      // Double rAF: guarantees a real paint of the opacity:0 starting
+      // state has happened before the transition to 1 is triggered, so it
+      // actually registers instead of coalescing into one paint with no
+      // fade.
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          bar.classList.remove("is-removing");
+          emptyEl.style.transition = "opacity " + EMPTY_CROSSFADE_MS + "ms ease";
+          emptyEl.style.opacity = "1";
+          emptyEl.addEventListener("transitionend", function onEnd(e) {
+            if (e.propertyName !== "opacity") return;
+            emptyEl.removeEventListener("transitionend", onEnd);
+            emptyEl.style.transition = "";
+            emptyEl.style.opacity = "";
+          });
         });
       });
     }
-
-    undoTimer = setTimeout(dismissUndo, UNDO_TIMEOUT_MS);
+    listEl.addEventListener("transitionend", function onEnd(e) {
+      if (e.propertyName !== "opacity") return;
+      listEl.removeEventListener("transitionend", onEnd);
+      swapToEmpty();
+    });
+    // Fallback in case transitionend never fires (e.g. reduced-motion
+    // environments that skip the transition outright) — same backstop
+    // convention confirmRemoval uses for a normal row collapse.
+    setTimeout(swapToEmpty, EMPTY_CROSSFADE_MS + 50);
   }
 
-  // Same collapse-then-remove convention as js/selection-bar.js's
-  // handleUnselect: the row visibly shrinks to nothing first (CSS
-  // transition on .order-item's own max-height/padding/opacity —
-  // "is-removing" in css/style.css), which is also what makes the rows
-  // below it slide up smoothly, as a side effect of .order-items' flex
-  // column recalculating layout every frame. Only once that's finished is
-  // the item actually removed from storage and the list rebuilt — doing
-  // that immediately would yank the very node the animation is running on
-  // out of the DOM before it ever played. item is kept around (not just
-  // index) so showUndoBar has something to restore afterward.
-  function removeRowSmoothly(li, item, index) {
+  // Unselect click: removed from storage immediately (matching Modify and
+  // every other mutation here — nothing about this row is "soft" from
+  // storage's point of view), but the row itself just crossfades to its
+  // own undo prompt in place rather than leaving the DOM. undoBtn.focus()
+  // carries keyboard focus along with the crossfade, since the button it
+  // was on a moment ago (Unselect, inside .order-item__overlay) is about
+  // to become invisible.
+  function handleUnselect(binding) {
+    window.EmjiveSelection.removeItem(binding.index);
+    shiftIndices(binding, binding.index, -1);
+    binding.pending = true;
+    binding.li.classList.add("is-pending-undo");
+    updateCheckoutSummary();
+    binding.undoBtn.focus();
+    binding.timer = setTimeout(function () {
+      binding.timer = null;
+      confirmRemoval(binding);
+    }, UNDO_TIMEOUT_MS);
+  }
+
+  // Undo click: reinserts at binding's own current index (kept accurate by
+  // shiftIndices regardless of what's happened to any other row in the
+  // meantime) and crossfades straight back — .order-item__content was
+  // never rebuilt or removed, only hidden, so there's nothing to reload or
+  // reanimate in. Also drops is-open, which handleUnselect deliberately
+  // left in place (see its own comment) — while pending, is-pending-undo
+  // wins over it in css/style.css regardless, but once pending clears
+  // it'd otherwise fall straight back to is-open's own state (the
+  // Modify/Unselect overlay) instead of the plain row.
+  function handleUndo(binding) {
+    if (!binding.pending) return;
+    if (binding.timer) {
+      clearTimeout(binding.timer);
+      binding.timer = null;
+    }
+    window.EmjiveSelection.insertItem(binding.index, binding.item);
+    shiftIndices(binding, binding.index, 1);
+    binding.pending = false;
+    binding.li.classList.remove("is-pending-undo", "is-open");
+    updateCheckoutSummary();
+  }
+
+  // binding's own window ran out unused. Its item is already gone from
+  // storage (removed back when Unselect was first clicked) — this only
+  // ever touches the DOM, and only in one of two ways: if this was the
+  // last row standing, crossfade the whole list to empty instead of
+  // collapsing the row (see crossfadeToEmpty's own comment); otherwise,
+  // the same collapse-then-remove every row used to do immediately on
+  // Unselect — now deferred to here, and now genuinely a single motion for
+  // this row, since nothing about it moved or resized while it was
+  // pending.
+  function confirmRemoval(binding) {
+    var i = rowBindings.indexOf(binding);
+    if (i !== -1) rowBindings.splice(i, 1);
+
+    if (!rowBindings.length) {
+      crossfadeToEmpty();
+      return;
+    }
+
     suppressHoverUntilMove = true;
+    var li = binding.li;
     li.classList.add("is-removing");
     var done = false;
     function finish() {
       if (done) return;
       done = true;
-      // Pulled off the row before it's discarded (render() below rebuilds
-      // .order-items from scratch, and this exact node isn't part of that
-      // any more once the item's removed from storage) — kept alive for
-      // as long as the undo window is, so a restore can reuse it as-is.
-      var thumbEl = li.querySelector(".order-item__thumb");
-      window.EmjiveSelection.removeItem(index);
-      render();
-      // Only if the list isn't now empty — .order-items (and any undo bar
-      // in it) is hidden along with the rest of .selection-list once
-      // there's nothing left, so there'd be nowhere for it to show.
-      if (window.EmjiveSelection.getSelection().length) {
-        undoStack.push({ item: item, index: index, thumbEl: thumbEl });
-        showUndoBar();
-      }
+      li.remove();
     }
     li.addEventListener("transitionend", function onEnd(e) {
       if (e.propertyName !== "max-height") return;
@@ -285,24 +267,22 @@
     setTimeout(finish, 400);
   }
 
-  // reuseThumbEl — only ever passed for the one row Undo is restoring (see
-  // render()) — is that item's own already-built <img>, still holding its
-  // already-loaded/decoded image: appending an existing node just moves it,
-  // it doesn't reload, so the restored row's thumbnail is available
-  // instantly instead of needing a fresh decode the moment it reappears.
-  function buildItemRow(item, index, reuseThumbEl) {
+  // binding: { item, index, ... } — see the "undo" section above for the
+  // rest of its fields, filled in here (li, undoBtn) and by
+  // handleUnselect/handleUndo/confirmRemoval as the row's own undo window
+  // plays out.
+  function buildItemRow(binding) {
+    var item = binding.item;
     var li = document.createElement("li");
     li.className = "order-item";
+    binding.li = li;
 
     var content = document.createElement("div");
     content.className = "order-item__content";
 
-    var thumb = reuseThumbEl || document.createElement("img");
+    var thumb = document.createElement("img");
     thumb.className = "order-item__thumb";
-    // Empty src="" would make the browser re-request the current page —
-    // only set it when there's an actual thumbnail. Skipped when reusing:
-    // it's already carrying the right one.
-    if (!reuseThumbEl && item.image) thumb.src = item.image;
+    if (item.image) thumb.src = item.image;
     thumb.alt = "";
 
     var meta = document.createElement("div");
@@ -337,7 +317,7 @@
     modifyBtn.textContent = "Modify";
     modifyBtn.addEventListener("click", function () {
       closeOpenRow();
-      openModifyModal(item, index);
+      openModifyModal(binding.item, binding.index);
     });
 
     var unselectBtn = document.createElement("button");
@@ -348,45 +328,69 @@
     unselectBtn.addEventListener("click", function () {
       // Clears the open-row bookkeeping directly, without going through
       // closeOpenRow() — that would also revert the overlay/content
-      // crossfade an instant before the row starts collapsing (a flash
-      // back to the price view), where leaving "is-open" alone lets the
-      // whole row — overlay included — shrink away as one continuous
-      // motion instead.
+      // crossfade an instant before the undo prompt crossfades in, where
+      // leaving "is-open" alone lets that be one continuous swap instead
+      // (.is-pending-undo wins over .is-open in css/style.css regardless).
       if (openRowPanel && openRowPanel.root === li) {
         if (window.EmjiveMenus) window.EmjiveMenus.closed(openRowPanel);
         openRowPanel = null;
       }
-      removeRowSmoothly(li, item, index);
+      handleUnselect(binding);
     });
 
     overlay.appendChild(modifyBtn);
     overlay.appendChild(unselectBtn);
 
+    // ---- undo prompt: swapped in for content/overlay while pending, in
+    // place — see css/style.css's .order-item__undo-prompt and the "undo"
+    // section above. Deliberately just the button, nothing else.
+    var undoPrompt = document.createElement("div");
+    undoPrompt.className = "order-item__undo-prompt";
+    var undoBtn = document.createElement("button");
+    undoBtn.type = "button";
+    undoBtn.className = "order-item__undo-btn";
+    undoBtn.textContent = "Undo";
+    undoBtn.addEventListener("click", function () { handleUndo(binding); });
+    undoPrompt.appendChild(undoBtn);
+    binding.undoBtn = undoBtn;
+
     li.appendChild(content);
     li.appendChild(overlay);
+    li.appendChild(undoPrompt);
 
     li.addEventListener("pointerenter", function (e) {
-      if (e.pointerType === "mouse" && !suppressHoverUntilMove) openRowOverlay(li);
+      if (e.pointerType === "mouse" && !suppressHoverUntilMove && !binding.pending) openRowOverlay(li);
     });
     li.addEventListener("pointerleave", function (e) {
       if (e.pointerType === "mouse" && openRowPanel && openRowPanel.root === li) closeOpenRow();
     });
     // focusin/focusout (not focus/blur) bubble, so this can be delegated
     // once on the row itself instead of on each button individually.
-    li.addEventListener("focusin", function () { openRowOverlay(li); });
+    li.addEventListener("focusin", function () {
+      if (!binding.pending) openRowOverlay(li);
+    });
     li.addEventListener("focusout", function (e) {
       if (!li.contains(e.relatedTarget)) closeOpenRow();
     });
     // Touch's own path: a tap fires this with the overlay still closed
     // (pointerenter above ignores non-mouse pointers), so it opens here
-    // instead. A click landing on Modify/Unselect themselves is excluded —
-    // those already handle themselves — but once open, a click anywhere
-    // else on the row (the overlay's own empty space, since it covers
-    // .order-item__content entirely) closes it back to the normal view
-    // rather than being ignored, giving touch a way to back out without
-    // picking either action.
+    // instead. A click landing on Modify/Unselect/Undo themselves is
+    // excluded — those already handle themselves — but once open, a click
+    // anywhere else on the row (the overlay's own empty space, since it
+    // covers .order-item__content entirely) closes it back to the normal
+    // view rather than being ignored, giving touch a way to back out
+    // without picking either action.
+    // The undoBtn exclusion isn't just belt-and-suspenders: handleUndo
+    // (fired by undoBtn's own listener first, same event, before it
+    // bubbles here) already flips binding.pending back to false
+    // synchronously, so by the time this handler runs the leading
+    // `if (binding.pending) return;` below no longer catches an Undo
+    // click — without also matching the button itself here, that click
+    // would fall through and immediately reopen the Modify/Unselect
+    // overlay on the row it just restored.
     li.addEventListener("click", function (e) {
-      if (e.target.closest(".order-item__overlay-btn")) return;
+      if (e.target.closest(".order-item__overlay-btn, .order-item__undo-btn")) return;
+      if (binding.pending) return;
       if (li.classList.contains("is-open")) {
         closeOpenRow();
       } else {
@@ -635,71 +639,28 @@
 
   /* ---- render ----------------------------------------------------------- */
 
-  // Growing a row in from .is-removing's collapsed state (max-height: 0 +
-  // overflow: hidden on .order-item) also clips .order-item__content, which
-  // is centered — so while the box is still short, different children
-  // reveal at different rates (the thumb's fixed 3rem taking longer to
-  // clear than the shorter text next to it), reading as staggered/
-  // unpolished rather than one row appearing as a unit. Keeping the
-  // content invisible (a plain inline opacity override, cleared once this
-  // plays out) until the box's own max-height/padding transition is
-  // essentially done, then fading the whole thing in as one block, avoids
-  // ever compositing a partial, unevenly-clipped frame of it. Same
-  // set-inline-then-clear-after-transitionend convention as
-  // js/selection-bar.js's playEnterAnimation.
-  function playRowEnterAnimation(row) {
-    var content = row.querySelector(".order-item__content");
-    if (content) {
-      content.style.transition = "none";
-      content.style.opacity = "0";
-    }
-    void row.offsetWidth;
-    // A single requestAnimationFrame can still land in the same frame as
-    // the offsetWidth-forced layout above, before the browser has actually
-    // painted this collapsed/invisible starting state — removing
-    // is-removing (and restoring content's opacity) that early coalesces
-    // the whole thing into one paint with no transition ever registering,
-    // which is exactly what read as the row — and .order-item::before's
-    // middle band with it — snapping straight to its end state instead of
-    // fading/growing smoothly. A second, nested rAF guarantees a real
-    // paint has actually happened in between the two.
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        row.classList.remove("is-removing");
-        if (!content) return;
-        // Deliberately its own pace, decoupled from the row's own
-        // height/padding growth (0.3s/0.25s, untouched) — same values as
-        // .order-item::before's own opacity transition in css/style.css,
-        // so the row's elements and the middle band fade in together.
-        content.style.transition = "opacity 0.15s ease 0.4s";
-        content.style.opacity = "1";
-        content.addEventListener("transitionend", function onEnd(e) {
-          if (e.propertyName !== "opacity") return;
-          content.removeEventListener("transitionend", onEnd);
-          // Clears the inline override so .order-item__content's own CSS
-          // rule (the hover/tap overlay crossfade, unrelated to this)
-          // governs it again — not a fixed 0.2s-delayed fade forever after.
-          content.style.transition = "";
-          content.style.opacity = "";
-        });
-      });
-    });
-  }
-
-  // enterIndex (only ever passed by Undo, above) marks one freshly-rebuilt
-  // row to play the mirror image of the removal collapse — grown in from
-  // nothing instead of shrunk away — via the same .order-item/is-removing
-  // pairing and enter technique showUndoBar() uses for its own bar.
-  // enterThumbEl, that row's own already-loaded thumbnail (see
-  // removeRowSmoothly/buildItemRow), gets reused instead of rebuilt — even
-  // though itemsEl.innerHTML = "" below detaches it from the DOM along
-  // with everything else, that doesn't invalidate this reference, only
-  // orphans the node until buildItemRow reattaches it a few lines later.
-  function render(enterIndex, enterThumbEl) {
+  // Full rebuild — only still needed for the initial page load and after
+  // a Modify confirm (updateItem patches an existing item in place, and a
+  // fresh render is the simplest way to reflect that). Unselect/Undo no
+  // longer go through here at all — see the "undo" section above — so
+  // this never runs mid-undo-window in the common case. If it *does* (a
+  // Modify confirmed on one row while a different row is still pending),
+  // every rowBindings entry's own timer is cleared first and the rebuild
+  // below repopulates straight from current storage, which already
+  // reflects that other row's item as removed — its grace period ends
+  // early, silently, rather than surviving the rebuild. Rare enough
+  // (requires two different rows mid-interaction at once) not to be worth
+  // engineering around.
+  function render() {
     closeOpenRow();
+    rowBindings.forEach(function (b) {
+      if (b.timer) clearTimeout(b.timer);
+    });
+
     var items = window.EmjiveSelection.getSelection();
 
     if (!items.length) {
+      rowBindings = [];
       emptyEl.hidden = false;
       listEl.hidden = true;
       checkoutBar.hidden = true;
@@ -708,23 +669,16 @@
 
     emptyEl.hidden = true;
     listEl.hidden = false;
-    checkoutBar.hidden = false;
 
     itemsEl.innerHTML = "";
-    var total = 0;
-    var enterEl = null;
-    items.forEach(function (item, index) {
-      total += item.price || 0;
-      var row = buildItemRow(item, index, index === enterIndex ? enterThumbEl : null);
-      if (index === enterIndex) {
-        row.classList.add("is-removing");
-        enterEl = row;
-      }
-      itemsEl.appendChild(row);
+    rowBindings = items.map(function (item, index) {
+      return { item: item, index: index, pending: false, timer: null };
     });
-    checkoutTotalEl.textContent = window.EmjiveSelection.formatPrice(total);
+    rowBindings.forEach(function (binding) {
+      itemsEl.appendChild(buildItemRow(binding));
+    });
 
-    if (enterEl) playRowEnterAnimation(enterEl);
+    updateCheckoutSummary();
   }
 
   renderShippingOptions();
