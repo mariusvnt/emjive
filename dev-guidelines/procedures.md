@@ -145,7 +145,7 @@ custom-size field available.
    simply omits it.
 
 Nothing else. The header's filter buttons render from that per-series array,
-so there's no markup to touch on any of the six pages. `npm run auto-render`
+so there's no markup to touch on any of the seven pages. `npm run auto-render`
 warns if a series declares a category the global map doesn't define. Note
 that the whole filter row stays hidden until a series' array has at least
 two entries — see "Header rubrics" above.
@@ -376,20 +376,24 @@ prevent it from loading even when the file is present.)
 Adding an item (from a product page's "Choose a size" popup) writes to
 `localStorage` via `window.EmjiveSelection` (`js/selection.js`) — a real,
 working selection, not a placeholder, and dispatches an
-`"emjive:selection-changed"` event on every add/remove/clear so any page
-can react live without a reload.
+`"emjive:selection-changed"` event on every add/remove/insert/update so any
+page can react live without a reload.
 
 Two things read it back:
 - The floating selection bar (`js/selection-bar.js`), present on every page
   except `launch-order.html` — always visible, shows a thumbnail strip (or
   "No selected item") and an "Order ›" link, with a drawer for removing
   individual items.
-- `launch-order.html` (`js/selection-page.js`) — the full order page,
-  renders line items with a remove button and a running total, falling
-  back to the "Nothing selected yet" state once it's empty again.
+- `launch-order.html` (`js/selection-page.js`) — the full checkout review:
+  item rows you can modify (metal/size, in a popup reusing the product
+  page's own size-selection modal) or unselect (with a "Undo" bar for a few
+  seconds), a shipping pick, a terms toggle, and a "Proceed to checkout" bar
+  gated on both — falling back to a centered "No item selected." state once
+  it's empty again. See `client-scripts.md` for the mechanics.
 
-There's no checkout/payment step wired up yet — this only covers building
-and viewing the selection itself.
+"Proceed to checkout" is still a stub — no Stripe session, no backend to
+hand off to yet. Clicking it (once shipping + terms are filled in) just
+shows an alert saying so.
 
 ## Contact form
 

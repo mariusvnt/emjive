@@ -1,18 +1,18 @@
 # Pages
 
-The 6 HTML files at the repo root.
+The 7 HTML files at the repo root.
 
 **They all stay at the repo root, deliberately.** `js/series.js` fetches `data/series.json` with a *relative* path, and every path inside the JSON is repo-root-relative too. Combined with `vite.config.js`'s `base: "/emjive/"`, a page moved into a subdirectory would resolve all of them against the wrong prefix and break silently. Any new page also needs adding to `vite.config.js`'s `rollupOptions.input` or it ships unprocessed (see `tooling.md`).
 
 ## Shared header — one byte-identical nav
 
-All six pages open with the same `<header class="site-header">`: brand logo linking home, a `+`/`-` hamburger toggle, and a dropdown nav with exactly three rows, in this order:
+All seven pages open with the same `<header class="site-header">`: brand logo linking home, a `+`/`-` hamburger toggle, and a dropdown nav with exactly three rows, in this order:
 
 1. **Creation process** (`creation-process.html`) — DINish, `class="is-info"`.
 2. **Archives** (`archives.html`) — same.
 3. **Filter row** — a DINish "Filter by" label plus one Geist Mono `.category` button per category, all on one wrapping row. **Rendered by `js/main.js` from the active series' own category list**, never hand-written — don't add markup for them, and don't assume there are three, since each series declares its own subset (see `data.md`). That same script **hides the whole row** (`hidden` on `#siteHeaderFilter`) once that subset is down to one category or fewer — toggling a single button can never narrow the grid. `css/style.css` needs an explicit `.site-header__filter[hidden] { display: none }` for that to actually work, same trap as `.product-card[hidden]` below: the row's own `display: flex` is an author rule and beats the UA `[hidden]` regardless of specificity. A hidden row costs no layout either — its flex gap and the extra `--header-kind-gap` margin (`a.is-info + .site-header__filter`) both vanish for free once it's `display: none`.
 
-The `<nav>` block is now **byte-identical across all six pages** (verified by hashing it in each). The one remaining difference anywhere in the header is `.site-header__brand`'s href: `#top` on `index.html`, `index.html#top` everywhere else. That has to stay — `index.html#top` on the index itself triggers a reload instead of the CSS `scroll-behavior: smooth` scroll.
+The `<nav>` block is now **byte-identical across all seven pages** (verified by hashing it in each). The one remaining difference anywhere in the header is `.site-header__brand`'s href: `#top` on `index.html`, `index.html#top` everywhere else. That has to stay — `index.html#top` on the index itself triggers a reload instead of the CSS `scroll-behavior: smooth` scroll.
 
 **Opening the menu isn't limited to the `+`/`-` icon.** `js/main.js` also delegates a click handler to `.site-header__row` itself, so any empty space in that row toggles the menu the same way the icon does — it just ignores clicks that land on the brand logo (`.site-header__brand`, which keeps navigating home) or on `.menu-toggle` (which already has its own listener; letting the row's handler also fire there would double-toggle).
 
@@ -54,15 +54,21 @@ Sections, in order (numbered in the HTML's own comments): label bar → carousel
 
 Everything text/image-related starts empty or `hidden` and gets filled in by `js/product.js`.
 
-## `launch-order.html` — order / selection page
+## `launch-order.html` — order / checkout review
 
-The full selection as an itemized list with a running total — a whole page, not a drawer. Toggles between `#selectionEmpty` and `#selectionList`.
+No title, no footer — straight from the header into the full selection, in `js/selection-page.js`. Toggles between `#selectionEmpty` (now "No item selected." plus a plain-text "Back to gallery" link, both centered) and `#selectionList`, in order:
 
-Two things still make it unique: it's the **only** page with a `<footer class="site-footer">`, and the **only** page **without** the floating selection bar (`selection-bar.js` isn't in its script list — showing the full list *and* a floating summary of the same thing would be redundant).
+1. **Item rows** (`#selectionItems`, a `<ul class="order-items">`) — a full-bleed dark panel breaking out to the true viewport edge (same `100vw`/`calc(50% - 50vw)` technique `.product-detail__select` uses), padded top and bottom by the same amount so the panel bookends itself. Each row shows thumb + name.category.metal.size (one continuous label, ellipsis-free — it fade-masks instead when it overflows) + price at rest; hovering (mouse), tapping, or focusing swaps the whole row to a Modify/Unselect overlay (a click anywhere else on that same row while it's open reverts it). Unselect collapses the row smoothly (reflowing the rows below it, same principle as the floating selection bar's icon-collapse) and offers a stacked, sequential "Undo" bar at the top of the panel for a few seconds — reusing the removed row's already-decoded thumbnail on restore rather than reloading it. Modify opens a second modal (`#modifyModal`) built from the **same** `.size-modal`/`.product-metals` classes and wiring `product.html`'s own Select button uses — a metal picker plus the standard/custom size picker, pre-filled to the item's current choice, saving via `window.EmjiveSelection.updateItem()` instead of `addItem()`.
+2. **Shipping** (`.order-shipping`) — a plain, unlabeled pick list (`.order-shipping__option`, dot-indicator style borrowed from the size modal) between a couple of placeholder carriers; no real rates wired up yet.
+3. **Terms** (`.order-terms`) — a sentence with a real link to `terms.html`, and a square tick-box (opacity-toggled, no border) at the row's right edge.
 
-## `archives.html`, `creation-process.html` — empty shells
+No running total on the page itself any more — it lives only in the fixed **checkout bar** (`#orderCheckoutBar`, a sibling of `<main>`, not `js/selection-bar.js` — this page has never carried that): a "liquid glass" strip (translucent, blurred, no black-bg chrome) at `--selection-bar-height`, showing the total and a plain-text "Proceed to checkout" button, disabled until a shipping option is picked and terms are ticked. It's a stub — see `client-scripts.md`.
 
-Header, a `.section-head` title block, correct meta tags, and a deliberately empty `.page-shell__body`. No designed content yet; each carries a comment naming what belongs there. Archives will render the series list from `data/series.json` via `EmjiveSeries.all()`/`.manifestHref()` — that's deferred, not missing by accident.
+It's still the **only** page **without** the floating selection bar (`selection-bar.js` isn't in its script list — showing the full list *and* a floating summary of the same thing would be redundant) — but no longer the only one with a footer; that's gone entirely now.
+
+## `archives.html`, `creation-process.html`, `terms.html` — empty shells
+
+Header, a `.section-head` title block, correct meta tags, and a deliberately empty `.page-shell__body`. No designed content yet; each carries a comment naming what belongs there. Archives will render the series list from `data/series.json` via `EmjiveSeries.all()`/`.manifestHref()` — that's deferred, not missing by accident. `terms.html` follows the identical shell pattern but isn't in the header nav at all — it's reached only from `launch-order.html`'s terms-acceptance link, so the checkbox row there isn't pointing at a dead page.
 
 ## `series.html` — a series' design manifest
 
@@ -79,6 +85,7 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 | `launch-order.html` | ✓ | | ✓ | ✓ | | | ✓ | |
 | `archives.html` | ✓ | | ✓ | ✓ | | ✓ | | |
 | `creation-process.html` | ✓ | | ✓ | ✓ | | ✓ | | |
+| `terms.html` | ✓ | | ✓ | ✓ | | ✓ | | |
 | `series.html` | ✓ | | ✓ | ✓ | | ✓ | | ✓ |
 
 `main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. Only `index.html`/`product.html` load `three-viewer.js`; nothing else has 3D content.

@@ -8,8 +8,10 @@ each item as its own 3D model (glTF/GLB — click and drag to rotate, falls
 back to a photo if no model is set yet). Clicking a product opens its
 detail page — a carousel, a metal picker, a description, metal-dependent
 specs, and a "Select size" flow that adds to a real, localStorage-backed
-selection you can review on a dedicated order page, with a floating
-selection bar following you around everywhere else.
+selection you can review on a dedicated order page — item rows you can
+modify or unselect (with a few seconds to undo), a shipping pick, a terms
+toggle, and a "Proceed to checkout" bar — with a floating selection bar
+following you around everywhere else.
 
 Plain HTML, CSS, and vanilla JavaScript — no framework. [Vite](https://vitejs.dev)
 is used as the local dev server. 3D rendering is a custom [three.js](https://threejs.org)
@@ -38,7 +40,7 @@ the product grid loads its data via `fetch`, which browsers block on
 adds two things on top of Vite's defaults:
 
 - **Multi-page entries** — Vite only treats `index.html` as a build entry
-  by default; every other page is listed explicitly too, so all six get
+  by default; every other page is listed explicitly too, so all seven get
   their imports resolved. Add a line there for any new page.
 - **A copy step for `js/`, `assets/`, `data/`, `series/`** — Vite's build can only
   see paths it can trace statically (`<script type="module">`,
@@ -85,7 +87,7 @@ entirely) — not something committing code here can do.
 
 ```text
 index.html, product.html, launch-order.html    The shop
-archives.html, creation-process.html           Empty shells, design pending
+archives.html, creation-process.html, terms.html   Empty shells, design pending
 series.html                                     Renders any series' design manifest
 css/style.css                                   All shared styling, one file
 js/                                             Vanilla JS + the three.js viewer module
@@ -113,6 +115,7 @@ This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
 from here. Two of the three current products still have no photography,
 and every product's weight/composition (and most prices) are still
-placeholders waiting on real data. There's also no checkout/payment step
-yet — the selection system only covers building and viewing an order, not
-completing one.
+placeholders waiting on real data. `launch-order.html`'s review page goes
+all the way to a "Proceed to checkout" button, but there's still no real
+payment step behind it — no backend exists yet to hand that off to (e.g. a
+Stripe Checkout session); clicking it just says so.
