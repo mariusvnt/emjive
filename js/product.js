@@ -95,7 +95,7 @@
 
   function render(product) {
     document.title = (product.name || "Product") + " — em·ji·ve";
-    state.selectedMetal = product.metal || state.metals[0] || "steel";
+    state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
 
     renderLabel(product);
     renderCarousel(product);
@@ -136,7 +136,7 @@
   // the thumbnail always matches whichever finish is currently selected.
   function renderLabelThumb(product) {
     var thumb = document.getElementById("productLabelThumb");
-    var thumbSrc = (product.icons && product.icons[state.selectedMetal]) || "";
+    var thumbSrc = (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || "";
     if (thumbSrc) {
       thumb.src = thumbSrc;
       thumb.hidden = false;
@@ -146,7 +146,7 @@
   }
 
   function renderLabelPrice(product) {
-    var details = (product.metalDetails && product.metalDetails[state.selectedMetal]) || {};
+    var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
     document.getElementById("productLabelPrice").textContent =
       window.EmjiveSelection.formatPrice(details.price || 0);
   }
@@ -179,9 +179,9 @@
     // here so the viewer construction/material logic lives in exactly one
     // place. It can return null if the browser couldn't grant a WebGL
     // context (see its own comment) — falls through to the same icon
-    // fallback branch a product with no "model" field at all uses, rather
-    // than leaving the carousel empty.
-    state.modelHandle = product.model ? window.EmjiveModelViewer(product, state.selectedMetal) : null;
+    // fallback branch a product with no "assets.model" field at all uses,
+    // rather than leaving the carousel empty.
+    state.modelHandle = (product.assets && product.assets.model) ? window.EmjiveModelViewer(product, state.selectedMetal) : null;
     if (state.modelHandle) {
       // Smaller than the photo slides on purpose — leaves generous empty
       // space around the model to drag/swipe the carousel from without
@@ -191,7 +191,7 @@
       track.appendChild(modelSlide);
       slideSources.push("model");
     } else {
-      var fallbackIconSrc = product.icons && product.icons[state.selectedMetal];
+      var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
       if (fallbackIconSrc) {
         var iconSlide = buildImageSlide(fallbackIconSrc, product.name);
         // Kept so onMetalSelect can swap its src on a metal switch — this
@@ -203,7 +203,7 @@
       }
     }
 
-    (product.photos || []).forEach(function (src) {
+    ((product.assets && product.assets.photos) || []).forEach(function (src) {
       track.appendChild(buildImageSlide(src, product.name));
       slideSources.push(src);
     });
@@ -597,7 +597,7 @@
     // images — each needs its own explicit swap to the new metal's icon.
     renderLabelThumb(product);
     if (state.iconFallbackImg) {
-      state.iconFallbackImg.src = (product.icons && product.icons[metal]) || "";
+      state.iconFallbackImg.src = (product.assets && product.assets.icons && product.assets.icons[metal]) || "";
     }
     renderSpecs(product);
     renderLabelPrice(product);
@@ -606,7 +606,7 @@
   /* ---- 6. characteristics (metal-dependent) ------------------------------ */
 
   function renderSpecs(product) {
-    var details = (product.metalDetails && product.metalDetails[state.selectedMetal]) || {};
+    var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
     var dl = document.getElementById("productSpecs");
     dl.innerHTML = "";
     appendSpecRow(dl, "Metal", capitalize(state.selectedMetal));
@@ -760,7 +760,7 @@
         }, 2000);
         return;
       }
-      var details = (product.metalDetails && product.metalDetails[state.selectedMetal]) || {};
+      var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
       window.EmjiveSelection.addItem({
         // Which series this came from — product ids are only unique within
         // one, so the id alone no longer identifies a piece.
@@ -771,7 +771,7 @@
         metal: state.selectedMetal,
         size: state.selectedSize,
         price: details.price || 0,
-        image: (product.icons && product.icons[state.selectedMetal]) || ""
+        image: (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || ""
       });
       closeModal();
     });

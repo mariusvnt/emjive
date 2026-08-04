@@ -46,9 +46,10 @@
      place around that same center point. These four are only the
      fallback values, inherited by a .reveal__ring <img> if nothing more
      specific overrides them — js/main.js's updateHeroRings() creates one
-     .reveal__ring per product whose data/products.json "onHand.visible"
-     is true, each with these same four set inline (from that product's
-     own onHand.x/y/scale/rotation) directly on that specific <img>, so
+     .reveal__ring per product whose data/products.json
+     "hero-hand-visibility.visible" is true, each with these same four set
+     inline (from that product's own
+     hero-hand-visibility.x/y/scale/rotation) directly on that specific <img>, so
      several rings on screen at once don't all read the one shared set
      defined here. */
   --ring-x: 58.5%;

@@ -24,15 +24,24 @@
    MSAA.
 
    For each requested metal:
-   - Product icons: EVERY product gets an icon rendered in this metal, not
-     just the ones that default to it — the product page's metal picker
-     swaps the icon (label thumbnail / poster) to match whichever metal is
-     currently selected, so every product needs an icon for every metal it
-     could be shown in, not only its default. Saved as 512x512 transparent
-     WebP at assets/series/<slug>/products/<folder>/<name>_icon_<metal>.webp
-     (the folder is built from the series layout, not read off product.model),
-     and that series' products.json "icons" object (keyed by metal,
-     alongside "metalDetails") is updated in place to point at it — the old
+   - Product icons + fallback images: EVERY product gets both rendered in
+     this metal, not just the ones that default to it — the product page's
+     metal picker swaps the icon (label thumbnail) to match whichever metal
+     is currently selected, so every product needs one for every metal it
+     could be shown in, not only its default. Both come from the exact same
+     screenshot (captureTarget's raw, transparent, default-orbit capture) —
+     "fallback-img" is that capture saved as-is (just resized), "icon" is
+     the same capture trimmed/re-centered/padded (see normalizeIconFraming).
+     fallback-img exists specifically so js/three-viewer.js's pre-load poster
+     can match the live model's actual default framing pixel-for-pixel
+     (icon's crop/pad treatment doesn't) — icon stays the tight, flat
+     thumbnail used everywhere else (label chips, cart line items, a
+     model-less product's fallback slide). Saved as 512x512 transparent
+     WebP at assets/series/<slug>/products/<folder>/<name>_{icon,fallback-img}_<metal>.webp
+     (the folder is built from the series layout, not read off
+     product.assets.model), and that series' products.json
+     "assets.icons"/"assets.fallback-img" objects (keyed by metal, alongside
+     "per-metal-specs") are updated in place to point at them — the old
      file, if the path changed, is deleted.
    - One top shot per product: a straight-down (camera-orbit phi: 0deg)
      view lit by the same studio HDRI every other render here uses (set by
@@ -73,6 +82,9 @@ const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
 const PORT = 5199;
 
 const ICON_SIZE = 512;
+// Same box the pre-load poster fills (see js/three-viewer.js), so a
+// fallback-img saved at this size never needs to be scaled by the browser.
+const FALLBACK_IMG_SIZE = ICON_SIZE;
 const TOP_SHOT_SIZE = 1024;
 const SWATCH_SIZE = 240;
 // Captured at 2x the final pixel size (real GPU MSAA already handles edge
@@ -340,7 +352,7 @@ const HARNESS_HTML = `<!doctype html>
     // rotation is fixed at 0 rather than the product's own default, for a
     // canonical, camera-north-up top-down shot regardless of how each
     // model's default 3/4 view happens to be rotated.
-    var defaultOrbit = product["camera-setup"] || { rotation: 0, tilt: 75, zoom: 105 };
+    var defaultOrbit = product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 };
     var zoom = typeof defaultOrbit.zoom === "number" ? defaultOrbit.zoom : 105;
     var handle = window.EmjiveModelViewer(product, metalKey, {
       transparentBackground: true,
@@ -486,7 +498,7 @@ async function writeWebp(sharpInstance, outPath) {
 // trimmed alpha bbox) occupies along its longer edge, once centered.
 // frameCamera() in js/three-viewer.js sizes the camera off each model's
 // bounding-SPHERE (a crude, shape-agnostic stand-in for its true 2D
-// silhouette), at that product's own camera-setup angle — so the same
+// silhouette), at that product's own 3d-viewer-camera-default angle — so the same
 // nominal radius-% lands at very different actual on-screen fill per
 // product (an anisotropic/thin ring viewed at a shallow angle produces a
 // far more lopsided bounding sphere than a stockier one viewed near
@@ -512,9 +524,16 @@ function normalizeIconFraming(sharpPipeline, sizePx) {
     .extend({ top: padLeft, bottom: padRight, left: padLeft, right: padRight, background: transparent });
 }
 
-async function renderIcon(page, product, metalKey, outPath) {
+// Captures the model's default-orbit pose ONCE, then saves it twice: first
+// as-is (just resized, no crop/pad) for fallback-img — the pre-load poster
+// needs this to match the live viewer's own default framing exactly — then
+// through normalizeIconFraming for the icon, which every other UI spot
+// (label chips, cart line items, model-less fallback slides) wants as a
+// tightly-cropped, re-centered thumbnail instead.
+async function renderIconAndFallback(page, product, metalKey, fallbackOutPath, iconOutPath) {
   const buffer = await captureTarget(page, ICON_SIZE, product, metalKey);
-  await writeWebp(normalizeIconFraming(sharp(buffer), ICON_SIZE), outPath);
+  await writeWebp(sharp(buffer).resize(FALLBACK_IMG_SIZE, FALLBACK_IMG_SIZE), fallbackOutPath);
+  await writeWebp(normalizeIconFraming(sharp(buffer), ICON_SIZE), iconOutPath);
 }
 
 async function captureTopShotTarget(page, cssSizePx, product, metalKey) {
@@ -552,16 +571,17 @@ function deleteIfExists(absPath) {
 }
 
 // Patches a single product's "<blockKey>": {...} sub-object (a per-metal
-// map of paths, e.g. top-level "icons" or the nested "assets.top-shot") in
-// the raw products.json TEXT (not a re-serialize of the parsed object, so
-// hand-aligned formatting elsewhere in the file survives untouched).
-// Scoped to the one product via its unique "id" field, then directly to
-// the "<blockKey>": {...} block within that product's own text — blockKey
-// only needs to be unique *within a single product's block*, not
-// necessarily top-level, which is why this works for assets.top-shot too
-// without first needing to isolate "assets" itself (that object also
-// holds the plain-string "xray" field, so it can't be matched with the
-// same non-nested-braces regex this uses for its child blocks).
+// map of paths — "assets.icons", "assets.fallback-img", or
+// "assets.top-shot") in the raw products.json TEXT (not a re-serialize of
+// the parsed object, so hand-aligned formatting elsewhere in the file
+// survives untouched). Scoped to the one product via its unique "id"
+// field, then directly to the "<blockKey>": {...} block within that
+// product's own text — blockKey only needs to be unique *within a single
+// product's block*, not top-level, which is why this works for all three
+// without first needing to isolate "assets" itself (that object also holds
+// plain-string/array fields like "model"/"xray"/"photos", so it can't be
+// matched with the same non-nested-braces regex this uses for its
+// per-metal child blocks).
 // Returns the updated text, or null if the expected shape wasn't found
 // (caller falls back to warning the user to fix it by hand).
 function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPath) {
@@ -584,9 +604,9 @@ function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPat
 }
 
 // Repo-root-relative output folder for one product's renders, built from
-// the series layout rather than inferred from wherever product.model happens
-// to sit. Deriving it from path.dirname(product.model) — what this used to
-// do — silently wrote to the repo root for any product without a model yet
+// the series layout rather than inferred from wherever product.assets.model
+// happens to sit. Deriving it from path.dirname(product.assets.model) —
+// what this used to do — silently wrote to the repo root for any product without a model yet
 // (path.dirname("") is "."), and couldn't tell one series' tree from
 // another's. Encodes assets.md's <slug>_<category> folder convention.
 function productFolder(seriesSlug, product) {
@@ -718,20 +738,41 @@ async function main() {
           // sitting outside the folder the convention predicts means either
           // a hand-renamed directory or a file missed by a move — either way
           // the renders below are about to land somewhere unexpected.
-          if (product.model && path.dirname(product.model) !== folder) {
+          const productModel = product.assets && product.assets.model;
+          if (productModel && path.dirname(productModel) !== folder) {
             console.warn(
               "  warning: [" + target.slug + "] " + product.name + "'s model is in " +
-              path.dirname(product.model) + " but its renders go to " + folder
+              path.dirname(productModel) + " but its renders go to " + folder
             );
           }
 
+          const fallbackRelPath = folder + "/" + slug(product.name) + "_fallback-img_" + metal + ".webp";
+          const fallbackAbsPath = path.join(ROOT, fallbackRelPath);
           const relOutPath = folder + "/" + slug(product.name) + "_icon_" + metal + ".webp";
           const absOutPath = path.join(ROOT, relOutPath);
 
+          console.log("  fallback-img: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + fallbackRelPath);
           console.log("  icon: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + relOutPath);
-          await renderIcon(page, product, metal, absOutPath);
+          await renderIconAndFallback(page, product, metal, fallbackAbsPath, absOutPath);
 
-          const oldIconRelPath = product.icons && product.icons[metal];
+          const oldFallbackRelPath = product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metal];
+          if (oldFallbackRelPath !== fallbackRelPath) {
+            const patched = updateProductMetalFieldInText(target.text, product, "fallback-img", metal, fallbackRelPath);
+            if (patched) {
+              target.text = patched;
+              if (oldFallbackRelPath) {
+                const oldAbs = path.join(ROOT, oldFallbackRelPath);
+                if (path.resolve(oldAbs) !== path.resolve(fallbackAbsPath)) deleteIfExists(oldAbs);
+              }
+            } else {
+              console.warn(
+                "  could not find the assets.fallback-img." + metal + " line to update in " + rel +
+                " for " + product.name + " — set it by hand: " + fallbackRelPath
+              );
+            }
+          }
+
+          const oldIconRelPath = product.assets && product.assets.icons && product.assets.icons[metal];
           if (oldIconRelPath !== relOutPath) {
             const patched = updateProductMetalFieldInText(target.text, product, "icons", metal, relOutPath);
             if (patched) {
@@ -742,7 +783,7 @@ async function main() {
               }
             } else {
               console.warn(
-                "  could not find the icons." + metal + " line to update in " + rel + " for " +
+                "  could not find the assets.icons." + metal + " line to update in " + rel + " for " +
                 product.name + " — set it by hand: " + relOutPath
               );
             }

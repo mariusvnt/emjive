@@ -413,7 +413,7 @@
      Same size-modal pattern product.html's Select button uses (same CSS
      classes, same standard/custom size wiring), with a metal picker
      (.product-metals, also product.html's own classes) added above it,
-     since changing metal changes price (data.md's metalDetails). The
+     since changing metal changes price (data.md's per-metal-specs). The
      static controls (input/guide toggle/backdrop/confirm/Escape) are wired
      exactly once, below — unlike product.js, where the product never
      changes across a page view, here a different row's item/product can
@@ -551,12 +551,12 @@
 
   modifyModalConfirm.addEventListener("click", function () {
     if (!modifyState.selectedSize) return;
-    var details = (modifyState.product.metalDetails && modifyState.product.metalDetails[modifyState.selectedMetal]) || {};
+    var details = (modifyState.product["per-metal-specs"] && modifyState.product["per-metal-specs"][modifyState.selectedMetal]) || {};
     window.EmjiveSelection.updateItem(modifyState.index, {
       metal: modifyState.selectedMetal,
       size: modifyState.selectedSize,
       price: details.price || 0,
-      image: (modifyState.product.icons && modifyState.product.icons[modifyState.selectedMetal]) || ""
+      image: (modifyState.product.assets && modifyState.product.assets.icons && modifyState.product.assets.icons[modifyState.selectedMetal]) || ""
     });
     closeModifyModal();
     render();

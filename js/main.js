@@ -222,14 +222,15 @@
     var href = window.EmjiveSeries.productHref(product, activeSlug);
 
     // No metal picker on the homepage grid — always the product's own
-    // default metal (product.metal). window.EmjiveModelViewer is exposed
-    // by js/three-viewer.js — reused here so the viewer construction/
-    // material logic lives in exactly one place. It can return null if
-    // the browser couldn't grant a WebGL context (see its own comment) —
-    // falls through to the same gridIcon branch a product with no
-    // "model" field at all uses, rather than leaving the card blank.
-    var gridIcon = product.icons && product.icons[product.metal];
-    var modelHandle = product.model ? window.EmjiveModelViewer(product, product.metal) : null;
+    // default metal (product["default-metal"]). window.EmjiveModelViewer is
+    // exposed by js/three-viewer.js — reused here so the viewer
+    // construction/material logic lives in exactly one place. It can
+    // return null if the browser couldn't grant a WebGL context (see its
+    // own comment) — falls through to the same gridIcon branch a product
+    // with no "assets.model" field at all uses, rather than leaving the
+    // card blank.
+    var gridIcon = product.assets && product.assets.icons && product.assets.icons[product["default-metal"]];
+    var modelHandle = (product.assets && product.assets.model) ? window.EmjiveModelViewer(product, product["default-metal"]) : null;
     if (modelHandle) {
       wireModelClickNavigation(modelHandle.el, href);
       figure.appendChild(modelHandle.el);

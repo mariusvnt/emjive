@@ -38,7 +38,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
   // PBR material presets applied to every mesh of a product's 3D model,
   // regardless of the model's own original materials/textures. Pick one
-  // per product via the "metal" field in products.json (defaults to
+  // per product via the "default-metal" field in products.json (defaults to
   // "steel" if omitted or unrecognized). Keys here should match the
   // top-level "metals" list in products.json — that list is the source
   // of truth for which metal names are valid, so keep the two in sync.
@@ -288,9 +288,15 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // Poster only matters pre-load, so this is fixed to whatever metal the
     // viewer is being built for — never needs to change after (by the time
     // a visitor could switch metals in the picker, the real model has
-    // already loaded and the poster is long gone).
+    // already loaded and the poster is long gone). Uses fallback-img, not
+    // icons — icons is cropped/re-centered for use as a flat thumbnail
+    // elsewhere (see js/main.js, js/product.js) and doesn't match the
+    // model's actual default framing, which produced a visible "jump" the
+    // instant the real model swapped in. fallback-img is the model's own
+    // default-orbit capture saved as-is (see scripts/auto-render.js), so it
+    // lines up with the live canvas's first frame instead.
     var posterEl = null;
-    var posterSrc = product.icons && product.icons[metalKey];
+    var posterSrc = product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metalKey];
     if (posterSrc) {
       posterEl = document.createElement("img");
       posterEl.className = "emjive-3d-viewer__poster";
@@ -377,7 +383,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     controls.dynamicDampingFactor = 0.04032;
     var SPIN_DECAY_LAMBDA = (-0.5 * Math.log(1 - controls.dynamicDampingFactor)) / REF_DT;
 
-    var defaultOrbit = product["camera-setup"] || DEFAULT_ORBIT;
+    var defaultOrbit = product["3d-viewer-camera-default"] || DEFAULT_ORBIT;
     var explicitTarget = parseTargetString(product.cameraTarget);
 
     var defaultCameraPosition = new THREE.Vector3();
@@ -461,7 +467,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     var modelPromise = new Promise(function (resolve, reject) {
       new GLTFLoader().load(
-        product.model,
+        product.assets.model,
         function (gltf) {
           modelRoot = gltf.scene;
           applyMaterial();
@@ -470,7 +476,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         },
         undefined,
         function (err) {
-          console.error("emjive: failed to load model", product.model, err);
+          console.error("emjive: failed to load model", product.assets.model, err);
           reject(err);
         }
       );

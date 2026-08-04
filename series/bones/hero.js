@@ -104,10 +104,11 @@
   // Product image(s) riding the x-ray hand (inside revealXrayGroup, so each
   // reveals in lockstep with the wipe above) — built from this series' own
   // products, handed over by js/series.js once they load. Not a single fixed
-  // element: any number of products can have "onHand.visible": true at once,
-  // so this creates one <img class="reveal__ring"> per visible product
-  // rather than assuming there's only ever one. Each one's position/size/
-  // rotation comes from that SAME product's own onHand.x/y/scale/rotation (a
+  // element: any number of products can have "hero-hand-visibility.visible":
+  // true at once, so this creates one <img class="reveal__ring"> per visible
+  // product rather than assuming there's only ever one. Each one's
+  // position/size/rotation comes from that SAME product's own
+  // hero-hand-visibility.x/y/scale/rotation (a
   // % of the hand image's own width/height, and degrees) — set as inline
   // custom properties on that specific <img>, not shared globally, so
   // multiple rings on screen at once don't fight over one set of values the
@@ -122,9 +123,9 @@
       existing.remove();
     });
     products.forEach(function (product) {
-      var onHand = product.onHand;
+      var onHand = product["hero-hand-visibility"];
       if (!onHand || !onHand.visible) return;
-      var topShot = product.assets && product.assets["top-shot"] && product.assets["top-shot"][product.metal];
+      var topShot = product.assets && product.assets["top-shot"] && product.assets["top-shot"][product["default-metal"]];
       if (!topShot) return;
       var ring = document.createElement("img");
       ring.className = "reveal__ring";
