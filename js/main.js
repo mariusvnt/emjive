@@ -84,6 +84,7 @@
   // category the destination can't show.
   var filterOptions = document.getElementById("headerFilterOptions");
   var filterRow = document.getElementById("siteHeaderFilter");
+  var filterLabel = filterRow && filterRow.querySelector(".site-header__filter-label");
   var activeCats = [];
 
   function parseCatsFromQuery(valid) {
@@ -112,18 +113,52 @@
   function renderHeaderFilter() {
     if (!filterOptions) return;
     filterOptions.innerHTML = "";
+
+    if (!filtersAreInPlace) {
+      // Every page but the grid: the row becomes a plain "back to the
+      // gallery" link instead of a filter — category count is irrelevant
+      // here, so this is unconditional. Never dotted — only category tags
+      // carry a selection state (see css/style.css).
+      if (filterRow) filterRow.hidden = false;
+      if (filterLabel) filterLabel.hidden = true;
+      var galleryLink = document.createElement("a");
+      galleryLink.className = "is-info";
+      galleryLink.textContent = "Gallery";
+      galleryLink.href = window.EmjiveSeries.mainHref(window.EmjiveSeries.slug) + "#products";
+      filterOptions.appendChild(galleryLink);
+      return;
+    }
+
     var cats = window.EmjiveSeries.categories();
-    // One category (or zero) means there's nothing to filter — toggling
-    // the sole button on/off can never change what the grid shows.
-    if (filterRow) filterRow.hidden = cats.length <= 1;
+    // Zero categories: nothing to show at all. Exactly one: nothing to
+    // actually filter either — toggling the sole tag can never change what
+    // the grid shows — so "Filter gallery by" is dropped and the bare tag
+    // renders permanently dotted and inert instead of interactive.
+    if (filterRow) filterRow.hidden = cats.length === 0;
+    if (filterLabel) filterLabel.hidden = cats.length <= 1;
+
+    if (cats.length === 1) {
+      // No href, no click listener: an <a> with no href is natively
+      // unclickable/unfocusable, so that alone is enough to make this
+      // inert — no separate markup shape needed, and it still matches
+      // every .site-header__nav a.is-cat rule in css/style.css.
+      var soleTag = document.createElement("a");
+      soleTag.className = "is-cat is-active";
+      soleTag.textContent = cats[0];
+      filterOptions.appendChild(soleTag);
+      return;
+    }
+
     cats.forEach(function (cat) {
       // Real <a href>, not <button>, on every page: that keeps middle-click
       // and open-in-new-tab working, with the in-place toggle layered on
-      // top via preventDefault() where the grid exists.
+      // top via preventDefault() where the grid exists. No "." prefix —
+      // the selection dot (css/style.css) already carries that signal, a
+      // second one in the text itself would be redundant.
       var link = document.createElement("a");
       link.className = "is-cat";
       link.dataset.cat = cat;
-      link.textContent = "." + cat;
+      link.textContent = cat;
       link.href = buildFilterHref(cat);
       filterOptions.appendChild(link);
     });

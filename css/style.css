@@ -261,13 +261,16 @@ button, input, textarea {
   --header-image-size: 2.5rem;
   --header-plus-ratio: 0.3;
 
-  /* Rubric menu spacing: gap between rubric titles, space from the
-     toggle row down to the first rubric, and space from the last rubric
-     down to the header's bottom border. */
+  /* Rubric menu spacing: gap between rubrics (even on both sides now — see
+     the removed .site-header__filter + a.is-info override), and the space
+     from the toggle row down to the first one / from the last one down to
+     the header's bottom border. pt/pb deliberately differ: equal values
+     read as bottom-heavy here, since the toggle row above already reads
+     as its own visual boundary the way the header's bottom border does
+     below — pb carries a bit more room to balance that out. */
   --header-rubric-gap: 1.75rem;
   --header-menu-pt: 1.25rem;
-  --header-menu-pb: 2.25rem;
-  --header-kind-gap: .5rem;
+  --header-menu-pb: 2.5rem;
 
   /* Filter row: gap between the category buttons, and from the "Filter by"
      label to the first one. */
@@ -386,14 +389,33 @@ button, input, textarea {
   font-size: 14px;
 }
 
-/* Selected filter. Deliberately minimal — same size and weight, ink instead
-   of muted — rather than inventing a token; the palette is only ever two
-   text colors. */
-.site-header__nav a.is-cat.is-active {
-  color: var(--black);
+/* Selected category tag(s) — a dot, not a color change (js/main.js's
+   syncFilterButtons toggles .is-active). Same "always-rendered,
+   background-toggled" dot recipe used everywhere else selection needs
+   signaling on the site (.product-metals__option-wrap.is-selected,
+   .size-modal__standard-option.is-selected, .order-shipping__option
+   .is-selected) — every tag reserves the same space whether or not it
+   ends up filled, so nothing shifts when the dot appears. The one
+   category left when a series has just one (js/main.js's
+   renderHeaderFilter) is rendered with .is-active by default — inert
+   (no href), permanently dotted, since there's nothing to actually
+   choose between. Scoped to category tags only: Archives/Creation
+   process/Gallery never carry a selection state of their own. */
+.site-header__nav a.is-cat::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
+  background: transparent;
+}
+.site-header__nav a.is-cat.is-active::before {
+  background: var(--category-col);
 }
 
-/* The last row of the menu: a horizontal row living inside
+/* The first row of the menu: a horizontal row living inside
    .site-header__nav's right-aligned vertical stack. flex-wrap because a
    series can declare any number of categories — a long list wraps rather
    than overflowing the header on a phone. */
@@ -419,25 +441,15 @@ button, input, textarea {
   font-size: 14px;
   color: var(--black);
 }
-/* js/main.js hides the whole row (single- or zero-category series — nothing
-   to filter) by setting [hidden] on it. Same trap as .product-card[hidden]
-   below: .site-header__filter { display: flex } above is an author rule, so
-   it beats the UA [hidden] { display: none } regardless of specificity —
+/* js/main.js hides the whole row only for a zero-category series (nothing
+   at all to show) by setting [hidden] on it — every other page/series
+   combination always shows something (Gallery, a single inert tag, or the
+   full filter). Same trap as .product-card[hidden] below:
+   .site-header__filter { display: flex } above is an author rule, so it
+   beats the UA [hidden] { display: none } regardless of specificity —
    needs an explicit override to actually disappear. */
 .site-header__filter[hidden] {
   display: none;
-}
-
-/* Adds on top of the normal --header-rubric-gap at the boundary between the
-   informative links and the filter row that follows them. (Replaces an
-   .is-cat + .is-info adjacency pair — those two kinds stopped being
-   siblings once the category buttons moved inside .site-header__filter.)
-   Contributes nothing when the filter row is [hidden]: a display:none
-   element's margin has no effect, and the nav's own `gap` likewise drops
-   out for a display:none child — so a hidden filter row leaves no orphaned
-   gap behind it either. */
-a.is-info + .site-header__filter {
-  margin-top: var(--header-kind-gap);
 }
 
 /* ==========================================================================
