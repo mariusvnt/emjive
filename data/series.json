@@ -14,7 +14,7 @@
       "slug": "bones",
       "name": "Bones",
       "year": "2026",
-      "categories": ["ring", "neck", "wrist"],
+      "categories": ["ring"],
       "products": "data/series/bones/products.json",
       "manifest": "data/series/bones/manifest.json",
       "hero": {
