@@ -1674,6 +1674,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   inset: 0;
   z-index: 300;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   opacity: 0;
@@ -1714,6 +1715,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--bg);
   transform: translateY(12px);
   transition: transform 0.25s ease;
@@ -1729,28 +1731,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .size-modal__content {
   max-width: var(--size-modal-max);
   margin: 0 auto;
-  padding: 2rem var(--edge-px);
-}
-.size-modal__title {
-  text-align: center;
-  font-weight: 400;
-  margin-bottom: 2rem;
-}
-/* launch-order.html's Modify modal only: name.category, in the same
-   .product-detail__label-name/__type recipe the product page's own label
-   bar uses for the identical pairing — scoped to these two ids (not the
-   shared .product-detail__label-name/__type classes) so product.html's
-   own label bar is untouched. Zeroing __type's inherited margin-left is
-   what makes the two hug each other instead of the label bar's own
-   small gap. */
-#modifyModalTitleName {
-  font-size: 1rem;
-  color: var(--black);
-}
-#modifyModalTitleType {
-  font-size: 0.75rem;
-  color: var(--category-col);
-  margin-left: 0;
+  padding: 2rem var(--edge-px) 0;
 }
 /* Same gap as .size-modal__standard-row's own margin-bottom (below) — the
    space before the size row after the metal picker matches the space
@@ -1890,59 +1871,22 @@ body:has(.order-checkout-bar:not([hidden])) {
   font-size: 0.75rem;
   color: var(--category-col);
 }
-/* Its own row, below the custom-size row, centered rather than
-   left/right-anchored like the rows above it. Pulled in closer to the
-   confirm button below than the 1.5rem the rows above it use — .size-
-   modal__confirm's own margin-top stays 0 (see its comment), so this
-   margin-bottom is the entire gap between the two. */
-.size-modal__guide-row {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 0.5rem;
-}
-.size-modal__size-guide-toggle {
-  flex: 0 0 auto;
-  border: none;
-  background: none;
-  padding: 0;
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-  color: var(--category-col);
-  cursor: pointer;
-}
-
-/* ---- size guide: same 0fr/1fr reveal as .site-header__menu ---- */
-.size-modal__size-guide {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.3s ease;
-}
-.size-modal__size-guide.is-open { grid-template-rows: 1fr; }
-.size-modal__size-guide-inner { overflow: hidden; min-height: 0; }
-.size-modal__size-guide-content {
-  padding-top: 1rem;
-  font-family: var(--font-main);
-  color: var(--category-col);
-}
-
-/* ---- confirm: breaks out of .size-modal__content's own padding (not the
-   true viewport, unlike .product-detail__select's 100vw + calc(50% - 50vw)
-   breakout) — so it stays flush with --size-modal-max's edges even once
-   that narrows below the viewport width on wide screens, instead of
-   stretching past the rows above it out to the true screen edge. ---- */
+/* ---- confirm: full-bleed breakout to the true viewport edge, same
+   technique as .product-detail__select. margin-top replaces the gap the
+   old guide-row's margin-bottom used to supply, now that the guide has
+   moved out of .size-modal__content entirely (see .size-modal__guide
+   below). ---- */
 .size-modal__confirm {
-  width: calc(100% + 2 * var(--edge-px));
-  /* Top margin is 0, not a gap of its own — .size-modal__guide-row's
-     margin-bottom is what creates the space above this button (see its
-     comment), matching the space above the guide row exactly. */
-  margin: 0 calc(-1 * var(--edge-px)) 0;
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: 1.5rem;
   height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   background: var(--black-bg);
   color: var(--white);
   border: none;
@@ -1955,7 +1899,76 @@ body:has(.order-checkout-bar:not([hidden])) {
   transition: background 0.2s ease;
 }
 .size-modal__confirm:hover { background: var(--black); }
-.size-modal__confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+/* No :disabled visual — the gating (no size picked yet, "Add" only) is
+   silent, not shown. "Save" is never actually disabled in normal use. */
+
+/* product.html's "Add" confirm only — launch-order.html's "Save" confirm
+   is plain text with no nested spans, so these simply don't match there.
+   Same opacity crossfade recipe as .order-item__content/__overlay
+   (0.3s, cubic-bezier(0.4, 0, 0.6, 1)): clicking "Add" with no size
+   chosen yet (js/product.js) toggles .is-nudging on the button itself,
+   swapping the label for a prompt in place rather than resizing it —
+   nudge is position: absolute + inset: 0 so it overlays the label's own
+   box exactly, matching .order-item__overlay's own inset: 0 over
+   .order-item__content. */
+.size-modal__confirm-label,
+.size-modal__confirm-nudge {
+  white-space: nowrap;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+}
+.size-modal__confirm-nudge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+.size-modal__confirm.is-nudging .size-modal__confirm-label { opacity: 0; }
+.size-modal__confirm.is-nudging .size-modal__confirm-nudge { opacity: 1; }
+
+/* ---- size guide: a separate helper band appended directly under the
+   modal panel's bottom edge (sibling of .size-modal__panel, not nested
+   inside .size-modal__content anymore) — full-bleed like the panel
+   itself, at 75% opacity so it reads as secondary to the modal above it.
+   Toggle reveal is the same 0fr/1fr technique .site-header__menu uses. ---- */
+.size-modal__guide {
+  width: 100%;
+  background: var(--bg);
+  opacity: 0.75;
+}
+.size-modal__guide-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 1.5rem;
+  padding: 0 var(--edge-px);
+  border: none;
+  background: none;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: 0.75rem;
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  color: var(--black);
+  cursor: pointer;
+}
+.size-modal__guide-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+.size-modal__guide-panel.is-open { grid-template-rows: 1fr; }
+.size-modal__guide-panel-inner { overflow: hidden; min-height: 0; }
+.size-modal__guide-content {
+  max-width: var(--size-modal-max);
+  margin: 0 auto;
+  padding: 0 var(--edge-px) 1.5rem;
+  font-family: var(--font-main);
+  color: var(--category-col);
+}
 
 body.is-modal-open { overflow: hidden; }
 

@@ -103,10 +103,8 @@
      can be different products (even different series). -->
 <div class="size-modal" id="modifyModal" aria-hidden="true">
   <div class="size-modal__backdrop" id="modifyModalBackdrop"></div>
-  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modifyModalTitle">
+  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-label="Modify selection">
     <div class="size-modal__content">
-      <h3 class="size-modal__title" id="modifyModalTitle"><span class="product-detail__label-name" id="modifyModalTitleName"></span><span class="product-detail__label-type" id="modifyModalTitleType"></span></h3>
-
       <div class="product-metals">
         <span class="product-metals__label">Metal</span>
         <div class="product-metals__options" id="modifyModalMetalOptions"></div>
@@ -127,17 +125,15 @@
         </div>
       </div>
 
-      <div class="size-modal__guide-row">
-        <button class="size-modal__size-guide-toggle" id="modifyModalGuideToggle" type="button">Size guide</button>
-      </div>
-
-      <div class="size-modal__size-guide" id="modifyModalGuide">
-        <div class="size-modal__size-guide-inner">
-          <div class="size-modal__size-guide-content" id="modifyModalGuideContent"></div>
-        </div>
-      </div>
-
       <button class="size-modal__confirm" id="modifyModalConfirm" type="button" disabled>Save</button>
+    </div>
+  </div>
+  <div class="size-modal__guide">
+    <button class="size-modal__guide-toggle" id="modifyModalGuideToggle" type="button">Size guide</button>
+    <div class="size-modal__guide-panel" id="modifyModalGuide">
+      <div class="size-modal__guide-panel-inner">
+        <div class="size-modal__guide-content" id="modifyModalGuideContent"></div>
+      </div>
     </div>
   </div>
 </div>

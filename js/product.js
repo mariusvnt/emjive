@@ -661,9 +661,19 @@
 
     var modal = document.getElementById("sizeModal");
 
+    // Nudge is the confirm button's own label/prompt crossfade (see
+    // .size-modal__confirm-label/-nudge in css/style.css) — cleared
+    // whenever selection state actually changes, not just left to expire
+    // on its own timer, so it never lingers stale once a size is picked.
+    var nudgeTimer = null;
+    function resetNudge() {
+      confirmBtn.classList.remove("is-nudging");
+      clearTimeout(nudgeTimer);
+    }
+
     function clearSelection() {
       state.selectedSize = null;
-      confirmBtn.disabled = true;
+      resetNudge();
       standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
         b.classList.remove("is-selected");
       });
@@ -672,7 +682,7 @@
 
     function selectStandard(size, btn) {
       state.selectedSize = size;
-      confirmBtn.disabled = false;
+      resetNudge();
       standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
         b.classList.toggle("is-selected", b === btn);
       });
@@ -702,7 +712,7 @@
       customInput.value = cleaned;
       if (cleaned) {
         state.selectedSize = cleaned;
-        confirmBtn.disabled = false;
+        resetNudge();
         customRow.classList.add("is-selected");
         standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
           b.classList.remove("is-selected");
@@ -738,7 +748,14 @@
     });
 
     confirmBtn.addEventListener("click", function () {
-      if (!state.selectedSize) return;
+      if (!state.selectedSize) {
+        confirmBtn.classList.add("is-nudging");
+        clearTimeout(nudgeTimer);
+        nudgeTimer = setTimeout(function () {
+          confirmBtn.classList.remove("is-nudging");
+        }, 2000);
+        return;
+      }
       var details = (product.metalDetails && product.metalDetails[state.selectedMetal]) || {};
       window.EmjiveSelection.addItem({
         // Which series this came from — product ids are only unique within

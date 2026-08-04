@@ -140,10 +140,8 @@
 <!-- Size-selection modal, opened by the Select button -->
 <div class="size-modal" id="sizeModal" aria-hidden="true">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
-  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-labelledby="sizeModalTitle">
+  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-label="Choose a size">
     <div class="size-modal__content">
-      <h3 class="size-modal__title" id="sizeModalTitle">Choose a size</h3>
-
       <div class="size-modal__standard-row" id="sizeModalStandardRow">
         <span class="size-modal__standard-label">Standard sizes</span>
         <div class="size-modal__standard-options" id="sizeModalStandardOptions"></div>
@@ -159,17 +157,18 @@
         </div>
       </div>
 
-      <div class="size-modal__guide-row">
-        <button class="size-modal__size-guide-toggle" id="sizeModalGuideToggle" type="button">Size guide</button>
+      <button class="size-modal__confirm" id="sizeModalConfirm" type="button">
+        <span class="size-modal__confirm-label">Add</span>
+        <span class="size-modal__confirm-nudge">First select a size</span>
+      </button>
+    </div>
+  </div>
+  <div class="size-modal__guide">
+    <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button">Size guide</button>
+    <div class="size-modal__guide-panel" id="sizeModalGuide">
+      <div class="size-modal__guide-panel-inner">
+        <div class="size-modal__guide-content" id="sizeModalGuideContent"></div>
       </div>
-
-      <div class="size-modal__size-guide" id="sizeModalGuide">
-        <div class="size-modal__size-guide-inner">
-          <div class="size-modal__size-guide-content" id="sizeModalGuideContent"></div>
-        </div>
-      </div>
-
-      <button class="size-modal__confirm" id="sizeModalConfirm" type="button" disabled>Add to selection</button>
     </div>
   </div>
 </div>

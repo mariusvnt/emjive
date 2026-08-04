@@ -414,8 +414,6 @@
      over a product captured at wire time. */
   var modifyModal = document.getElementById("modifyModal");
   var modifyModalBackdrop = document.getElementById("modifyModalBackdrop");
-  var modifyModalTitleName = document.getElementById("modifyModalTitleName");
-  var modifyModalTitleType = document.getElementById("modifyModalTitleType");
   var modifyModalMetalOptions = document.getElementById("modifyModalMetalOptions");
   var modifyModalStandardRow = document.getElementById("modifyModalStandardRow");
   var modifyModalStandardOptions = document.getElementById("modifyModalStandardOptions");
@@ -571,8 +569,6 @@
         modifyState.metals = window.EmjiveSeries.metals || [];
         modifyState.selectedMetal = item.metal;
 
-        modifyModalTitleName.textContent = item.name;
-        modifyModalTitleType.textContent = "." + item.category;
         renderModifyMetalOptions();
 
         var info = window.EmjiveSeries.categoryInfo(item.category);
