@@ -11,6 +11,17 @@
      hover state, promoted to a token so the floating selection bar and
      the size modal's confirm button share exactly the same value. */
   --black-bg: #1a1a1a;
+  /* The three tokens below exist purely for the "invert band" trick used
+     around the site (backdrop-filter: invert(1) strips crossing
+     .order-item, .product-detail__label-bar and .selection-bar__row —
+     see each one's own comment). Each is the 255-minus-channel inverse of
+     one of the tokens above, chosen so that whatever's declared in one of
+     these lands back on the plain token once the band inverts it —
+     letting a color read as its normal self only where a band crosses it,
+     while using a distinct value everywhere else. */
+  --bg-inverted: #070707;
+  --black-bg-inverted: #e5e5e5;
+  --category-col-inverted: #888888;
   /* Shared by the floating selection bar's own summary-row height and
      body's reserved bottom padding (see the "Floating selection bar"
      section) so the two can't drift apart. */
@@ -899,7 +910,10 @@ a.is-info + .site-header__filter {
 .order-item__attrs {
   font-size: 0.75rem;
   font-family: var(--font-secondary);
-  color: var(--category-col);
+  /* --category-col-inverted, not --category-col — this line sits under
+     .order-item::before's invert band same as .order-item__name, so
+     inverting it needs to land back on plain --category-col. */
+  color: var(--category-col-inverted);
 }
 .order-item__price {
   flex: 0 0 auto;
@@ -931,17 +945,17 @@ a.is-info + .site-header__filter {
 /* Both the same static color, no hover/tap shift — .order-item::before's
    invert band (z-index: 2, crossing right through this centered row) is
    what reads them as dark wherever it overlaps, rather than a color rule
-   here doing it directly. #e5e5e5, not white — same trick
-   .product-detail__label-bar::after uses: inverting it (255 - 26 per
-   channel) lands exactly on var(--black-bg)'s #1a1a1a, so the band reads
-   as a seamless --black-bg patch over the text rather than snapping to
-   pure black. Still effectively white against the row's own --black-bg
-   everywhere the band isn't crossing it. */
+   here doing it directly. var(--black-bg-inverted), not white — same
+   trick .product-detail__label-bar::after uses: inverting it lands
+   exactly on var(--black-bg), so the band reads as a seamless
+   --black-bg patch over the text rather than snapping to pure black.
+   Still effectively white against the row's own --black-bg everywhere
+   the band isn't crossing it. */
 .order-item__overlay-btn {
   border: none;
   background: none;
   cursor: pointer;
-  color: #e5e5e5;
+  color: var(--black-bg-inverted);
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: var(--button-font-size);
@@ -1223,23 +1237,24 @@ body:has(.order-checkout-bar:not([hidden])) {
    thumbnail/text/price stay their normal colors and just appear inverted
    wherever the band crosses them.
    ::after sits at the same spot but *behind* the row's own content
-   (z-index: -1, vs. ::before's 2), painted in #e5e5e5 — chosen so
-   inverting it (255 - 26 per channel) lands exactly on var(--black-bg)'s
-   #1a1a1a (26). Without it, ::before would be inverting whatever's
-   actually behind the band at each point (the page background in the
-   gaps, or slivers of the thumbnail/text), which varies; with it, the
-   band reads as a consistent solid --black-bg everywhere it doesn't
-   cross the label's own content.
+   (z-index: -1, vs. ::before's 2), painted in var(--black-bg-inverted)
+   — chosen so inverting it lands exactly on var(--black-bg). Without it,
+   ::before would be inverting whatever's actually behind the band at
+   each point (the page background in the gaps, or slivers of the
+   thumbnail/text), which varies; with it, the band reads as a
+   consistent solid --black-bg everywhere it doesn't cross the label's
+   own content.
    isolation: isolate below is load-bearing, not decorative: position:
    relative alone doesn't give this row its own stacking context, so
    ::after's z-index: -1 was resolving against the page's root stacking
    context instead of being scoped locally — it ended up painting behind
    body's own plain background (var(--bg)) rather than just behind this
-   row's content, so ::before was inverting var(--bg) (#f8f8f8 → #070707)
-   instead of ::after's #e5e5e5 (→ #1a1a1a) wherever the band didn't cross
-   the thumb/text/price. isolation: isolate forces a local stacking
-   context so ::before/::after only ever compare against each other and
-   this row's own children, matching the intent. */
+   row's content, so ::before was inverting var(--bg) (→ var(--bg-inverted))
+   instead of ::after's var(--black-bg-inverted) (→ var(--black-bg))
+   wherever the band didn't cross the thumb/text/price. isolation:
+   isolate forces a local stacking context so ::before/::after only ever
+   compare against each other and this row's own children, matching the
+   intent. */
 .product-detail__label-bar {
   position: relative;
   isolation: isolate;
@@ -1272,7 +1287,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   height: 1.2rem;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  background: #e5e5e5;
+  background: var(--black-bg-inverted);
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
@@ -1297,7 +1312,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__label-type {
   font-family: var(--font-secondary);
   font-size: 0.65em;
-  color: var(--black);
+  color: var(--category-col);
   margin-left: 0.3em;
 }
 .product-detail__label-price {
@@ -2201,8 +2216,17 @@ body.has-series-hero .selection-bar {
 .selection-bar__row-attrs {
   font-family: var(--font-secondary);
   font-size: 0.75rem;
-  color: var(--category-col);
+  /* --category-col-inverted, not --category-col — same reasoning as
+     .order-item__attrs: this sits under .selection-bar__row::before's
+     invert band, so inverting it needs to land back on plain
+     --category-col. */
+  color: var(--category-col-inverted);
 }
+/* color: var(--black-bg-inverted), not var(--category-col) — same trick
+   as .order-item__overlay-btn (see its comment): this row sits on the
+   drawer's ambient var(--black-bg), and .selection-bar__row::before's
+   invert band crosses right through this button, so inverting it lands
+   exactly on var(--black-bg) wherever the band overlaps it. */
 .selection-bar__row-unselect {
   flex: 0 0 auto;
   border: none;
@@ -2212,7 +2236,7 @@ body.has-series-hero .selection-bar {
   font-size: var(--button-font-size);
   letter-spacing: var(--button-letter-spacing);
   text-transform: var(--button-text-transform);
-  color: var(--category-col);
+  color: var(--black-bg-inverted);
   cursor: pointer;
 }
 .selection-bar__row-unselect:hover { color: var(--white); }
