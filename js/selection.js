@@ -92,6 +92,27 @@
     return price > 0 ? "€ " + price : "Price on request";
   }
 
+  // Appends a size value to `parent` as plain text, except a decimal
+  // size's fractional part (e.g. "59.43") — that renders at half size
+  // with the decimal point itself dropped, since every place this is
+  // shown (js/selection-page.js's order rows, js/selection-bar.js's
+  // drawer rows) already uses "." to separate .category.metal.size, and
+  // a literal decimal point in the size itself would read as one more
+  // trait segment. See .size-fraction in css/style.css.
+  function appendSize(parent, size) {
+    var str = String(size);
+    var dot = str.indexOf(".");
+    if (dot === -1) {
+      parent.appendChild(document.createTextNode(str));
+      return;
+    }
+    parent.appendChild(document.createTextNode(str.slice(0, dot)));
+    var frac = document.createElement("span");
+    frac.className = "size-fraction";
+    frac.textContent = str.slice(dot + 1);
+    parent.appendChild(frac);
+  }
+
   global.EmjiveSelection = {
     getSelection: getSelection,
     addItem: addItem,
@@ -99,6 +120,7 @@
     insertItem: insertItem,
     updateItem: updateItem,
     clear: clear,
-    formatPrice: formatPrice
+    formatPrice: formatPrice,
+    appendSize: appendSize
   };
 })(window);

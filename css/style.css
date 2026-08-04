@@ -817,16 +817,11 @@ button, input, textarea {
    .product-detail__label-bar above it in this file: ::before below needs
    its own stacking context so its z-index is scoped to this row's own
    content instead of the page's root stacking context. Also what
-   .order-item__overlay's inset: 0 below positions/sizes itself against. */
-/* max-height/overflow below exist purely for the removal animation
-   (js/selection-page.js's "is-removing", added by Unselect): a real content
-   height can't be transitioned directly (it's auto), so this caps it at a
-   value comfortably above the row's actual rendered height (thumb + its
-   own padding, ~5.5rem) and animates that cap to 0 alongside both padding
-   sides and opacity. Collapsing this one row's own box is what makes the
-   rows below it slide up smoothly as a side effect of .order-items' flex
-   layout recalculating every frame — same principle as the floating
-   selection bar's icon-collapse animation, just on the vertical axis. */
+   .order-item__overlay's inset: 0 below positions/sizes itself against.
+   No overflow: hidden here (moved to .order-item__inner below) — this row
+   narrows to max-width on screens past --max, and if this element clipped
+   too, ::before's own full-bleed breakout (further down) would get cut
+   off at this now-inset box instead of reaching the true viewport edges. */
 .order-item {
   position: relative;
   isolation: isolate;
@@ -834,19 +829,36 @@ button, input, textarea {
   max-width: var(--max);
   margin: 0 auto;
   padding: 1.25rem var(--edge-px);
-  max-height: 6.5rem;
-  overflow: hidden;
   transition:
-    max-height 0.3s ease,
     padding-top 0.3s ease,
     padding-bottom 0.3s ease,
     opacity 0.25s ease;
 }
 .order-item.is-removing {
-  max-height: 0;
   padding-top: 0;
   padding-bottom: 0;
   opacity: 0;
+}
+/* max-height/overflow here exist purely for the removal animation
+   (js/selection-page.js's "is-removing", added by Unselect): a real content
+   height can't be transitioned directly (it's auto), so this caps it at a
+   value comfortably above the row's actual rendered height (thumb + its
+   own padding, ~5.5rem) and animates that cap to 0 alongside .order-item's
+   own padding/opacity above. Collapsing this one row's own box is what
+   makes the rows below it slide up smoothly as a side effect of
+   .order-items' flex layout recalculating every frame — same principle as
+   the floating selection bar's icon-collapse animation, just on the
+   vertical axis. Kept on this inner wrapper (js/selection-page.js wraps
+   .order-item__content/__overlay/__undo-prompt in it) rather than
+   .order-item itself so this clipping never reaches ::before's own
+   full-bleed band above. */
+.order-item__inner {
+  max-height: 6.5rem;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.order-item.is-removing .order-item__inner {
+  max-height: 0;
 }
 /* Same inverting band technique as .selection-bar__row::before — no ::after
    companion needed here (unlike .product-detail__label-bar's, which sits on
@@ -937,6 +949,16 @@ button, input, textarea {
      .order-item::before's invert band same as .order-item__name, so
      inverting it needs to land back on plain --category-col. */
   color: var(--category-col-inverted);
+}
+/* Shared between .order-item__attrs here and .selection-bar__row-attrs
+   further down — both build their ".category.metal.size" trait string via
+   window.EmjiveSelection.appendSize() (js/selection.js), which wraps a
+   decimal size's fractional digits in this span instead of a literal "."
+   (that would otherwise read as one more trait-separator dot). em-sized
+   so it scales to 75% of whatever the surrounding attrs text's own
+   font-size is, inheriting color as normal. */
+.size-fraction {
+  font-size: 0.75em;
 }
 .order-item__price {
   flex: 0 0 auto;
@@ -1489,7 +1511,13 @@ body:has(.order-checkout-bar:not([hidden])) {
    labeled underneath, with a small dot floating above the selected one. ---- */
 .product-metals {
   display: flex;
-  align-items: flex-start;
+  /* Not flex-start: .product-metals__options' own height (swatch +
+     name, .product-metals__option below) scales fluidly with container
+     width now, so it's rarely exactly 1rem — .product-metals__label's own
+     fixed-height box — the way it used to be. center keeps the swatch +
+     name column's own midpoint aligned with the label's midpoint at any
+     size, rather than just their top edges. */
+  align-items: center;
   /* The 90px floor on each swatch below (.product-metals__option) can
      exceed what's left next to the label on narrow screens. Rather than
      wrapping to a second line (which would drop the bars off the
@@ -1532,6 +1560,11 @@ body:has(.order-checkout-bar:not([hidden])) {
      themselves stay full-size (flex-shrink: 0 below) and scroll within
      this box instead of shrinking or wrapping to a new row. */
   overflow-x: auto;
+  /* Without this, the browser computes overflow-y as auto too (per the
+     overflow spec, once either axis is a scrolling value) — letting mouse
+     wheel/touch drag scroll the row vertically even though nothing here
+     is meant to move on that axis. */
+  overflow-y: hidden;
 }
 .product-metals__option-wrap {
   position: relative;
@@ -1557,16 +1590,23 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* 90px–180px, scaling smoothly with .product-metals's own width (18cqw)
    in between — floors at 90px below a ~500px container, caps at 180px
    past ~1000px. */
+/* Height + .product-metals__option-label's own font-size below both scale
+   uniformly (one constant slope, no plateau) from 0.4rem at a ~350px
+   container up to 0.7rem past a ~1000px container — the same cap point
+   the width clamp above reaches its own 180px ceiling. The calc()'s
+   0.2385rem/0.7385cqw pair is that line's intercept/slope solved for
+   those two (width, size) points, assuming the standard 16px root
+   font-size (unclamped by anything here). */
 .product-metals__option {
   width: clamp(90px, 18cqw, 180px);
-  height: 0.75rem;
+  height: clamp(0.4rem, calc(0.2385rem + 0.7385cqw), 0.7rem);
   padding: 0;
   border: none;
   cursor: pointer;
 }
 .product-metals__option-label {
   font-family: var(--font-secondary);
-  font-size: 0.5rem;
+  font-size: clamp(0.4rem, calc(0.2385rem + 0.7385cqw), 0.7rem);
   line-height: 1;
   color: var(--category-col);
 }
@@ -1595,7 +1635,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
-  height: 2rem;
+  height: 2.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1858,6 +1898,7 @@ body:has(.order-checkout-bar:not([hidden])) {
      capped at --max) is roughly 600px wide. */
   width: clamp(1rem, 8cqw, 3rem);
   border: none;
+  outline: none;
   background: none;
   padding: 0.3rem 0;
   font-family: var(--font-secondary);
@@ -1882,7 +1923,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
   margin-top: 1.5rem;
-  height: 2rem;
+  height: 2.5rem;
   display: flex;
   align-items: center;
   justify-content: center;

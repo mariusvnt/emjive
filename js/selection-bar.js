@@ -223,7 +223,8 @@
     var name = el("span", "selection-bar__row-name");
     name.textContent = item.name;
     var attrs = el("span", "selection-bar__row-attrs");
-    attrs.textContent = "." + item.category + "." + item.metal + "." + item.size;
+    attrs.textContent = "." + item.category + "." + item.metal + ".";
+    window.EmjiveSelection.appendSize(attrs, item.size);
     text.appendChild(name);
     text.appendChild(attrs);
 

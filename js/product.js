@@ -700,14 +700,18 @@
       standardWrap.appendChild(btn);
     });
 
-    // Digits and at most one decimal point — inputmode="decimal" on the
-    // element itself is what actually triggers the numeric-only keypad on
-    // mobile; this just backstops desktop typing/paste.
+    // Digits and at most one decimal point, capped at two decimal places
+    // (e.g. "59.43") — inputmode="decimal" on the element itself is what
+    // actually triggers the numeric-only keypad on mobile; this just
+    // backstops desktop typing/paste. The comma-to-dot swap up front is
+    // for French (and other comma-decimal) mobile keypads, whose decimal
+    // key sends "," — without it, that keypress would just get stripped
+    // by the digits-and-dot filter below instead of registering as one.
     customInput.addEventListener("input", function () {
-      var cleaned = customInput.value.replace(/[^0-9.]/g, "");
+      var cleaned = customInput.value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
       var firstDot = cleaned.indexOf(".");
       if (firstDot !== -1) {
-        cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
+        cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
       }
       customInput.value = cleaned;
       if (cleaned) {

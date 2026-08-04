@@ -292,7 +292,8 @@
     name.textContent = item.name;
     var attrs = document.createElement("span");
     attrs.className = "order-item__attrs";
-    attrs.textContent = "." + item.category + "." + item.metal + "." + item.size;
+    attrs.textContent = "." + item.category + "." + item.metal + ".";
+    window.EmjiveSelection.appendSize(attrs, item.size);
     // No space between them either — the two read as one continuous label
     // (the period already reads as a separator) rather than two chips with
     // any gap, flex or otherwise, between them.
@@ -354,9 +355,16 @@
     undoPrompt.appendChild(undoBtn);
     binding.undoBtn = undoBtn;
 
-    li.appendChild(content);
-    li.appendChild(overlay);
-    li.appendChild(undoPrompt);
+    // Wrapped rather than appended straight to li — see .order-item__inner
+    // in css/style.css: this is what carries the max-height/overflow
+    // removal-animation clipping, kept off .order-item itself so it never
+    // clips ::before's own full-bleed invert band.
+    var inner = document.createElement("div");
+    inner.className = "order-item__inner";
+    inner.appendChild(content);
+    inner.appendChild(overlay);
+    inner.appendChild(undoPrompt);
+    li.appendChild(inner);
 
     li.addEventListener("pointerenter", function (e) {
       if (e.pointerType === "mouse" && !suppressHoverUntilMove && !binding.pending) openRowOverlay(li);
@@ -499,12 +507,17 @@
   }
 
   modifyModalCustomInput.addEventListener("input", function () {
-    // Digits and at most one decimal point — inputmode="decimal" triggers
-    // the numeric keypad on mobile; this backstops desktop typing/paste.
-    var cleaned = modifyModalCustomInput.value.replace(/[^0-9.]/g, "");
+    // Digits and at most one decimal point, capped at two decimal places
+    // (e.g. "59.43") — inputmode="decimal" triggers the numeric keypad on
+    // mobile; this backstops desktop typing/paste. The comma-to-dot swap
+    // up front is for French (and other comma-decimal) mobile keypads,
+    // whose decimal key sends "," — without it, that keypress would just
+    // get stripped by the digits-and-dot filter below instead of
+    // registering as one.
+    var cleaned = modifyModalCustomInput.value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
     var firstDot = cleaned.indexOf(".");
     if (firstDot !== -1) {
-      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
+      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
     }
     modifyModalCustomInput.value = cleaned;
     modifyModalStandardOptions.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
