@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "auto-render": "node scripts/auto-render.js"
+    "auto-render": "node scripts/auto-render.js",
+    "scene-tool": "node scripts/scene-tool-server.js"
   },
   "devDependencies": {
     "puppeteer-core": "^23.0.0",

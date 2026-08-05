@@ -50,7 +50,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
-      "3d-viewer-camera-default": { "rotation": -30, "tilt": 30, "zoom": 85 },
+      "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 85 },
       "assets": {
         "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
         "icons": {

@@ -14,6 +14,10 @@
     "blue-pure-sky":  "assets/hdri/autumn_field_puresky_1k.hdr"
   },
 
+  "swatch-primitive": "cylinder",
+  "swatch-hdri":      "studio",
+  "swatch-camera":    { "rotation": 0, "tilt": 90, "zoom": 100 },
+
   "series": [
     {
       "slug": "bones",

@@ -57,8 +57,10 @@
      composited onto a hand image. Saved as 1024x1024 WebP alongside the
      icon, indexed in the same products.json under that product's
      "assets.top-shot" object (keyed by metal), mirroring "icons".
-   - One metal sample bar: a plain cylinder in this metal (not any actual
-     product — see js/three-viewer.js's buildMaterialSwatch), saved as
+   - One metal sample bar: a plain primitive shape in this metal (not any
+     actual product — data/series.json's "swatch-primitive"/"swatch-hdri"/
+     "swatch-camera" fields pick which shape, which HDRI, and what camera
+     angle; scene-tool.html is how you preview and set them), saved as
      240x240 WebP at assets/metal-sample_<metal>.webp (the small square
      background CSS crops with background-size: cover — see
      .product-metals__option in css/style.css).
@@ -419,16 +421,30 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // A plain cylinder (js/three-viewer.js's buildMaterialSwatch, not any
-  // actual product) rather than a close-up of the Disc ring's own curve —
-  // see that function's comment for why: a torus viewed edge-on is always
-  // a thin diagonal band in a square frame, leaving empty corners at any
-  // zoom, unlike a solid shape framed to exceed the frame on every side.
-  window.__renderSwatch = function (metalKey, sizePx) {
+  // A plain primitive shape (data/series.json's "swatch-primitive" — a
+  // cylinder by default) rather than a close-up of an actual product's own
+  // curve — a torus viewed edge-on, for instance, is always a thin
+  // diagonal band in a square frame, leaving empty corners at any zoom,
+  // unlike a solid shape framed to exceed the frame on every side. Goes
+  // through the same window.EmjiveModelViewer(product, metalKey, options)
+  // every other render here uses (options.primitive swaps the loaded GLTF
+  // for a built-in primitive mesh — see js/three-viewer.js's
+  // buildPrimitiveMesh), not a separate buildMaterialSwatch — so a swatch
+  // can't drift from the site's real camera/material/HDRI construction any
+  // more than an icon or top shot can. cameraConfig is data/series.json's
+  // "swatch-camera" (a plain {rotation,tilt,zoom}, same shape as a
+  // product's "3d-viewer-camera-default"), threaded through on a minimal
+  // stub "product" object since this render has no real product/model.
+  window.__renderSwatch = function (metalKey, sizePx, primitive, hdriRelPath, cameraConfig) {
     window.__renderReady = false;
     disposeCurrentHandle();
     var wrap = mountTargetWrap(sizePx);
-    var handle = window.EmjiveModelViewer.buildMaterialSwatch(metalKey, sizePx, {
+    var stubProduct = { name: primitive + " swatch", "3d-viewer-camera-default": cameraConfig };
+    var handle = window.EmjiveModelViewer(stubProduct, metalKey, {
+      transparentBackground: true,
+      static: true,
+      primitive: primitive,
+      hdri: hdriRelPath,
       onReady: function () {
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
@@ -551,16 +567,19 @@ async function renderTopShot(page, product, metalKey, outPath, hdriRelPath) {
   await writeWebp(sharp(buffer).resize(TOP_SHOT_SIZE, TOP_SHOT_SIZE), outPath);
 }
 
-async function captureSwatchTarget(page, cssSizePx, metalKey) {
+async function captureSwatchTarget(page, cssSizePx, metalKey, primitive, hdriRelPath, cameraConfig) {
   await page.setViewport({ width: cssSizePx, height: cssSizePx, deviceScaleFactor: CAPTURE_SCALE });
-  await page.evaluate((m, s) => window.__renderSwatch(m, s), metalKey, cssSizePx);
+  await page.evaluate(
+    (m, s, p, h, c) => window.__renderSwatch(m, s, p, h, c),
+    metalKey, cssSizePx, primitive, hdriRelPath, cameraConfig
+  );
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
   const handle = await page.$("#target");
   return handle.screenshot({ omitBackground: true });
 }
 
-async function renderSwatch(page, metalKey, outPath) {
-  const buffer = await captureSwatchTarget(page, SWATCH_SIZE, metalKey);
+async function renderSwatch(page, metalKey, outPath, primitive, hdriRelPath, cameraConfig) {
+  const buffer = await captureSwatchTarget(page, SWATCH_SIZE, metalKey, primitive, hdriRelPath, cameraConfig);
   await writeWebp(sharp(buffer).resize(SWATCH_SIZE, SWATCH_SIZE), outPath);
 }
 
@@ -660,6 +679,30 @@ function warnHdriDrift(seriesIndex) {
   }
 }
 
+const KNOWN_SWATCH_PRIMITIVES = ["cylinder", "box", "sphere", "torus"];
+
+// Same shape again, for the two swatch-scene fields scene-tool.html writes
+// (see dev-guidelines/procedures.md) — "swatch-hdri" against the same
+// "hdris" vocabulary warnHdriDrift checks, "swatch-primitive" against
+// js/three-viewer.js's buildPrimitiveMesh's own known names.
+function warnSwatchSceneDrift(seriesIndex) {
+  const hdriVocabulary = Object.keys(seriesIndex.hdris || {});
+  const swatchHdri = seriesIndex["swatch-hdri"];
+  if (swatchHdri && !hdriVocabulary.includes(swatchHdri)) {
+    console.warn(
+      "  warning: top-level \"swatch-hdri\" is \"" + swatchHdri +
+      "\" which isn't in data/series.json's top-level \"hdris\""
+    );
+  }
+  const swatchPrimitive = seriesIndex["swatch-primitive"];
+  if (swatchPrimitive && !KNOWN_SWATCH_PRIMITIVES.includes(swatchPrimitive)) {
+    console.warn(
+      "  warning: top-level \"swatch-primitive\" is \"" + swatchPrimitive +
+      "\" which isn't one of: " + KNOWN_SWATCH_PRIMITIVES.join(", ")
+    );
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
@@ -669,6 +712,14 @@ async function main() {
   const allMetals = seriesIndex.metals || [];
   const allHdris = seriesIndex.hdris || {};
   const metals = requestedMetals.length ? requestedMetals : allMetals;
+
+  // Swatch-scene config (scene-tool.html's "Camera"/"HDRI" tick boxes in
+  // primitive mode write these) — same fallbacks js/three-viewer.js's own
+  // DEFAULT_ORBIT/DEFAULT_HDRI_SRC use, so an unset field behaves the same
+  // here as it would live.
+  const swatchPrimitive = seriesIndex["swatch-primitive"] || "cylinder";
+  const swatchHdriPath = allHdris[seriesIndex["swatch-hdri"]];
+  const swatchCameraConfig = seriesIndex["swatch-camera"] || { rotation: 0, tilt: 90, zoom: 100 };
 
   const unknown = metals.filter((m) => !allMetals.includes(m));
   if (unknown.length) {
@@ -698,6 +749,7 @@ async function main() {
     " — series: " + targets.map((t) => t.slug).join(", "));
   warnCategoryDrift(seriesIndex, targets);
   warnHdriDrift(seriesIndex);
+  warnSwatchSceneDrift(seriesIndex);
 
   const chromePath = findChrome();
   const server = await startServer();
@@ -835,8 +887,8 @@ async function main() {
 
       const sampleRelPath = "assets/metal-sample_" + metal + ".webp";
       const sampleAbsPath = path.join(ROOT, sampleRelPath);
-      console.log("  swatch -> " + sampleRelPath);
-      await renderSwatch(page, metal, sampleAbsPath);
+      console.log("  swatch -> " + sampleRelPath + " (" + swatchPrimitive + ")");
+      await renderSwatch(page, metal, sampleAbsPath, swatchPrimitive, swatchHdriPath, swatchCameraConfig);
       // Superseded by the naming/format above, if a product ever gets
       // re-rendered under this tool for the first time.
       deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));

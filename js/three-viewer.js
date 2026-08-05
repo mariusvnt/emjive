@@ -84,6 +84,24 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     };
   }
 
+  // Builds a bare primitive mesh in place of a loaded GLTF model — used
+  // when options.primitive is passed to buildThreeViewer (scene-tool.html's
+  // swatch-scene mode, and scripts/auto-render.js's swatch renderer).
+  // Deliberately no material here: applyMaterial()'s mesh traversal (below)
+  // assigns one right after, same as it does for a loaded GLTF's meshes.
+  // Sized/shaped only roughly like the old buildMaterialSwatch()'s cylinder
+  // (tall relative to its radius) — exact framing is no longer a fixed
+  // formula, it's whatever camera orbit the scene-tool/data field says, so
+  // precise proportions matter far less than they used to.
+  function buildPrimitiveMesh(name) {
+    var geometry =
+      name === "box" ? new THREE.BoxGeometry(2, 2, 2) :
+      name === "sphere" ? new THREE.SphereGeometry(1, 64, 64) :
+      name === "torus" ? new THREE.TorusGeometry(1, 0.4, 32, 100) :
+      new THREE.CylinderGeometry(1, 1, 8, 96); // "cylinder", and the default for an unrecognized name
+    return new THREE.Mesh(geometry);
+  }
+
   function parseTargetString(str) {
     if (!str) return null;
     var parts = str.trim().split(/\s+/).map(parseFloat);
@@ -250,6 +268,15 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // the framing between the harness's onReady firing and its screenshot
     // actually being taken a few ms later.
     var isStatic = !!options.static;
+    // Tool-only (scene-tool.html), never set by the interactive site or by
+    // scripts/auto-render.js's harness. Wants the OPPOSITE trade-off from
+    // `static`: full interactive dragging (unlike static, which never
+    // starts the animate loop at all, so a drag would be visually dead),
+    // but with the two "auto-correcting" behaviors below (release inertia,
+    // the ease-back-to-default reset) switched off — the whole point is
+    // manually setting a pose and having it stay exactly there so it can
+    // be read back and saved.
+    var isFreeOrbit = !!options.freeOrbit;
     // `transparentBackground` used to also gate the renderer's own alpha
     // (the interactive site rendered opaque, near-black, on purpose — see
     // git history) but that traded a real bug (a solid black square behind
@@ -394,6 +421,11 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // (TrackballControls.update() itself takes no delta-time argument).
     controls.dynamicDampingFactor = 0.04032;
     var SPIN_DECAY_LAMBDA = (-0.5 * Math.log(1 - controls.dynamicDampingFactor)) / REF_DT;
+    // three.js's own built-in "no momentum" flag — under freeOrbit, rotation
+    // only ever tracks the pointer's current position, never coasts on
+    // release. Simpler and more robust than fighting the decay math below
+    // (dynamicDampingFactor/SPIN_DECAY_LAMBDA) to approximate a dead stop.
+    if (isFreeOrbit) controls.staticMoving = true;
 
     var defaultOrbit = product["3d-viewer-camera-default"] || DEFAULT_ORBIT;
     var explicitTarget = parseTargetString(product.cameraTarget);
@@ -477,22 +509,38 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       });
     }
 
-    var modelPromise = new Promise(function (resolve, reject) {
-      new GLTFLoader().load(
-        product.assets.model,
-        function (gltf) {
-          modelRoot = gltf.scene;
-          applyMaterial();
-          scene.add(modelRoot);
-          resolve();
-        },
-        undefined,
-        function (err) {
-          console.error("emjive: failed to load model", product.assets.model, err);
-          reject(err);
-        }
-      );
-    });
+    // options.primitive (scene-tool.html's swatch-scene mode, and
+    // scripts/auto-render.js's swatch renderer) swaps a loaded GLTF for a
+    // bare primitive mesh — everything downstream (frameCamera's bounding-
+    // sphere measurement, applyMaterial's mesh traversal, controls, the
+    // animate loop, freeOrbit, dispose) is already agnostic to how
+    // modelRoot was built, so this is the only branch needed. `product` in
+    // this mode can be a minimal stub (just "3d-viewer-camera-default" and
+    // "name") — product.assets is never touched on this path.
+    var modelPromise;
+    if (options.primitive) {
+      modelRoot = buildPrimitiveMesh(options.primitive);
+      applyMaterial();
+      scene.add(modelRoot);
+      modelPromise = Promise.resolve();
+    } else {
+      modelPromise = new Promise(function (resolve, reject) {
+        new GLTFLoader().load(
+          product.assets.model,
+          function (gltf) {
+            modelRoot = gltf.scene;
+            applyMaterial();
+            scene.add(modelRoot);
+            resolve();
+          },
+          undefined,
+          function (err) {
+            console.error("emjive: failed to load model", product.assets.model, err);
+            reject(err);
+          }
+        );
+      });
+    }
 
     Promise.all([modelPromise, environmentPromise]).then(function () {
       frameCamera(defaultOrbit);
@@ -557,7 +605,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     function scheduleIdleNudge() {
       clearIdleTimer();
-      if (interactionSuppressed || isStatic) return;
+      if (interactionSuppressed || isStatic || isFreeOrbit) return;
       idleTimeoutId = setTimeout(function () {
         idleTimeoutId = null;
         nudgePhase = 0;
@@ -600,6 +648,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       });
     }
 
+    // Tool-only: never becomes true for the interactive site or the
+    // render harness (neither ever calls .dispose()) — guards the animate
+    // IIFE below against continuing to recurse on a canvas the caller has
+    // already discarded (scene-tool.html is the first caller that ever
+    // builds-and-replaces a viewer mid-session).
+    var isDisposed = false;
+
     var handle = {
       el: wrapper,
       applyMetal: function (newMetalKey) {
@@ -613,10 +668,29 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       // Internal handles, unused by the interactive site — exist so
       // scripts/auto-render.js's render harness can add its own top-shot-
       // only lighting/shadow-plane setup without that scope leaking into
-      // the shared production builder itself.
+      // the shared production builder itself. `target` (scene-tool.html
+      // only) is the live orbit-center Vector3 controls.target itself —
+      // mutated in place via .copy(), never reassigned, so exposing the
+      // reference once here stays correct for as long as the handle lives.
       scene: scene,
       camera: camera,
-      renderer: renderer
+      renderer: renderer,
+      target: controls.target,
+      // Tool-only teardown (scene-tool.html) — every existing caller
+      // (main.js's grid, product.js's carousel, the render harness) builds
+      // exactly one, page-lifetime viewer and never calls this. Without
+      // it, rebuilding mid-session would leak: the animate loop keeps
+      // recursing on a detached canvas forever, TrackballControls' own
+      // window-level keydown/keyup listeners are never released, and the
+      // ResizeObserver is never disconnected.
+      dispose: function () {
+        isDisposed = true;
+        cancelReturnToPose();
+        clearIdleTimer();
+        resizeObserver.disconnect();
+        controls.dispose();
+        renderer.dispose();
+      }
     };
 
     // Static/harness mode never starts this loop — only explicit render()
@@ -627,6 +701,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     if (isStatic) return handle;
 
     (function animate(now) {
+      if (isDisposed) return; // torn down mid-session (scene-tool.html) — stop recursing for good
       requestAnimationFrame(animate);
 
       // requestAnimationFrame hands us a real timestamp, so dt is measured
@@ -704,25 +779,36 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
         var poleAlignment = Math.abs(eyeDirection.dot(WORLD_UP));
 
-        var s = preFrameUp.dot(WORLD_UP);
-        tangentTowardUp.copy(WORLD_UP).addScaledVector(preFrameUp, -s);
-        var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);
-        driftDelta.copy(tangentTowardUp).multiplyScalar(driftRateThisFrame * s * (1 - poleAlignment));
-
-        camera.up.add(driftDelta).normalize();
+        // freeOrbit skips this leveling-drift correction entirely — the
+        // whole point is that camera.up (and therefore the framing) stays
+        // exactly wherever the drag left it, with no auto-correction ever
+        // nudging it back toward level.
+        if (!isFreeOrbit) {
+          var s = preFrameUp.dot(WORLD_UP);
+          tangentTowardUp.copy(WORLD_UP).addScaledVector(preFrameUp, -s);
+          var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);
+          driftDelta.copy(tangentTowardUp).multiplyScalar(driftRateThisFrame * s * (1 - poleAlignment));
+          camera.up.add(driftDelta).normalize();
+        }
         camera.lookAt(controls.target);
 
         if (waitingForSettle && !isDragging) {
           var frameAngle = eyeDirectionPrev.angleTo(eyeDirection);
           if (frameAngle < SETTLE_ANGULAR_VELOCITY * dt) {
             waitingForSettle = false;
-            pauseTimeoutId = setTimeout(function () {
-              pauseTimeoutId = null;
-              resetTweenFromPosition.copy(camera.position);
-              resetTweenFromUp.copy(camera.up);
-              resetTweenStartTime = performance.now();
-              resetTweenActive = true;
-            }, POST_INERTIA_PAUSE);
+            // freeOrbit skips arming the ease-back-to-default reset too —
+            // combined with staticMoving above (no coasting) and the drift
+            // skip just above (no up-vector correction), the camera simply
+            // stays exactly where the drag left it once released.
+            if (!isFreeOrbit) {
+              pauseTimeoutId = setTimeout(function () {
+                pauseTimeoutId = null;
+                resetTweenFromPosition.copy(camera.position);
+                resetTweenFromUp.copy(camera.up);
+                resetTweenStartTime = performance.now();
+                resetTweenActive = true;
+              }, POST_INERTIA_PAUSE);
+            }
           }
         }
       }
@@ -733,91 +819,14 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     return handle;
   }
 
-  // Harness-only: builds a plain, dedicated metal material preview (a
-  // cylinder, not any actual product) for scripts/auto-render.js's metal-
-  // sample swatch bars. Deliberately not shaped like a product: the
-  // swatch bars need a uniform, always-fully-filled material sample, not
-  // an accidental close-up of one particular product's own curve — a
-  // torus (the Disc ring, the original source for these) viewed edge-on
-  // is always a thin diagonal band in a square frame, leaving empty
-  // corners at any zoom, since its silhouette never exceeds a square
-  // frame's bounds the way a solid convex shape's does. A cylinder
-  // viewed from the side has a rectangular silhouette instead — sized
-  // and framed here so it exceeds the square frame in both dimensions,
-  // guaranteeing full coverage — while its continuous curvature still
-  // catches a specular highlight arc across the surface from the shared
-  // HDRI, the same quality the original ring close-ups had.
-  function buildMaterialSwatch(metalKey, sizePx, options) {
-    options = options || {};
-    var wrapper = document.createElement("div");
-    wrapper.className = "emjive-3d-viewer";
-
-    var renderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: true,
-        preserveDrawingBuffer: true
-      });
-    } catch (err) {
-      // Same WebGL-context-budget failure mode as buildThreeViewer() above
-      // — see its own comment. This harness-only builder has no icon
-      // fallback to hand back, so callers (scripts/auto-render.js) just
-      // get null instead of an uncaught throw, and decide what to do
-      // themselves.
-      console.error("emjive: could not create a WebGL context for the", metalKey, "swatch", err);
-      return null;
-    }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(sizePx, sizePx, false);
-    renderer.setClearColor(0x000000, 0);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1;
-    renderer.domElement.className = "emjive-3d-viewer__canvas";
-    wrapper.appendChild(renderer.domElement);
-
-    var scene = new THREE.Scene();
-    var camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
-
-    var radius = 1;
-    // Tall relative to its radius so the top/bottom edges always fall
-    // well outside the frame regardless of the zoom factor below.
-    var geometry = new THREE.CylinderGeometry(radius, radius, radius * 8, 96);
-    var params = metalToStandardMaterialParams(metalKey);
-    var mesh = new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({ color: params.color, metalness: params.metalness, roughness: params.roughness })
-    );
-    scene.add(mesh);
-
-    // Default cylinder orientation (axis along Y) already reads as "shiny
-    // rod viewed from the side" for a camera looking down -Z — no rotation
-    // needed. Distance is a fraction of the exact-tangent-fit distance
-    // (where the frame edge exactly touches the cylinder's silhouette) —
-    // below ~tan(fov/2) (~0.41 at this fov) the camera passes inside the
-    // cylinder's own radius and renders nothing at all, so this must stay
-    // above that floor. Closer (a smaller fraction) shows a narrower arc
-    // of the curve — less of the grazing-angle edges where the HDRI's
-    // brighter region blows out toward white — at the cost of some of the
-    // curvature/highlight variation; 0.75 was picked by eye as the
-    // balance between the two.
-    var fovRad = (camera.fov * Math.PI) / 180;
-    var distance = (radius / Math.tan(fovRad / 2)) * 0.75;
-    camera.position.set(0, 0, distance);
-    camera.lookAt(0, 0, 0);
-
-    var environmentPromise = loadEnvironment(renderer, options.hdri).then(function (envMap) {
-      scene.environment = envMap;
-    });
-
-    environmentPromise.then(function () {
-      renderer.render(scene, camera);
-      if (options.onReady) options.onReady();
-    });
-    return { el: wrapper, renderer: renderer, scene: scene, camera: camera };
-  }
-
   window.EmjiveModelViewer = buildThreeViewer;
-  window.EmjiveModelViewer.buildMaterialSwatch = buildMaterialSwatch;
+  // Tool-only (scene-tool.html) — a live reference to the module's one
+  // METAL_PRESETS object, not a copy. applyMetal()/buildThreeViewer's own
+  // material application always re-reads METAL_PRESETS[metalKey] fresh on
+  // every call, so the tool's shader-tuning sliders can mutate this object
+  // in place (color/metalness/roughness for whichever metal is selected)
+  // and just re-invoke applyMetal()/rebuild to preview the change — no
+  // separate override-parameter mechanism needed. Never read by the
+  // interactive site or by scripts/auto-render.js.
+  window.EmjiveModelViewer.METAL_PRESETS = METAL_PRESETS;
 })();

@@ -1,0 +1,610 @@
+<!--
+  scene-tool.html — standalone dev page: preview a product (or a bare
+  primitive shape, for swatch-scene tuning) under a chosen HDRI/metal, set
+  a camera angle (drag the model, or type exact rotation/tilt/zoom values
+  directly), tweak that metal's shader live, then tick which of {HDRI,
+  camera, metal shader} to save and click Save.
+
+  Not part of the built site — never added to vite.config.js's
+  rollupOptions.input, so `npm run build` never ships it. Served (and
+  saved through) by scripts/scene-tool-server.js:
+
+    npm run scene-tool
+
+  See dev-guidelines/procedures.md for the full workflow this replaces
+  (manual drag-then-hand-edit-products.json) and dev-guidelines/tooling.md
+  for the server's own notes.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scene tool</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="js/three-viewer.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    min-height: 100vh;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+  .layout { display: flex; width: 100%; }
+  .controls {
+    width: 340px;
+    flex: none;
+    padding: 16px;
+    overflow-y: auto;
+    border-right: 1px solid rgba(128,128,128,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .controls section { display: flex; flex-direction: column; gap: 6px; }
+  .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  select, input[type="number"], input[type="color"] { font: inherit; padding: 4px 6px; }
+  .metal-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  .metal-buttons button {
+    font: inherit;
+    padding: 5px 12px;
+    border: 1px solid rgba(128,128,128,0.5);
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .metal-buttons button.is-selected { background: rgba(128,128,128,0.35); font-weight: 600; }
+  .readout { display: flex; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+  .readout .orbit-field { display: flex; align-items: center; gap: 4px; }
+  .readout .orbit-field input { width: 56px; }
+  .slider-row { display: flex; align-items: center; gap: 8px; }
+  .slider-row input[type="range"] { flex: 1; }
+  .slider-row output { width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
+  button { cursor: pointer; }
+  #saveSection { gap: 8px; }
+  #saveSection label { flex-direction: row; align-items: center; gap: 6px; }
+  #saveBtn { align-self: flex-start; padding: 6px 16px; font-weight: 600; }
+  #copyJsonBtn { align-self: flex-start; }
+  .save-result { font-size: 13px; padding: 2px 0; }
+  .save-result--ok { color: #2a8f4d; }
+  .save-result--fail { color: #c0392b; }
+  .viewer-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+  }
+  #viewerContainer {
+    width: 520px;
+    height: 520px;
+    max-width: 100%;
+    border: 1px solid rgba(128,128,128,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px;
+  }
+  #viewerContainer .emjive-3d-viewer { width: 100%; height: 100%; }
+  #statusMessage { font-size: 13px; opacity: 0.75; min-height: 1.2em; }
+
+  /* Minimal subset of css/style.css's own .emjive-3d-viewer rules — this
+     page doesn't load the site stylesheet at all. */
+  .emjive-3d-viewer { position: relative; touch-action: none; cursor: grab; }
+  .emjive-3d-viewer__canvas { display: block; width: 100%; height: 100%; }
+  .emjive-3d-viewer__poster {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transition: opacity 0.3s ease;
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="controls">
+    <section>
+      <h1>Scene tool</h1>
+    </section>
+
+    <section>
+      <label>HDRI
+        <select id="hdriSelect"></select>
+      </label>
+    </section>
+
+    <section>
+      <label>Model
+        <select id="modelSelect"></select>
+      </label>
+    </section>
+
+    <section>
+      <label>Metal</label>
+      <div class="metal-buttons" id="metalButtons"></div>
+    </section>
+
+    <section id="cameraSection">
+      <h2>Camera</h2>
+      <div class="readout">
+        <span class="orbit-field">Rotation: <input type="number" id="rotationInput" step="1"> &deg;</span>
+        <span class="orbit-field">Tilt: <input type="number" id="tiltInput" step="1"> &deg;</span>
+        <span class="orbit-field">Zoom: <input type="number" id="zoomInput" step="1"> %</span>
+      </div>
+      <button type="button" id="resetCameraBtn">Reset to saved default</button>
+    </section>
+
+    <section id="shaderSection">
+      <h2>Metal shader — <span id="shaderMetalLabel"></span></h2>
+      <label>Color
+        <input type="color" id="colorInput">
+      </label>
+      <label>Metalness
+        <div class="slider-row">
+          <input type="range" id="metalnessInput" min="0" max="1" step="0.01">
+          <output id="metalnessReadout"></output>
+        </div>
+      </label>
+      <label>Roughness
+        <div class="slider-row">
+          <input type="range" id="roughnessInput" min="0" max="1" step="0.01">
+          <output id="roughnessReadout"></output>
+        </div>
+      </label>
+    </section>
+
+    <section id="saveSection">
+      <h2>Save</h2>
+      <label><input type="checkbox" id="saveHdri"> HDRI</label>
+      <label><input type="checkbox" id="saveCamera"> Camera</label>
+      <label><input type="checkbox" id="saveShader"> Metal shader</label>
+      <div>
+        <button type="button" id="saveBtn">Save</button>
+        <button type="button" id="copyJsonBtn">Copy JSON</button>
+      </div>
+      <div id="saveResults"></div>
+    </section>
+  </div>
+
+  <div class="viewer-stage">
+    <div id="viewerContainer"></div>
+    <div id="statusMessage"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+
+const PRIMITIVES = ["cylinder", "box", "sphere", "torus"];
+
+const state = {
+  seriesIndex: null,
+  productsBySeriesSlug: {},
+  mode: null,       // "product" | "primitive"
+  seriesSlug: null,
+  product: null,
+  primitive: null,
+  metal: null,
+  handle: null,
+  lastOrbit: null,
+  buildToken: 0
+};
+
+const els = {};
+[
+  "hdriSelect", "modelSelect", "metalButtons", "viewerContainer", "statusMessage",
+  "rotationInput", "tiltInput", "zoomInput", "resetCameraBtn",
+  "colorInput", "metalnessInput", "roughnessInput", "metalnessReadout", "roughnessReadout",
+  "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults"
+].forEach((id) => { els[id] = document.getElementById(id); });
+
+init().catch((err) => {
+  console.error(err);
+  els.statusMessage.textContent = "Failed to load: " + err.message;
+});
+
+async function init() {
+  state.seriesIndex = await fetchJson("data/series.json");
+  await loadAllProducts();
+  populateHdriSelect();
+  populateModelSelect();
+  populateMetalButtons();
+  wireEvents();
+  requestAnimationFrame(readoutLoop);
+  await rebuildViewer();
+}
+
+function fetchJson(relPath) {
+  return fetch(relPath).then((res) => {
+    if (!res.ok) throw new Error("could not load " + relPath);
+    return res.json();
+  });
+}
+
+async function loadAllProducts() {
+  const seriesList = state.seriesIndex.series || [];
+  for (const s of seriesList) {
+    state.productsBySeriesSlug[s.slug] = await fetchJson(s.products);
+  }
+}
+
+function populateHdriSelect() {
+  const hdris = state.seriesIndex.hdris || {};
+  els.hdriSelect.innerHTML = "";
+  Object.keys(hdris).forEach((key) => {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = key;
+    els.hdriSelect.appendChild(opt);
+  });
+  const firstSeries = (state.seriesIndex.series || [])[0];
+  const defaultKey = (firstSeries && firstSeries.hdri) || Object.keys(hdris)[0];
+  if (defaultKey) els.hdriSelect.value = defaultKey;
+}
+
+function populateModelSelect() {
+  els.modelSelect.innerHTML = "";
+
+  const productsGroup = document.createElement("optgroup");
+  productsGroup.label = "Products";
+  (state.seriesIndex.series || []).forEach((s) => {
+    const productsData = state.productsBySeriesSlug[s.slug];
+    (productsData.products || []).forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = "product:" + s.slug + ":" + p.id;
+      opt.textContent = s.name + " — " + p.name;
+      productsGroup.appendChild(opt);
+    });
+  });
+  if (productsGroup.children.length) els.modelSelect.appendChild(productsGroup);
+
+  const primitivesGroup = document.createElement("optgroup");
+  primitivesGroup.label = "Primitives";
+  PRIMITIVES.forEach((name) => {
+    const opt = document.createElement("option");
+    opt.value = "primitive:" + name;
+    opt.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+    primitivesGroup.appendChild(opt);
+  });
+  els.modelSelect.appendChild(primitivesGroup);
+
+  els.modelSelect.value = productsGroup.children.length ? productsGroup.children[0].value : primitivesGroup.children[0].value;
+}
+
+function populateMetalButtons() {
+  const metals = state.seriesIndex.metals || [];
+  els.metalButtons.innerHTML = "";
+  metals.forEach((m) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = m;
+    btn.dataset.metal = m;
+    btn.addEventListener("click", () => onMetalButtonClick(m));
+    els.metalButtons.appendChild(btn);
+  });
+}
+
+function currentModelSelection() {
+  const value = els.modelSelect.value;
+  const parts = value.split(":");
+  if (parts[0] === "product") {
+    const seriesSlug = parts[1];
+    const productId = parts[2];
+    const productsData = state.productsBySeriesSlug[seriesSlug];
+    const product = (productsData.products || []).find((p) => p.id === productId);
+    return { mode: "product", seriesSlug, product };
+  }
+  return { mode: "primitive", primitive: parts[1] };
+}
+
+function wireEvents() {
+  els.hdriSelect.addEventListener("change", () => rebuildViewer());
+  els.modelSelect.addEventListener("change", () => rebuildViewer());
+  els.colorInput.addEventListener("input", onShaderInputChange);
+  els.metalnessInput.addEventListener("input", onShaderInputChange);
+  els.roughnessInput.addEventListener("input", onShaderInputChange);
+  els.rotationInput.addEventListener("change", onOrbitInputChange);
+  els.tiltInput.addEventListener("change", onOrbitInputChange);
+  els.zoomInput.addEventListener("change", onOrbitInputChange);
+  els.resetCameraBtn.addEventListener("click", onResetCamera);
+  els.saveBtn.addEventListener("click", onSaveClick);
+  els.copyJsonBtn.addEventListener("click", onCopyJsonClick);
+}
+
+function onMetalButtonClick(metal) {
+  state.metal = metal;
+  updateMetalButtonStates();
+  populateShaderControls();
+  if (state.handle) state.handle.applyMetal(metal); // fast path — no rebuild, either mode
+}
+
+function updateMetalButtonStates() {
+  Array.prototype.forEach.call(els.metalButtons.children, (btn) => {
+    btn.classList.toggle("is-selected", btn.dataset.metal === state.metal);
+  });
+}
+
+function populateShaderControls() {
+  const preset = window.EmjiveModelViewer.METAL_PRESETS[state.metal];
+  if (!preset) return;
+  els.shaderMetalLabel.textContent = state.metal;
+  const r = Math.round(preset.baseColorFactor[0] * 255);
+  const g = Math.round(preset.baseColorFactor[1] * 255);
+  const b = Math.round(preset.baseColorFactor[2] * 255);
+  els.colorInput.value = rgbToHex(r, g, b);
+  els.metalnessInput.value = preset.metallicFactor;
+  els.roughnessInput.value = preset.roughnessFactor;
+  els.metalnessReadout.textContent = preset.metallicFactor.toFixed(2);
+  els.roughnessReadout.textContent = preset.roughnessFactor.toFixed(2);
+}
+
+function onShaderInputChange() {
+  const preset = window.EmjiveModelViewer.METAL_PRESETS[state.metal];
+  if (!preset) return;
+  const rgb = hexToRgb(els.colorInput.value);
+  preset.baseColorFactor = [rgb.r / 255, rgb.g / 255, rgb.b / 255, 1];
+  preset.metallicFactor = parseFloat(els.metalnessInput.value);
+  preset.roughnessFactor = parseFloat(els.roughnessInput.value);
+  els.metalnessReadout.textContent = preset.metallicFactor.toFixed(2);
+  els.roughnessReadout.textContent = preset.roughnessFactor.toFixed(2);
+  // METAL_PRESETS is mutated in place (a live reference — see
+  // js/three-viewer.js's window.EmjiveModelViewer.METAL_PRESETS export) so
+  // re-invoking applyMetal() with the SAME key re-reads it fresh and
+  // re-tints instantly, no rebuild needed, either mode.
+  if (state.handle) state.handle.applyMetal(state.metal);
+}
+
+function rgbToHex(r, g, b) {
+  return "#" + [r, g, b].map((n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0")).join("");
+}
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function teardown(handle) {
+  if (handle && handle.dispose) handle.dispose();
+}
+
+async function rebuildViewer() {
+  const token = ++state.buildToken;
+  const sel = currentModelSelection();
+  state.mode = sel.mode;
+  state.seriesSlug = sel.seriesSlug || null;
+  state.product = sel.product || null;
+  state.primitive = sel.primitive || null;
+  if (!state.metal) {
+    state.metal = (sel.mode === "product" && sel.product["default-metal"]) || state.seriesIndex.metals[0];
+  }
+
+  setControlsDisabled(true);
+  teardown(state.handle);
+  state.handle = null;
+  state.lastOrbit = null;
+  els.viewerContainer.innerHTML = "";
+  els.statusMessage.textContent = "";
+
+  const hdriKey = els.hdriSelect.value;
+  const hdriPath = (state.seriesIndex.hdris || {})[hdriKey];
+
+  let handle;
+  if (sel.mode === "product") {
+    if (!sel.product.assets || !sel.product.assets.model) {
+      els.viewerContainer.textContent = "No 3D model for this product — nothing to orbit.";
+      setCameraControlsEnabled(false);
+      setControlsDisabled(false);
+      updateMetalButtonStates();
+      populateShaderControls();
+      return;
+    }
+    setCameraControlsEnabled(true);
+    handle = window.EmjiveModelViewer(sel.product, state.metal, {
+      freeOrbit: true,
+      hdri: hdriPath,
+      onReady: () => { if (token === state.buildToken) setControlsDisabled(false); }
+    });
+  } else {
+    setCameraControlsEnabled(true);
+    const stubProduct = {
+      name: sel.primitive + " swatch",
+      "3d-viewer-camera-default": state.seriesIndex["swatch-camera"] || { rotation: 0, tilt: 90, zoom: 100 }
+    };
+    handle = window.EmjiveModelViewer(stubProduct, state.metal, {
+      freeOrbit: true,
+      hdri: hdriPath,
+      primitive: sel.primitive,
+      onReady: () => { if (token === state.buildToken) setControlsDisabled(false); }
+    });
+  }
+
+  if (!handle) {
+    els.statusMessage.textContent = "Could not create a WebGL context.";
+    setControlsDisabled(false);
+    return;
+  }
+  state.handle = handle;
+  els.viewerContainer.appendChild(handle.el);
+  updateMetalButtonStates();
+  populateShaderControls();
+}
+
+function setControlsDisabled(disabled) {
+  els.hdriSelect.disabled = disabled;
+  els.modelSelect.disabled = disabled;
+  Array.prototype.forEach.call(els.metalButtons.children, (btn) => { btn.disabled = disabled; });
+}
+
+function setCameraControlsEnabled(enabled) {
+  els.rotationInput.disabled = !enabled;
+  els.tiltInput.disabled = !enabled;
+  els.zoomInput.disabled = !enabled;
+  els.resetCameraBtn.disabled = !enabled;
+  els.saveCamera.disabled = !enabled;
+  if (!enabled) els.saveCamera.checked = false;
+}
+
+// Reads {rotation, tilt, zoom} back from the live camera — the exact
+// inverse of js/three-viewer.js's frameCamera()'s forward transform.
+// Runs off the handle's own camera/target/scene (no state kept here
+// beyond what's read each frame), so whatever's on screen is always
+// exactly what gets displayed and (if saved) posted.
+function readCurrentOrbit(handle) {
+  const target = handle.target;
+  const camera = handle.camera;
+  if (!target || !camera) return null;
+  const offset = camera.position.clone().sub(target);
+  const radius = offset.length();
+  if (radius < 1e-6) return null;
+  const phiRad = Math.acos(THREE.MathUtils.clamp(offset.y / radius, -1, 1));
+  const thetaRad = Math.atan2(offset.x, offset.z);
+  const box = new THREE.Box3().setFromObject(handle.scene);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  if (!(sphere.radius > 0)) return null;
+  const fovRad = (camera.fov * Math.PI) / 180;
+  const refDistance = sphere.radius / Math.sin(fovRad / 2);
+  const zoom = (100 * radius) / refDistance;
+  return {
+    rotation: Math.round((thetaRad * 180) / Math.PI),
+    tilt: Math.round((phiRad * 180) / Math.PI),
+    zoom: Math.round(zoom)
+  };
+}
+
+function readoutLoop() {
+  requestAnimationFrame(readoutLoop);
+  if (!state.handle) return;
+  const orbit = readCurrentOrbit(state.handle);
+  if (!orbit) return;
+  state.lastOrbit = orbit;
+  // Skip whichever field the user is actively typing into, so the live
+  // drag-driven readout doesn't fight their keystrokes.
+  if (document.activeElement !== els.rotationInput) els.rotationInput.value = orbit.rotation;
+  if (document.activeElement !== els.tiltInput) els.tiltInput.value = orbit.tilt;
+  if (document.activeElement !== els.zoomInput) els.zoomInput.value = orbit.zoom;
+}
+
+// Fires on any of the three fields committing a value (blur/Enter) —
+// reads all three current field values together and jumps the camera
+// straight there via handle.setCameraOrbit(), the same primitive
+// scripts/auto-render.js's top-shot render already uses.
+function onOrbitInputChange() {
+  if (!state.handle) return;
+  const rotation = parseFloat(els.rotationInput.value);
+  const tilt = parseFloat(els.tiltInput.value);
+  const zoom = parseFloat(els.zoomInput.value);
+  if (![rotation, tilt, zoom].every(Number.isFinite)) return;
+  state.handle.setCameraOrbit({ rotation, tilt, zoom });
+}
+
+function onResetCamera() {
+  if (!state.handle) return;
+  const orbit = state.mode === "product"
+    ? (state.product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 })
+    : (state.seriesIndex["swatch-camera"] || { rotation: 0, tilt: 90, zoom: 100 });
+  state.handle.setCameraOrbit(orbit);
+}
+
+function postJson(url, body) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    return data;
+  });
+}
+
+async function onSaveClick() {
+  const results = [];
+
+  async function attempt(label, url, body) {
+    try {
+      const data = await postJson(url, body);
+      results.push({ label, ok: true, detail: data });
+    } catch (err) {
+      results.push({ label, ok: false, detail: err.message });
+    }
+  }
+
+  if (state.mode === "product") {
+    if (els.saveCamera.checked && state.lastOrbit) {
+      await attempt("Camera angle", "/api/save-product-camera", {
+        seriesSlug: state.seriesSlug,
+        productId: state.product.id,
+        rotation: state.lastOrbit.rotation,
+        tilt: state.lastOrbit.tilt,
+        zoom: state.lastOrbit.zoom
+      });
+    }
+    if (els.saveHdri.checked) {
+      await attempt("HDRI", "/api/save-series-hdri", {
+        seriesSlug: state.seriesSlug,
+        hdriKey: els.hdriSelect.value
+      });
+    }
+  } else {
+    if (els.saveCamera.checked && state.lastOrbit) {
+      await attempt("Camera + primitive", "/api/save-swatch-camera", {
+        primitive: state.primitive,
+        rotation: state.lastOrbit.rotation,
+        tilt: state.lastOrbit.tilt,
+        zoom: state.lastOrbit.zoom
+      });
+    }
+    if (els.saveHdri.checked) {
+      await attempt("HDRI", "/api/save-swatch-hdri", { hdriKey: els.hdriSelect.value });
+    }
+  }
+
+  if (els.saveShader.checked) {
+    const rgb = hexToRgb(els.colorInput.value);
+    await attempt("Metal shader (" + state.metal + ")", "/api/save-metal-shader", {
+      metalKey: state.metal,
+      r: rgb.r,
+      g: rgb.g,
+      b: rgb.b,
+      metallicFactor: parseFloat(els.metalnessInput.value),
+      roughnessFactor: parseFloat(els.roughnessInput.value)
+    });
+  }
+
+  renderSaveResults(results);
+}
+
+function renderSaveResults(results) {
+  els.saveResults.innerHTML = "";
+  if (!results.length) {
+    els.saveResults.textContent = "Nothing ticked — check a box above first.";
+    return;
+  }
+  results.forEach((r) => {
+    const line = document.createElement("div");
+    line.className = "save-result " + (r.ok ? "save-result--ok" : "save-result--fail");
+    line.textContent = (r.ok ? "✓ " : "✗ ") + r.label + (r.ok ? "" : " — " + r.detail);
+    els.saveResults.appendChild(line);
+  });
+}
+
+function onCopyJsonClick() {
+  if (!state.lastOrbit) return;
+  const snippet = state.mode === "product"
+    ? JSON.stringify({ "3d-viewer-camera-default": state.lastOrbit }, null, 2)
+    : JSON.stringify({ "swatch-primitive": state.primitive, "swatch-camera": state.lastOrbit }, null, 2);
+  navigator.clipboard.writeText(snippet).catch(() => {});
+}
+</script>
+</body>
+</html>
