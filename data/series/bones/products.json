@@ -26,7 +26,7 @@
           "silver": "assets/series/bones/products/furcula_ring/furcula_fallback-img_silver.webp",
           "bronze": "assets/series/bones/products/furcula_ring/furcula_fallback-img_bronze.webp"
         },
-        "xray": "assets/series/bones/products/furcula_ring/furcula-xray.png",
+        "xray": "assets/series/bones/products/furcula_ring/furcula_xray.png",
         "top-shot": {
           "steel":  "assets/series/bones/products/furcula_ring/furcula_top-shot_steel.webp",
           "silver": "assets/series/bones/products/furcula_ring/furcula_top-shot_silver.webp",
@@ -63,7 +63,7 @@
           "silver": "assets/series/bones/products/foramen_ring/foramen_fallback-img_silver.webp",
           "bronze": "assets/series/bones/products/foramen_ring/foramen_fallback-img_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/foramen_ring/foramen_xray.webp",
         "top-shot": {
           "steel":  "assets/series/bones/products/foramen_ring/foramen_top-shot_steel.webp",
           "silver": "assets/series/bones/products/foramen_ring/foramen_top-shot_silver.webp",
@@ -97,7 +97,7 @@
           "silver": "assets/series/bones/products/disc_ring/disc_fallback-img_silver.webp",
           "bronze": "assets/series/bones/products/disc_ring/disc_fallback-img_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/disc_ring/disc_xray.webp",
         "top-shot": {
           "steel":  "assets/series/bones/products/disc_ring/disc_top-shot_steel.webp",
           "silver": "assets/series/bones/products/disc_ring/disc_top-shot_silver.webp",
@@ -131,7 +131,7 @@
           "silver": "assets/series/bones/products/marrow_ring/marrow_fallback-img_silver.webp",
           "bronze": "assets/series/bones/products/marrow_ring/marrow_fallback-img_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/marrow_ring/marrow_xray.webp",
         "top-shot": { "steel": "assets/series/bones/products/marrow_ring/marrow_top-shot_steel.webp", "silver": "assets/series/bones/products/marrow_ring/marrow_top-shot_silver.webp", "bronze": "assets/series/bones/products/marrow_ring/marrow_top-shot_bronze.webp" },
         "photos": []
       }
