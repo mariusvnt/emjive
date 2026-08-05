@@ -223,8 +223,8 @@ built.
 ### Choosing a series' HDRI
 
 Each series picks its lighting environment via `"hdri"` (a key into
-`data/series.json`'s top-level `"hdris"` map — `"studio"` or
-`"blue-pure-sky"` today):
+`data/series.json`'s top-level `"hdris"` map — `"studio"`,
+`"blue-pure-sky"`, or `"white-room"` today):
 
 ```json
 "hdri": "studio"
