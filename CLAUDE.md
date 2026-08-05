@@ -20,7 +20,7 @@ This file is an index into `dev-guidelines/`, the full agent-facing documentatio
 | [`dev-guidelines/styling.md`](dev-guidelines/styling.md) | Touching `css/style.css`, or debugging a layout/visual issue |
 | [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md) | Touching anything in `js/` (`series.js`, `main.js`, `product.js`, `selection*.js`, `series-page.js`, `three-viewer.js`) or a series' `hero.js` |
 | [`dev-guidelines/data.md`](dev-guidelines/data.md) | Touching `data/series.json`, a series' `products.json`/`manifest.json`, or their schema |
-| [`dev-guidelines/tooling.md`](dev-guidelines/tooling.md) | Touching `package.json` scripts, `scripts/auto-render.js`, `vite.config.js`, or the GitHub Pages deploy workflow |
+| [`dev-guidelines/tooling.md`](dev-guidelines/tooling.md) | Touching `package.json` scripts, `scripts/auto-render.js`, `scripts/scene-tool-server.js`/`scene-tool.html`, `vite.config.js`, or the GitHub Pages deploy workflow |
 | [`dev-guidelines/assets.md`](dev-guidelines/assets.md) | Adding/moving files under `assets/` |
 
 ## Elsewhere

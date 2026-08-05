@@ -28,7 +28,9 @@ existing one — `bones` is the only one so far. To start a *new* series, see
    product (no background), one per metal it can be shown in (not just its
    default — the product page's metal picker swaps the icon to match
    whichever finish is currently selected). Easiest way: set `assets.model`
-   and `"3d-viewer-camera-default"` below first, then run `npm run auto-render`
+   and `"3d-viewer-camera-default"` below first (`scene-tool.html` is the
+   quickest way to dial in that angle — see "Setting a model's default
+   view" further down), then run `npm run auto-render`
    (see "Re-rendering icons and metal swatches" further down) — it renders
    every metal's icon (and its `fallback-img` companion) itself and fills
    in `assets.icons`/`assets.fallback-img` for you, guaranteed to match the
@@ -184,9 +186,9 @@ No new HTML page is involved at any point — `index.html`, `product.html` and
 
 ### Setting a model's default view
 
-Add `"3d-viewer-camera-default"` (and optionally `"cameraTarget"`) to a
-product entry to control the angle it loads at. It's also the pose the
-model eases back to smoothly whenever you let go after dragging it:
+`"3d-viewer-camera-default"` (and optionally `"cameraTarget"`) on a product
+entry controls the angle it loads at. It's also the pose the model eases
+back to smoothly whenever you let go after dragging it, on the live site:
 
 ```json
 "3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105 }
@@ -199,13 +201,40 @@ model-viewer-based system, `zoom` is always a percent, never an absolute
 distance like `1.2m`). If `3d-viewer-camera-default` is omitted, it falls
 back to `{ rotation: 0, tilt: 75, zoom: 105 }`.
 
-There's no console helper like the old `model-viewer.getCameraOrbit()` to
-read back an angle you've dragged to — `TrackballControls` doesn't track
-orbit in these terms, it just holds a raw camera position. Easiest way
-to find good numbers in practice: open the page, drag the model to the
-angle you want it to default to as a visual reference, then edit
-`3d-viewer-camera-default` in `products.json` and reload to compare,
-repeating until it matches.
+**Use `scene-tool.html` to set this** rather than hand-editing it:
+
+```bash
+npm run scene-tool
+```
+
+then open `http://localhost:5200/scene-tool.html`, pick the product, drag
+it to the angle you want (release and it stays exactly there — no
+momentum, no easing back, unlike the live site) or type exact
+rotation/tilt/zoom values directly into the three number fields, tick
+"Camera," and Save writes the numbers straight into that product's
+`3d-viewer-camera-default` for you. Replaces the old workflow of dragging
+as a visual reference, hand-editing the JSON, and reloading to compare —
+there's still no console helper like the old `model-viewer.getCameraOrbit()`
+(`TrackballControls` just holds a raw camera position, nothing tracks
+"orbit" in these terms), `scene-tool.html` computes it back from the live
+camera pose itself instead. See `tooling.md` for how the tool/server are
+built.
+
+### Choosing a series' HDRI
+
+Each series picks its lighting environment via `"hdri"` (a key into
+`data/series.json`'s top-level `"hdris"` map — `"studio"` or
+`"blue-pure-sky"` today):
+
+```json
+"hdri": "studio"
+```
+
+Same tool: in `scene-tool.html`, pick that series' product, choose the HDRI
+from the dropdown to preview it live, tick "HDRI," and Save writes the key
+into that series' entry. The swatch renderer (metal-sample bars) has its
+own, separate `"swatch-hdri"` choice — see "Re-rendering icons and metal
+swatches" below.
 
 ### Choosing a product's metal
 
@@ -231,6 +260,16 @@ metal swatches" just below for how those are made) — and add a
 `per-metal-specs` entry for it on every product, since the Characteristics
 section looks values up by metal name.
 
+To **tune an existing metal's values** (rather than add a new one),
+`scene-tool.html` previews the change live before you commit to it: pick
+any product or primitive, pick the metal, drag its color/metalness/
+roughness sliders and watch the material re-tint in the viewer instantly
+(`window.EmjiveModelViewer.METAL_PRESETS[metal]` is mutated in place for
+the preview), tick "Metal shader," and Save writes the new numbers into
+`METAL_PRESETS` in `js/three-viewer.js` for you — see `tooling.md`. Adding
+a *new* metal (the three-places list above) still needs doing by hand;
+the tool only edits an already-existing entry's values.
+
 The viewer construction itself (renderer/scene/camera setup, camera-orbit/
 idle-reset behaviour, and applying `METAL_PRESETS`) lives in one place —
 `buildThreeViewer()` in `js/three-viewer.js`, exposed as
@@ -244,13 +283,18 @@ A product's `assets.icons`, its poster images (`assets.fallback-img`), its
 top shots (`assets.top-shot`), and the metal picker's swatch bars (`css/style.css`'s
 `.product-metals__option[data-metal="..."]`) are all real renders of the
 PBR material — not hand-picked colors or gradients — using the exact same
-`METAL_PRESETS` values the live 3D models use. All four also share the
-same environment HDRI (`assets/hdri/studio_kontrast_04_1k.hdr`) — top
-shots used to be lit with a plain `RoomEnvironment` instead, but that
-override was removed since `window.EmjiveModelViewer` already sets the
-studio HDRI before a render's `onReady` fires. If you change anything in
-`METAL_PRESETS` or swap the HDRI file, **all four need to be re-rendered
-to stay accurate**. Nothing regenerates any of them automatically.
+`METAL_PRESETS` values the live 3D models use. Icons/fallback-img/top-shots
+are each lit with whichever HDRI their own product's series resolved to
+(`data/series.json`'s per-series `"hdri"` — see "Choosing a series' HDRI"
+above); the swatch bars use their own separate `"swatch-hdri"` choice
+instead, since swatches aren't tied to any series. Top shots used to be lit
+with a plain `RoomEnvironment` regardless, but that override was removed
+since `window.EmjiveModelViewer` already sets the resolved HDRI before a
+render's `onReady` fires. If you change anything in `METAL_PRESETS`, or a
+series'/the swatch renderer's HDRI choice, **the renders that used the old
+value need to be re-rendered to stay accurate**. Nothing regenerates any of
+them automatically — `scene-tool.html`'s Save just updates the source
+field(s); it never itself re-runs `auto-render`.
 
 ```bash
 npm install               # first time only — pulls in puppeteer-core + sharp
@@ -296,11 +340,12 @@ list, if none are given), across every series (or just one, with
   that series' own `products.json` has its `assets.fallback-img`/`assets.icons`
   entries for that product updated in place to match (the previous file for
   that metal is deleted if the path changed). Uses the product's own
-  `assets.model` + `3d-viewer-camera-default` from `products.json`, and the
-  same shared studio HDRI (`assets/hdri/studio_kontrast_04_1k.hdr`) the live
-  site uses.
+  `assets.model` + `3d-viewer-camera-default` from `products.json`, and
+  whichever HDRI that product's series resolved to (its own `"hdri"` key —
+  see "Choosing a series' HDRI" above) — the same one the live site shows
+  it under.
 - **Top shots** — one per product per metal, same underlying pipeline as
-  icons, and lit with that same studio HDRI (set by
+  icons, and lit with that same resolved HDRI (set by
   `window.EmjiveModelViewer` itself before `onReady` fires — the harness
   used to swap in a plain `RoomEnvironment` here instead, three.js's
   stand-in for a neutral studio IBL, but that override was removed as an
@@ -323,23 +368,24 @@ list, if none are given), across every series (or just one, with
   `hero-hand-visibility` field (`data.md`) and `pages.md`'s `index.html` section.
 - **One metal sample bar**, regardless of whether any product defaults to
   it — saved as `assets/metal-sample_<metal>.webp` (240×240). **Not** a
-  render of any actual product — `js/three-viewer.js`'s
-  `buildMaterialSwatch(metalKey, sizePx)` builds a plain cylinder instead
-  (its own dedicated scene: same `METAL_PRESETS` material + the same HDRI
-  file loaded via `loadEnvironment()`, but no GLTF, no product-relative
-  camera-orbit framing). This replaced an
-  earlier version that rendered a close-up crop of the Disc ring's own
-  curve: a torus viewed edge-on is always a thin diagonal band in a square
-  frame, leaving empty corners at any zoom (its silhouette never exceeds a
-  square frame's bounds the way a solid convex shape's does) — the crop
-  rectangle chasing that band around the frame was fragile and, after the
-  three.js migration changed the framing math, stopped landing well.
-  A cylinder viewed from the side has a rectangular silhouette instead,
-  sized and positioned (camera distance as a fraction of the exact-
-  tangent-fit distance — see the function's own comment for the exact
-  tuning trade-off) to exceed the square frame in both dimensions, so the
-  render is always fully covered with no cropping needed at all. CSS
-  applies the result via `background: url(...) center / cover`, so the
+  render of any actual product — a bare primitive shape instead (no GLTF),
+  built via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
+  {primitive, ...})` (`options.primitive` — same `METAL_PRESETS` material +
+  the same camera-orbit/HDRI machinery every other render uses, just with a
+  built-in mesh in place of a loaded model). Which shape, which HDRI, and
+  what camera angle it's framed at are `data/series.json`'s top-level
+  `"swatch-primitive"`/`"swatch-hdri"`/`"swatch-camera"` fields —
+  `scene-tool.html` is how you preview and set all three (pick a primitive
+  from the Model dropdown, tick "HDRI"/"Camera," Save). `"cylinder"` is the
+  default and, along with `"box"`, the only two shapes with a rectangular
+  silhouette that's *guaranteed* to fill the square frame with no corner
+  gaps at the right zoom — `"sphere"`/`"torus"` can't avoid corner gaps
+  geometrically at any zoom, they're included as options anyway since the
+  live-preview tool is exactly what makes eyeballing that framing before
+  committing practical (an earlier, pre-tool version of this that rendered
+  the Disc ring's own torus curve directly ran into exactly this problem
+  blind, with no way to check the framing before running the full render).
+  CSS applies the result via `background: url(...) center / cover`, so the
   render only needs to look good as a plain square — `cover` handles
   fitting it into the swatch bar's actual thin/wide shape at any width
   (`.product-metals__option`'s `clamp(90px, 18cqw, 180px)`).

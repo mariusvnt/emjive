@@ -96,6 +96,7 @@ data/series/<slug>/                             One series' products + manifest
 series/<slug>/                                  One series' hero bundle (html/css/js)
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches
+scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/shader tuning (npm run scene-tool)
 ```
 
 ## Where to go next
