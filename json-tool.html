@@ -1,0 +1,1030 @@
+<!--
+  json-tool.html — standalone dev page: edit global catalog parameters
+  (data/series.json's featured/categories/hdris/metals), edit or add a
+  series, edit or add a series' products — including drag-and-drop for the
+  hand-owned asset files (3D model, x-ray, extra photos), each with an
+  explicit Replace/Remove pair once a file is already saved. Saves write
+  the right JSON fields and dispatch dropped files into the right folders
+  automatically.
+
+  Deliberately has no 3D preview and no swatch-scene editing at all (no
+  `three` import map, nothing like scene-tool.html's live viewer, no
+  swatch-primitive/swatch-hdri/swatch-camera fields) — camera angle/HDRI/
+  metal-shader/swatch-scene tuning all stay scene-tool.html's job; this
+  page only has plain typed fields for the few global/series/product
+  values that job doesn't cover, with a pointer to `npm run scene-tool` in
+  the footer.
+
+  Icons/fallback-img/top-shot are intentionally NOT editable here, for any
+  metal — those are 100% owned by `npm run auto-render`. This page shows a
+  plain reminder instead of an upload slot for them.
+
+  Not part of the built site — never added to vite.config.js's
+  rollupOptions.input, so `npm run build` never ships it. Served (and
+  saved through) by scripts/json-tool-server.js:
+
+    npm run json-tool
+
+  See dev-guidelines/procedures.md/data.md/assets.md for the conventions
+  this page automates, and scripts/json-tool-server.js's own header
+  comment for the server-side contract.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JSON tool</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  /* Several author rules below (.stack, .row label, etc.) set `display` on
+     selectors that can also carry the native `hidden` attribute — and any
+     author-stylesheet `display` beats the user-agent stylesheet's own
+     `[hidden] { display: none }` rule regardless of specificity, since
+     origin/importance outranks specificity in the cascade. Without this,
+     toggling `.hidden = true` on such an element (the products-panel
+     product picker, the series add/edit panes) silently does nothing. */
+  [hidden] { display: none !important; }
+  body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", sans-serif; padding: 24px; max-width: 760px; }
+  h1 { font-size: 16px; margin: 0 0 16px; }
+  h2 { font-size: 13px; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom: 8px; }
+  .tab-btn, .mode-btn, .series-mode-btn { font: inherit; padding: 5px 12px; border: 1px solid rgba(128,128,128,0.5); border-radius: 999px; background: transparent; cursor: pointer; }
+  .tab-btn.is-active, .mode-btn.is-active, .series-mode-btn.is-active { background: rgba(128,128,128,0.35); font-weight: 600; }
+  .panel { display: none; }
+  .panel.is-active { display: block; }
+  .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin: 8px 0; }
+  .stack { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+  .stack label, .row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  input[type="text"], input[type="number"], select, textarea { font: inherit; padding: 4px 6px; }
+  button { font: inherit; cursor: pointer; padding: 5px 12px; }
+  .btn-danger { color: #c0392b; border-color: #c0392b; }
+  .chip .btn-danger { border: none; background: transparent; padding: 0 0 0 6px; font-size: 12px; line-height: 1; }
+  .list-row .actions { display: flex; gap: 4px; margin-left: auto; }
+  .add-row { padding-top: 8px; border-top: 1px dashed rgba(128,128,128,0.3); align-items: center; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+  .chip { padding: 3px 10px; border: 1px solid rgba(128,128,128,0.4); border-radius: 999px; font-size: 12px; }
+  .chip-check { display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(128,128,128,0.4); border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+  .list-row { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 13px; }
+  .list-row__key { width: 9em; flex: none; font-weight: 600; }
+  .list-row__value { opacity: 0.75; word-break: break-all; }
+  .dropzone { border: 1px dashed rgba(128,128,128,0.5); border-radius: 6px; padding: 14px; text-align: center; font-size: 13px; cursor: pointer; opacity: 0.85; }
+  .dropzone.is-dragover { background: rgba(128,128,128,0.15); opacity: 1; }
+  .dropzone-info { font-size: 12px; opacity: 0.7; margin-top: 4px; min-height: 1.2em; }
+  .asset-current { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; opacity: 0.85; word-break: break-all; margin-bottom: 6px; }
+  .asset-current button, .file-list button { padding: 1px 8px; font-size: 11px; flex: none; }
+  .status { font-size: 12px; }
+  .status--ok { color: #2a8f4d; }
+  .status--fail { color: #c0392b; }
+  .reminders { font-size: 12px; opacity: 0.85; padding-left: 18px; margin: 6px 0 0; }
+  .drift-banner { border: 1px solid #c0392b; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; }
+  .drift-banner ul { margin: 6px 0 0; padding-left: 18px; }
+  .note { font-size: 12px; opacity: 0.75; }
+  .folder-preview { font-size: 12px; opacity: 0.7; font-family: ui-monospace, monospace; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  th, td { padding: 4px 6px; text-align: left; }
+  td input { width: 100%; }
+  .file-list { list-style: none; padding: 0; font-size: 12px; margin: 4px 0; }
+  .file-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; word-break: break-all; }
+  .file-list li .actions { display: flex; gap: 4px; flex: none; }
+  .fatal { background: #c0392b; color: white; padding: 10px 14px; }
+  footer { margin-top: 32px; font-size: 12px; opacity: 0.6; }
+  code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>JSON tool</h1>
+
+<nav class="tabs">
+  <button type="button" class="tab-btn is-active" data-panel="global">Global</button>
+  <button type="button" class="tab-btn" data-panel="series">Series</button>
+  <button type="button" class="tab-btn" data-panel="products">Products</button>
+</nav>
+
+<div id="driftBanner" hidden></div>
+
+<section id="panel-global" class="panel is-active">
+  <h2>Featured series</h2>
+  <div class="row">
+    <select id="featuredSelect"></select>
+    <button type="button" id="featuredSaveBtn">Save</button>
+    <span class="status" id="featuredStatus"></span>
+  </div>
+
+  <h2>Categories</h2>
+  <div id="categoriesList"></div>
+  <div class="row add-row">
+    <input type="text" id="categoryKeyInput" placeholder="key (e.g. neck)">
+    <input type="text" id="categorySizesInput" placeholder="sizes, comma separated">
+    <input type="text" id="categoryUnitInput" placeholder="unit (e.g. mm)">
+    <button type="button" id="categoryAddBtn">Add category</button>
+    <span class="status" id="categoryStatus"></span>
+  </div>
+
+  <h2>Metals</h2>
+  <div id="metalsChips" class="chips"></div>
+  <div class="row add-row">
+    <input type="text" id="metalInput" placeholder="new metal (e.g. gold)">
+    <button type="button" id="metalAddBtn">Add metal</button>
+  </div>
+  <div class="status" id="metalStatus"></div>
+
+  <h2>HDRIs</h2>
+  <div id="hdrisList"></div>
+  <input type="file" id="hdriReplaceInput" accept=".hdr" hidden>
+  <div class="dropzone" id="hdriDropzone">Drop a .hdr file, or click to browse</div>
+  <input type="file" id="hdriFileInput" accept=".hdr" hidden>
+  <div class="dropzone-info" id="hdriInfo"></div>
+  <div class="row add-row">
+    <input type="text" id="hdriKeyInput" placeholder="key (e.g. white-room)">
+    <button type="button" id="hdriAddBtn" disabled>Add HDRI</button>
+    <span class="status" id="hdriStatus"></span>
+  </div>
+</section>
+
+<section id="panel-series" class="panel">
+  <div class="row">
+    <button type="button" class="series-mode-btn is-active" data-mode="edit">Edit existing</button>
+    <button type="button" class="series-mode-btn" data-mode="add">Add new</button>
+  </div>
+
+  <div class="stack" id="seriesEditPane">
+    <div class="row">
+      <select id="seriesEditSelect"></select>
+    </div>
+    <label>Name <input type="text" id="seriesNameInput"></label>
+    <label>Year <input type="text" id="seriesYearInput"></label>
+    <label>HDRI <select id="seriesHdriSelect"></select></label>
+    <div>Categories<div id="seriesCategoriesChecks" class="chips"></div></div>
+    <div class="row">
+      <button type="button" id="seriesEditSaveBtn">Save</button>
+      <button type="button" id="seriesRemoveBtn" class="btn-danger">Remove series</button>
+      <span class="status" id="seriesEditStatus"></span>
+    </div>
+  </div>
+
+  <div class="stack" id="seriesAddPane" hidden>
+    <label>Slug <input type="text" id="newSeriesSlugInput" placeholder="e.g. flora"></label>
+    <label>Name <input type="text" id="newSeriesNameInput"></label>
+    <label>Year <input type="text" id="newSeriesYearInput"></label>
+    <label>HDRI <select id="newSeriesHdriSelect"></select></label>
+    <div>Categories<div id="newSeriesCategoriesChecks" class="chips"></div></div>
+    <div class="row">
+      <button type="button" id="seriesAddCreateBtn">Create</button>
+      <span class="status" id="seriesAddStatus"></span>
+    </div>
+    <ul class="reminders" id="seriesAddReminders"></ul>
+  </div>
+</section>
+
+<section id="panel-products" class="panel">
+  <div class="row">
+    <button type="button" class="mode-btn is-active" data-mode="edit">Edit existing</button>
+    <button type="button" class="mode-btn" data-mode="add">Add new</button>
+  </div>
+
+  <div class="row">
+    <label>Series <select id="productSeriesSelect"></select></label>
+    <label id="productSelectLabel">Product <select id="productSelect"></select></label>
+  </div>
+
+  <div class="stack">
+    <label>Name <input type="text" id="productNameInput"></label>
+    <label>Category <select id="productCategorySelect"></select></label>
+    <label>Description <textarea id="productDescriptionInput" rows="2"></textarea></label>
+    <label>Default metal <select id="productDefaultMetalSelect"></select></label>
+
+    <div>
+      Per-metal specs
+      <table>
+        <thead><tr><th>Metal</th><th>Price</th><th>Weight</th><th>Composition</th></tr></thead>
+        <tbody id="perMetalSpecsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="row">
+      <label><input type="checkbox" id="heroVisibleInput"> Hero-hand visible</label>
+      <label>x <input type="number" id="heroXInput" step="0.1"></label>
+      <label>y <input type="number" id="heroYInput" step="0.1"></label>
+      <label>scale <input type="number" id="heroScaleInput" step="0.1"></label>
+      <label>rotation <input type="number" id="heroRotationInput" step="1"></label>
+    </div>
+
+    <div class="row">
+      <label>Camera rotation <input type="number" id="camRotationInput" step="1"></label>
+      <label>tilt <input type="number" id="camTiltInput" step="1"></label>
+      <label>zoom <input type="number" id="camZoomInput" step="1"></label>
+    </div>
+
+    <div class="folder-preview" id="folderPreview"></div>
+
+    <h2>Model</h2>
+    <div class="asset-current" id="modelCurrentRow"></div>
+    <div class="dropzone" id="modelDropzone">Drop a .glb/.gltf file, or click to browse</div>
+    <input type="file" id="modelFileInput" accept=".glb,.gltf" hidden>
+    <input type="file" id="modelReplaceInput" accept=".glb,.gltf" hidden>
+    <div class="dropzone-info" id="modelInfo"></div>
+
+    <h2>X-ray</h2>
+    <div class="asset-current" id="xrayCurrentRow"></div>
+    <div class="dropzone" id="xrayDropzone">Drop an image, or click to browse</div>
+    <input type="file" id="xrayFileInput" accept="image/*" hidden>
+    <input type="file" id="xrayReplaceInput" accept="image/*" hidden>
+    <div class="dropzone-info" id="xrayInfo"></div>
+
+    <h2>Photos</h2>
+    <ul class="file-list" id="photosList"></ul>
+    <div class="dropzone" id="photosDropzone">Drop images, or click to browse</div>
+    <input type="file" id="photosFileInput" accept="image/*" multiple hidden>
+    <input type="file" id="photoReplaceInput" accept="image/*" hidden>
+
+    <p class="note">Icons, fallback images, and top shots are generated automatically. Run <code>npm run auto-render</code> after saving to (re)generate them for this product.</p>
+
+    <div class="row">
+      <button type="button" id="productSaveBtn">Save</button>
+      <button type="button" id="productRemoveBtn" class="btn-danger" hidden>Remove product</button>
+      <span class="status" id="productStatus"></span>
+    </div>
+    <ul class="reminders" id="productReminders"></ul>
+  </div>
+</section>
+
+<footer>Camera angle / HDRI live preview lives in <code>npm run scene-tool</code>, not here.</footer>
+
+<script type="module">
+const state = {
+  seriesIndex: null,
+  seriesData: {},
+  driftWarnings: [],
+  hdriDropped: null,
+  products: {
+    mode: "edit",
+    seriesSlug: null,
+    productId: null,
+    dropped: { model: null, xray: null, photos: [] }
+  }
+};
+
+const els = {};
+[
+  "featuredSelect", "featuredSaveBtn", "featuredStatus",
+  "categoriesList", "categoryKeyInput", "categorySizesInput", "categoryUnitInput", "categoryAddBtn", "categoryStatus",
+  "metalsChips", "metalInput", "metalAddBtn", "metalStatus",
+  "hdrisList", "hdriDropzone", "hdriFileInput", "hdriReplaceInput", "hdriInfo", "hdriKeyInput", "hdriAddBtn", "hdriStatus",
+  "seriesEditPane", "seriesAddPane",
+  "seriesEditSelect", "seriesNameInput", "seriesYearInput", "seriesHdriSelect", "seriesCategoriesChecks", "seriesEditSaveBtn", "seriesRemoveBtn", "seriesEditStatus",
+  "newSeriesSlugInput", "newSeriesNameInput", "newSeriesYearInput", "newSeriesHdriSelect", "newSeriesCategoriesChecks", "seriesAddCreateBtn", "seriesAddStatus", "seriesAddReminders",
+  "productSeriesSelect", "productSelectLabel", "productSelect",
+  "productNameInput", "productCategorySelect", "productDescriptionInput", "productDefaultMetalSelect",
+  "perMetalSpecsBody",
+  "heroVisibleInput", "heroXInput", "heroYInput", "heroScaleInput", "heroRotationInput",
+  "camRotationInput", "camTiltInput", "camZoomInput",
+  "folderPreview",
+  "modelCurrentRow", "modelDropzone", "modelFileInput", "modelReplaceInput", "modelInfo",
+  "xrayCurrentRow", "xrayDropzone", "xrayFileInput", "xrayReplaceInput", "xrayInfo",
+  "photosDropzone", "photosFileInput", "photoReplaceInput", "photosList",
+  "productSaveBtn", "productRemoveBtn", "productStatus", "productReminders",
+  "driftBanner"
+].forEach((id) => { els[id] = document.getElementById(id); });
+
+init().catch((err) => {
+  console.error(err);
+  document.body.insertAdjacentHTML("afterbegin", '<div class="fatal">Failed to load: ' + escapeHtml(err.message) + '</div>');
+});
+
+async function init() {
+  wireTabs();
+  wireSeriesModeTabs();
+  wireProductModeTabs();
+  await loadData();
+  wireGlobalPanel();
+  wireSeriesPanel();
+  wireProductsPanel();
+  renderAll();
+}
+
+// ---- fetch/save plumbing ----
+
+function fetchJson(url, options) {
+  return fetch(url, options).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    return data;
+  });
+}
+
+function postJson(url, body) {
+  return fetchJson(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+async function loadData() {
+  const data = await fetchJson("/api/data");
+  state.seriesIndex = data.seriesIndex;
+  state.seriesData = data.seriesData;
+  state.driftWarnings = data.driftWarnings || [];
+}
+
+async function refreshAfterSave() {
+  await loadData();
+  renderAll();
+}
+
+function fileToBase64(file) {
+  return file.arrayBuffer().then((buf) => {
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  });
+}
+
+function setupDropZone(dropzoneEl, inputEl, onFiles) {
+  dropzoneEl.addEventListener("dragover", (e) => { e.preventDefault(); dropzoneEl.classList.add("is-dragover"); });
+  dropzoneEl.addEventListener("dragleave", () => dropzoneEl.classList.remove("is-dragover"));
+  dropzoneEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzoneEl.classList.remove("is-dragover");
+    onFiles(Array.from(e.dataTransfer.files));
+  });
+  dropzoneEl.addEventListener("click", () => inputEl.click());
+  inputEl.addEventListener("change", () => { onFiles(Array.from(inputEl.files)); inputEl.value = ""; });
+}
+
+// ---- small render helpers ----
+
+function escapeHtml(s) {
+  return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function optionHtml(value, label) {
+  return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label) + '</option>';
+}
+
+function checkboxHtml(value, checked) {
+  return '<label class="chip-check"><input type="checkbox" value="' + escapeHtml(value) + '"' + (checked ? " checked" : "") + '> ' + escapeHtml(value) + '</label>';
+}
+
+function setStatus(el, ok, message) {
+  el.textContent = message;
+  el.className = "status " + (ok ? "status--ok" : "status--fail");
+}
+
+function slugify(name) {
+  return String(name).trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+// ---- top-level render ----
+
+function renderAll() {
+  renderDriftBanner();
+  renderGlobalPanel();
+  renderSeriesPanel();
+  renderProductsPanel();
+}
+
+function renderDriftBanner() {
+  if (!state.driftWarnings.length) { els.driftBanner.hidden = true; els.driftBanner.innerHTML = ""; return; }
+  els.driftBanner.hidden = false;
+  els.driftBanner.innerHTML =
+    "<strong>Pre-existing data drift (not blocking):</strong><ul>" +
+    state.driftWarnings.map((w) => "<li>" + escapeHtml(w) + "</li>").join("") +
+    "</ul>";
+}
+
+function wireTabs() {
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("is-active", p.id === "panel-" + btn.dataset.panel));
+    });
+  });
+}
+
+// ============================================================
+// Global panel
+// ============================================================
+
+// Tracks which existing HDRI key a Replace click is for — the picked file
+// always overwrites that key's EXISTING path (its own filename is
+// ignored), same "overwrite in place, no JSON change needed" idea as
+// model/xray replace when the extension already matches.
+let hdriReplaceTargetKey = null;
+
+function wireGlobalPanel() {
+  els.hdriReplaceInput.addEventListener("change", async () => {
+    const file = els.hdriReplaceInput.files[0];
+    els.hdriReplaceInput.value = "";
+    const destPath = hdriReplaceTargetKey && (state.seriesIndex.hdris || {})[hdriReplaceTargetKey];
+    if (!file || !destPath) return;
+    try {
+      const contentBase64 = await fileToBase64(file);
+      await postJson("/api/save-file", { destPath, contentBase64 });
+      setStatus(els.hdriStatus, true, 'Replaced "' + hdriReplaceTargetKey + '".');
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.hdriStatus, false, err.message); }
+  });
+
+  els.featuredSaveBtn.addEventListener("click", async () => {
+    try {
+      await postJson("/api/global/featured", { featured: els.featuredSelect.value });
+      setStatus(els.featuredStatus, true, "Saved.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.featuredStatus, false, err.message); }
+  });
+
+  els.categoryAddBtn.addEventListener("click", async () => {
+    const key = els.categoryKeyInput.value.trim();
+    const sizes = els.categorySizesInput.value.split(",").map((s) => s.trim()).filter(Boolean);
+    const unit = els.categoryUnitInput.value.trim();
+    if (!key) { setStatus(els.categoryStatus, false, "key is required"); return; }
+    try {
+      await postJson("/api/global/category", { mode: "add", key, sizes, unit });
+      els.categoryKeyInput.value = "";
+      els.categorySizesInput.value = "";
+      els.categoryUnitInput.value = "";
+      setStatus(els.categoryStatus, true, "Added.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.categoryStatus, false, err.message); }
+  });
+
+  els.metalAddBtn.addEventListener("click", async () => {
+    const metal = els.metalInput.value.trim();
+    if (!metal) { setStatus(els.metalStatus, false, "metal name is required"); return; }
+    try {
+      const result = await postJson("/api/global/metal", { metal });
+      els.metalInput.value = "";
+      setStatus(els.metalStatus, true, result.reminder || "Added.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.metalStatus, false, err.message); }
+  });
+
+  setupDropZone(els.hdriDropzone, els.hdriFileInput, (files) => {
+    const file = files[0];
+    if (!file) return;
+    state.hdriDropped = file;
+    els.hdriInfo.textContent = "Pending: " + file.name;
+    els.hdriAddBtn.disabled = false;
+    if (!els.hdriKeyInput.value) els.hdriKeyInput.value = file.name.replace(/\.hdr$/i, "");
+  });
+
+  els.hdriAddBtn.addEventListener("click", async () => {
+    const key = els.hdriKeyInput.value.trim();
+    const file = state.hdriDropped;
+    if (!key || !file) { setStatus(els.hdriStatus, false, "drop a .hdr file and enter a key"); return; }
+    try {
+      const contentBase64 = await fileToBase64(file);
+      const destPath = "assets/hdri/" + file.name;
+      await postJson("/api/save-file", { destPath, contentBase64 });
+      await postJson("/api/global/hdri", { mode: "add", key, path: destPath });
+      state.hdriDropped = null;
+      els.hdriKeyInput.value = "";
+      els.hdriInfo.textContent = "";
+      els.hdriAddBtn.disabled = true;
+      setStatus(els.hdriStatus, true, "Added.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.hdriStatus, false, err.message); }
+  });
+}
+
+function renderGlobalPanel() {
+  const si = state.seriesIndex;
+
+  els.featuredSelect.innerHTML = (si.series || []).map((s) => optionHtml(s.slug, s.name)).join("");
+  els.featuredSelect.value = si.featured;
+
+  els.categoriesList.innerHTML = "";
+  Object.keys(si.categories || {}).forEach((key) => {
+    const cat = si.categories[key];
+    const row = document.createElement("div");
+    row.className = "list-row";
+    row.innerHTML =
+      '<span class="list-row__key">' + escapeHtml(key) + "</span>" +
+      '<input type="text" class="cat-sizes" value="' + escapeHtml((cat.sizes || []).join(", ")) + '" placeholder="sizes">' +
+      '<input type="text" class="cat-unit" value="' + escapeHtml(cat.unit || "") + '" placeholder="unit" style="width:5em">' +
+      '<span class="actions"><button type="button" data-act="save">Save</button><button type="button" class="btn-danger" data-act="remove">Remove</button></span>';
+    row.querySelector('[data-act="save"]').addEventListener("click", async () => {
+      const sizes = row.querySelector(".cat-sizes").value.split(",").map((s) => s.trim()).filter(Boolean);
+      const unit = row.querySelector(".cat-unit").value.trim();
+      try {
+        await postJson("/api/global/category", { mode: "edit", key, sizes, unit });
+        setStatus(els.categoryStatus, true, 'Saved "' + key + '".');
+        await refreshAfterSave();
+      } catch (err) { setStatus(els.categoryStatus, false, err.message); }
+    });
+    row.querySelector('[data-act="remove"]').addEventListener("click", async () => {
+      if (!confirm('Remove category "' + key + '"? This cannot be undone.')) return;
+      try {
+        await postJson("/api/global/category", { mode: "remove", key });
+        setStatus(els.categoryStatus, true, 'Removed "' + key + '".');
+        await refreshAfterSave();
+      } catch (err) { setStatus(els.categoryStatus, false, err.message); }
+    });
+    els.categoriesList.appendChild(row);
+  });
+
+  els.metalsChips.innerHTML = "";
+  (si.metals || []).forEach((m) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = escapeHtml(m) + ' <button type="button" class="btn-danger" title="Remove metal">&times;</button>';
+    chip.querySelector("button").addEventListener("click", async () => {
+      if (!confirm('Remove metal "' + m + '"? This strips it from every product\'s specs/assets too. This cannot be undone.')) return;
+      try {
+        const result = await postJson("/api/global/metal", { mode: "remove", metal: m });
+        setStatus(els.metalStatus, true, result.reminder || "Removed.");
+        await refreshAfterSave();
+      } catch (err) { setStatus(els.metalStatus, false, err.message); }
+    });
+    els.metalsChips.appendChild(chip);
+  });
+
+  els.hdrisList.innerHTML = "";
+  Object.keys(si.hdris || {}).forEach((key) => {
+    const row = document.createElement("div");
+    row.className = "list-row";
+    row.innerHTML =
+      '<span class="list-row__key">' + escapeHtml(key) + '</span>' +
+      '<span class="list-row__value">' + escapeHtml(si.hdris[key]) + '</span>' +
+      '<span class="actions"><button type="button" data-act="replace">Replace</button><button type="button" class="btn-danger" data-act="remove">Remove</button></span>';
+    row.querySelector('[data-act="replace"]').addEventListener("click", () => {
+      hdriReplaceTargetKey = key;
+      els.hdriReplaceInput.click();
+    });
+    row.querySelector('[data-act="remove"]').addEventListener("click", async () => {
+      if (!confirm('Remove HDRI "' + key + '"? This deletes the .hdr file too. This cannot be undone.')) return;
+      try {
+        await postJson("/api/global/hdri", { mode: "remove", key });
+        setStatus(els.hdriStatus, true, 'Removed "' + key + '".');
+        await refreshAfterSave();
+      } catch (err) { setStatus(els.hdriStatus, false, err.message); }
+    });
+    els.hdrisList.appendChild(row);
+  });
+}
+
+// ============================================================
+// Series panel
+// ============================================================
+
+function wireSeriesModeTabs() {
+  document.querySelectorAll(".series-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".series-mode-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      els.seriesEditPane.hidden = btn.dataset.mode !== "edit";
+      els.seriesAddPane.hidden = btn.dataset.mode !== "add";
+    });
+  });
+}
+
+function wireSeriesPanel() {
+  els.seriesEditSelect.addEventListener("change", fillSeriesEditForm);
+
+  els.seriesEditSaveBtn.addEventListener("click", async () => {
+    const seriesSlug = els.seriesEditSelect.value;
+    const categories = Array.from(els.seriesCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
+    try {
+      await postJson("/api/series/edit", {
+        seriesSlug,
+        fields: { name: els.seriesNameInput.value, year: els.seriesYearInput.value, hdri: els.seriesHdriSelect.value, categories }
+      });
+      setStatus(els.seriesEditStatus, true, "Saved.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.seriesEditStatus, false, err.message); }
+  });
+
+  els.seriesRemoveBtn.addEventListener("click", async () => {
+    const slugValue = els.seriesEditSelect.value;
+    const entry = (state.seriesIndex.series || []).find((s) => s.slug === slugValue);
+    const label = entry ? entry.name : slugValue;
+    if (!confirm('Remove series "' + label + '"? This deletes ALL of its data, products, and assets. This cannot be undone.')) return;
+    try {
+      await postJson("/api/series/remove", { slug: slugValue });
+      setStatus(els.seriesEditStatus, true, "Removed.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.seriesEditStatus, false, err.message); }
+  });
+
+  els.seriesAddCreateBtn.addEventListener("click", async () => {
+    const categories = Array.from(els.newSeriesCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
+    try {
+      const result = await postJson("/api/series/add", {
+        slug: els.newSeriesSlugInput.value.trim(),
+        name: els.newSeriesNameInput.value.trim(),
+        year: els.newSeriesYearInput.value.trim(),
+        hdri: els.newSeriesHdriSelect.value,
+        categories
+      });
+      setStatus(els.seriesAddStatus, true, "Created.");
+      els.seriesAddReminders.innerHTML = (result.reminders || []).map((r) => "<li>" + escapeHtml(r) + "</li>").join("");
+      els.newSeriesSlugInput.value = "";
+      els.newSeriesNameInput.value = "";
+      els.newSeriesYearInput.value = "";
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.seriesAddStatus, false, err.message); }
+  });
+}
+
+function renderSeriesPanel() {
+  const si = state.seriesIndex;
+  els.seriesEditSelect.innerHTML = (si.series || []).map((s) => optionHtml(s.slug, s.name)).join("");
+  els.seriesHdriSelect.innerHTML = Object.keys(si.hdris || {}).map((k) => optionHtml(k, k)).join("");
+  els.newSeriesHdriSelect.innerHTML = Object.keys(si.hdris || {}).map((k) => optionHtml(k, k)).join("");
+
+  const categoryKeys = Object.keys(si.categories || {});
+  els.newSeriesCategoriesChecks.innerHTML = categoryKeys.map((k) => checkboxHtml(k, false)).join("");
+
+  fillSeriesEditForm();
+}
+
+function fillSeriesEditForm() {
+  const si = state.seriesIndex;
+  const slug = els.seriesEditSelect.value;
+  const entry = (si.series || []).find((s) => s.slug === slug);
+  if (!entry) return;
+  els.seriesNameInput.value = entry.name;
+  els.seriesYearInput.value = entry.year;
+  els.seriesHdriSelect.value = entry.hdri;
+  const categoryKeys = Object.keys(si.categories || {});
+  els.seriesCategoriesChecks.innerHTML = categoryKeys
+    .map((k) => checkboxHtml(k, (entry.categories || []).includes(k)))
+    .join("");
+}
+
+// ============================================================
+// Products panel
+// ============================================================
+
+function wireProductModeTabs() {
+  document.querySelectorAll(".mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".mode-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      state.products.mode = btn.dataset.mode;
+      state.products.productId = null;
+      renderProductsPanel();
+    });
+  });
+}
+
+function wireProductsPanel() {
+  els.productSeriesSelect.addEventListener("change", () => {
+    state.products.seriesSlug = els.productSeriesSelect.value;
+    state.products.productId = null;
+    renderProductsPanel();
+  });
+  els.productSelect.addEventListener("change", () => {
+    state.products.productId = els.productSelect.value;
+    fillProductForm();
+  });
+  els.productNameInput.addEventListener("input", updateFolderPreview);
+  els.productCategorySelect.addEventListener("change", updateFolderPreview);
+
+  setupDropZone(els.modelDropzone, els.modelFileInput, (files) => {
+    if (files[0]) { state.products.dropped.model = files[0]; els.modelInfo.textContent = "Pending: " + files[0].name; }
+  });
+  setupDropZone(els.xrayDropzone, els.xrayFileInput, (files) => {
+    if (files[0]) { state.products.dropped.xray = files[0]; els.xrayInfo.textContent = "Pending: " + files[0].name; }
+  });
+  setupDropZone(els.photosDropzone, els.photosFileInput, (files) => {
+    state.products.dropped.photos.push.apply(state.products.dropped.photos, files);
+    renderPhotosList();
+  });
+
+  // Replace/Remove next to an already-saved model/xray/photo act
+  // immediately (not deferred to the big Save button below) — the
+  // dropzones above only ever handle the "no file saved yet" case (a
+  // fresh Add, or an Edit where that slot is still empty).
+  els.modelReplaceInput.addEventListener("change", () => replaceAssetImmediate("model", els.modelReplaceInput));
+  els.xrayReplaceInput.addEventListener("change", () => replaceAssetImmediate("xray", els.xrayReplaceInput));
+  els.photoReplaceInput.addEventListener("change", async () => {
+    const file = els.photoReplaceInput.files[0];
+    els.photoReplaceInput.value = "";
+    if (!file || !photoReplaceTargetPath) return;
+    try {
+      const contentBase64 = await fileToBase64(file);
+      await postJson("/api/product/replace-photo", {
+        seriesSlug: state.products.seriesSlug,
+        productId: state.products.productId,
+        oldPhotoPath: photoReplaceTargetPath,
+        filename: file.name,
+        contentBase64
+      });
+      setStatus(els.productStatus, true, "Photo replaced.");
+      await refreshAfterSave();
+    } catch (err) { setStatus(els.productStatus, false, err.message); }
+  });
+
+  els.productSaveBtn.addEventListener("click", onProductSave);
+  els.productRemoveBtn.addEventListener("click", removeProduct);
+}
+
+let photoReplaceTargetPath = null;
+
+function triggerPhotoReplace(photoPath) {
+  photoReplaceTargetPath = photoPath;
+  els.photoReplaceInput.click();
+}
+
+async function replaceAssetImmediate(assetKey, inputEl) {
+  const file = inputEl.files[0];
+  inputEl.value = "";
+  if (!file) return;
+  try {
+    const contentBase64 = await fileToBase64(file);
+    await postJson("/api/product/replace-asset", {
+      seriesSlug: state.products.seriesSlug,
+      productId: state.products.productId,
+      assetKey,
+      filename: file.name,
+      contentBase64
+    });
+    setStatus(els.productStatus, true, (assetKey === "model" ? "Model" : "X-ray") + " replaced.");
+    await refreshAfterSave();
+  } catch (err) { setStatus(els.productStatus, false, err.message); }
+}
+
+async function removeAsset(assetKey, label) {
+  if (!confirm("Remove the " + label + "? This cannot be undone.")) return;
+  try {
+    await postJson("/api/product/remove-asset", {
+      seriesSlug: state.products.seriesSlug,
+      productId: state.products.productId,
+      assetKey
+    });
+    setStatus(els.productStatus, true, "Removed.");
+    await refreshAfterSave();
+  } catch (err) { setStatus(els.productStatus, false, err.message); }
+}
+
+async function removePhoto(photoPath) {
+  if (!confirm("Remove this photo? This cannot be undone.")) return;
+  try {
+    await postJson("/api/product/remove-photo", {
+      seriesSlug: state.products.seriesSlug,
+      productId: state.products.productId,
+      photoPath
+    });
+    setStatus(els.productStatus, true, "Removed.");
+    await refreshAfterSave();
+  } catch (err) { setStatus(els.productStatus, false, err.message); }
+}
+
+async function removeProduct() {
+  const product = currentProduct();
+  if (!product) return;
+  if (!confirm('Remove product "' + product.name + '"? This deletes its asset folder too. This cannot be undone.')) return;
+  try {
+    await postJson("/api/product/remove", {
+      seriesSlug: state.products.seriesSlug,
+      productId: state.products.productId
+    });
+    setStatus(els.productStatus, true, "Removed.");
+    state.products.productId = null;
+    await refreshAfterSave();
+  } catch (err) { setStatus(els.productStatus, false, err.message); }
+}
+
+// Only shown next to an already-saved file (Edit mode with that slot
+// filled) — Add mode, or an Edit slot that's still empty, shows the plain
+// dropzone instead (see fillProductForm).
+function renderModelSection(product) {
+  const hasModel = !!(product && product.assets && product.assets.model);
+  els.modelDropzone.hidden = hasModel;
+  if (!hasModel) { els.modelCurrentRow.innerHTML = ""; return; }
+  els.modelCurrentRow.innerHTML =
+    "Current: " + escapeHtml(product.assets.model) +
+    ' <span class="actions"><button type="button" data-act="replace">Replace</button><button type="button" data-act="remove">Remove</button></span>';
+  els.modelCurrentRow.querySelector('[data-act="replace"]').addEventListener("click", () => els.modelReplaceInput.click());
+  els.modelCurrentRow.querySelector('[data-act="remove"]').addEventListener("click", () => removeAsset("model", "model"));
+}
+
+function renderXraySection(product) {
+  const hasXray = !!(product && product.assets && product.assets.xray);
+  els.xrayDropzone.hidden = hasXray;
+  if (!hasXray) { els.xrayCurrentRow.innerHTML = ""; return; }
+  els.xrayCurrentRow.innerHTML =
+    "Current: " + escapeHtml(product.assets.xray) +
+    ' <span class="actions"><button type="button" data-act="replace">Replace</button><button type="button" data-act="remove">Remove</button></span>';
+  els.xrayCurrentRow.querySelector('[data-act="replace"]').addEventListener("click", () => els.xrayReplaceInput.click());
+  els.xrayCurrentRow.querySelector('[data-act="remove"]').addEventListener("click", () => removeAsset("xray", "x-ray"));
+}
+
+function currentSeriesEntry() {
+  return (state.seriesIndex.series || []).find((s) => s.slug === state.products.seriesSlug) || null;
+}
+
+function currentProductsData() {
+  const sd = state.seriesData[state.products.seriesSlug];
+  return sd ? sd.products : null;
+}
+
+function currentProduct() {
+  const pd = currentProductsData();
+  if (!pd) return null;
+  return (pd.products || []).find((p) => String(p.id) === String(state.products.productId)) || null;
+}
+
+function resetDroppedFiles() {
+  state.products.dropped = { model: null, xray: null, photos: [] };
+  els.modelInfo.textContent = "";
+  els.xrayInfo.textContent = "";
+}
+
+function renderProductsPanel() {
+  const si = state.seriesIndex;
+  const firstSlug = (si.series && si.series[0] && si.series[0].slug) || null;
+  if (!state.products.seriesSlug) state.products.seriesSlug = firstSlug;
+
+  els.productSeriesSelect.innerHTML = (si.series || []).map((s) => optionHtml(s.slug, s.name)).join("");
+  els.productSeriesSelect.value = state.products.seriesSlug;
+
+  const isEdit = state.products.mode === "edit";
+  els.productSelectLabel.hidden = !isEdit;
+  els.productRemoveBtn.hidden = !isEdit;
+
+  const pd = currentProductsData();
+  if (isEdit) {
+    const products = (pd && pd.products) || [];
+    els.productSelect.innerHTML = products.map((p) => optionHtml(p.id, p.name)).join("");
+    if (!state.products.productId && products.length) state.products.productId = products[0].id;
+    els.productSelect.value = state.products.productId;
+  }
+
+  const entry = currentSeriesEntry();
+  const categoryKeys = (entry && entry.categories) || [];
+  els.productCategorySelect.innerHTML = categoryKeys.map((k) => optionHtml(k, k)).join("");
+  els.productDefaultMetalSelect.innerHTML = (si.metals || []).map((m) => optionHtml(m, m)).join("");
+
+  fillProductForm();
+}
+
+function fillProductForm() {
+  const si = state.seriesIndex;
+  const isEdit = state.products.mode === "edit";
+  const product = isEdit ? currentProduct() : null;
+
+  els.productNameInput.value = product ? product.name : "";
+  els.productCategorySelect.value = product
+    ? product.category
+    : (els.productCategorySelect.options[0] && els.productCategorySelect.options[0].value) || "";
+  els.productDescriptionInput.value = product ? product.description : "";
+  els.productDefaultMetalSelect.value = product ? product["default-metal"] : (si.metals || [])[0] || "";
+
+  const specs = (product && product["per-metal-specs"]) || {};
+  els.perMetalSpecsBody.innerHTML = (si.metals || []).map((m) => {
+    const s = specs[m] || { price: 0, weight: "", composition: "" };
+    return (
+      '<tr data-metal="' + escapeHtml(m) + '">' +
+      "<td>" + escapeHtml(m) + "</td>" +
+      '<td><input type="number" class="spec-price" value="' + (s.price || 0) + '"></td>' +
+      '<td><input type="text" class="spec-weight" value="' + escapeHtml(s.weight || "") + '"></td>' +
+      '<td><input type="text" class="spec-composition" value="' + escapeHtml(s.composition || "") + '"></td>' +
+      "</tr>"
+    );
+  }).join("");
+
+  const hhv = (product && product["hero-hand-visibility"]) || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 };
+  els.heroVisibleInput.checked = !!hhv.visible;
+  els.heroXInput.value = hhv.x;
+  els.heroYInput.value = hhv.y;
+  els.heroScaleInput.value = hhv.scale;
+  els.heroRotationInput.value = hhv.rotation;
+
+  const cam = (product && product["3d-viewer-camera-default"]) || { rotation: 0, tilt: 75, zoom: 105 };
+  els.camRotationInput.value = cam.rotation;
+  els.camTiltInput.value = cam.tilt;
+  els.camZoomInput.value = cam.zoom;
+
+  resetDroppedFiles();
+  renderModelSection(product);
+  renderXraySection(product);
+  renderPhotosList(product);
+  updateFolderPreview();
+  els.productReminders.innerHTML = "";
+  els.productStatus.textContent = "";
+}
+
+function renderPhotosList(productArg) {
+  const product = productArg !== undefined ? productArg : (state.products.mode === "edit" ? currentProduct() : null);
+  const existing = (product && product.assets && product.assets.photos) || [];
+  els.photosList.innerHTML = "";
+
+  existing.forEach((p) => {
+    const li = document.createElement("li");
+    li.innerHTML =
+      "<span>" + escapeHtml(p) + "</span>" +
+      '<span class="actions"><button type="button" data-act="replace">Replace</button><button type="button" data-act="remove">Remove</button></span>';
+    li.querySelector('[data-act="replace"]').addEventListener("click", () => triggerPhotoReplace(p));
+    li.querySelector('[data-act="remove"]').addEventListener("click", () => removePhoto(p));
+    els.photosList.appendChild(li);
+  });
+
+  state.products.dropped.photos.forEach((f, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = "<span>Pending: " + escapeHtml(f.name) + '</span><span class="actions"></span>';
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      state.products.dropped.photos.splice(i, 1);
+      renderPhotosList(product);
+    });
+    li.querySelector(".actions").appendChild(removeBtn);
+    els.photosList.appendChild(li);
+  });
+}
+
+function updateFolderPreview() {
+  const name = els.productNameInput.value.trim();
+  const category = els.productCategorySelect.value;
+  if (!name || !category) { els.folderPreview.textContent = ""; return; }
+  const folder = "assets/series/" + state.products.seriesSlug + "/products/" + slugify(name) + "_" + category + "/";
+  const product = state.products.mode === "edit" ? currentProduct() : null;
+  const currentFolder = product
+    ? "assets/series/" + state.products.seriesSlug + "/products/" + slugify(product.name) + "_" + product.category + "/"
+    : null;
+  els.folderPreview.textContent = currentFolder && currentFolder !== folder
+    ? "Will move from " + currentFolder + " to " + folder
+    : "Saves to: " + folder;
+}
+
+async function onProductSave() {
+  const name = els.productNameInput.value.trim();
+  const category = els.productCategorySelect.value;
+  if (!name || !category) { setStatus(els.productStatus, false, "name and category are required"); return; }
+
+  const perMetalSpecs = {};
+  els.perMetalSpecsBody.querySelectorAll("tr").forEach((row) => {
+    perMetalSpecs[row.dataset.metal] = {
+      price: parseFloat(row.querySelector(".spec-price").value) || 0,
+      weight: row.querySelector(".spec-weight").value,
+      composition: row.querySelector(".spec-composition").value
+    };
+  });
+
+  const heroHandVisibility = {
+    visible: els.heroVisibleInput.checked,
+    x: parseFloat(els.heroXInput.value) || 0,
+    y: parseFloat(els.heroYInput.value) || 0,
+    scale: parseFloat(els.heroScaleInput.value) || 0,
+    rotation: parseFloat(els.heroRotationInput.value) || 0
+  };
+  const cameraDefault = {
+    rotation: parseFloat(els.camRotationInput.value) || 0,
+    tilt: parseFloat(els.camTiltInput.value) || 0,
+    zoom: parseFloat(els.camZoomInput.value) || 0
+  };
+  const description = els.productDescriptionInput.value;
+  const defaultMetal = els.productDefaultMetalSelect.value;
+
+  const payload = {
+    seriesSlug: state.products.seriesSlug,
+    name, category, description, defaultMetal,
+    perMetalSpecs, heroHandVisibility, cameraDefault
+  };
+
+  try {
+    if (state.products.dropped.model) {
+      payload.modelFile = { filename: state.products.dropped.model.name, contentBase64: await fileToBase64(state.products.dropped.model) };
+    }
+    if (state.products.dropped.xray) {
+      payload.xrayFile = { filename: state.products.dropped.xray.name, contentBase64: await fileToBase64(state.products.dropped.xray) };
+    }
+    if (state.products.dropped.photos.length) {
+      payload.photoFiles = await Promise.all(
+        state.products.dropped.photos.map(async (f) => ({ filename: f.name, contentBase64: await fileToBase64(f) }))
+      );
+    }
+
+    let result;
+    if (state.products.mode === "edit") {
+      payload.productId = state.products.productId;
+      payload.fields = { name, category, description, defaultMetal, perMetalSpecs, heroHandVisibility, cameraDefault };
+      result = await postJson("/api/product/edit", payload);
+    } else {
+      result = await postJson("/api/product/add", payload);
+    }
+
+    setStatus(els.productStatus, true, "Saved.");
+    const reminders = [];
+    if (result.reminder) reminders.push(result.reminder);
+    if (result.warnings) reminders.push.apply(reminders, result.warnings);
+    els.productReminders.innerHTML = reminders.map((r) => "<li>" + escapeHtml(r) + "</li>").join("");
+
+    if (state.products.mode === "add" && result.id) {
+      state.products.mode = "edit";
+      state.products.productId = result.id;
+      document.querySelectorAll(".mode-btn").forEach((b) => b.classList.toggle("is-active", b.dataset.mode === "edit"));
+    }
+    await refreshAfterSave();
+  } catch (err) {
+    setStatus(els.productStatus, false, err.message);
+  }
+}
+</script>
+</body>
+</html>
