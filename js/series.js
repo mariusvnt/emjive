@@ -54,6 +54,24 @@
     return null;
   }
 
+  // Resolves a series' "hdri" key against the top-level "hdris" map into an
+  // actual asset path, for js/three-viewer.js's loadEnvironment() —
+  // js/main.js/js/product.js pass the result as options.hdri when building a
+  // viewer. Returns null (rather than falling back to a hardcoded default
+  // itself) on anything unresolved, so js/three-viewer.js's own
+  // DEFAULT_HDRI_SRC stays the single fallback of last resort.
+  function hdriPath(slug) {
+    var entry = get(slug);
+    var key = entry && entry.hdri;
+    if (!key) return null;
+    var all = (index && index.hdris) || {};
+    if (!all[key]) {
+      console.warn("Unknown hdri: " + key);
+      return null;
+    }
+    return all[key];
+  }
+
   function fetchJson(path) {
     return fetch(path).then(function (res) {
       if (!res.ok) throw new Error("Could not load " + path);
@@ -261,6 +279,7 @@
 
     window.EmjiveSeries.index = index;
     window.EmjiveSeries.metals = index.metals || [];
+    window.EmjiveSeries.hdris = index.hdris || {};
     window.EmjiveSeries.slug = activeSlug;
     window.EmjiveSeries.series = activeSeries;
 
@@ -286,6 +305,7 @@
 
     index: null,
     metals: [],
+    hdris: {},
     slug: null,
     series: null,
 
@@ -302,6 +322,8 @@
       var all = (index && index.categories) || {};
       return all[id] || { sizes: [], unit: "" };
     },
+
+    hdriPath: hdriPath,
 
     all: function () { return (index && index.series) || []; },
     get: get,

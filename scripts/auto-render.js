@@ -199,13 +199,14 @@ const HARNESS_HTML = `<!doctype html>
     return wrap;
   }
 
-  window.__renderTarget = function (product, metalKey, sizePx) {
+  window.__renderTarget = function (product, metalKey, sizePx, hdriRelPath) {
     window.__renderReady = false;
     disposeCurrentHandle();
     var wrap = mountTargetWrap(sizePx);
     var handle = window.EmjiveModelViewer(product, metalKey, {
       transparentBackground: true,
       static: true,
+      hdri: hdriRelPath,
       onReady: function () {
         // Two rAFs: one to let the just-framed camera actually paint, one
         // more so it's that settled frame (not a stale one) that gets
@@ -343,7 +344,7 @@ const HARNESS_HTML = `<!doctype html>
   // deliberately diverges on exactly two things: camera angle (straight
   // down) and the added soft contact shadow below, so "light from above"
   // actually reads in a still image.
-  window.__renderTopShot = function (product, metalKey, sizePx) {
+  window.__renderTopShot = function (product, metalKey, sizePx, hdriRelPath) {
     window.__renderReady = false;
     disposeCurrentHandle();
     var wrap = mountTargetWrap(sizePx);
@@ -357,11 +358,12 @@ const HARNESS_HTML = `<!doctype html>
     var handle = window.EmjiveModelViewer(product, metalKey, {
       transparentBackground: true,
       static: true,
+      hdri: hdriRelPath,
       onReady: function () {
-        // handle.scene.environment is already the studio HDRI here —
-        // window.EmjiveModelViewer sets it itself before onReady fires
-        // (see js/three-viewer.js's environmentPromise), so no override
-        // needed.
+        // handle.scene.environment is already whichever HDRI this series
+        // resolved to here — window.EmjiveModelViewer sets it itself
+        // before onReady fires (see js/three-viewer.js's
+        // environmentPromise), so no override needed.
         // Measured before anything else is added to the scene — both
         // addFingerOccluder and addShadowPlane need the model's own
         // bounding box, not one inflated by each other.
@@ -481,9 +483,9 @@ function startServer() {
   });
 }
 
-async function captureTarget(page, cssSizePx, product, metalKey) {
+async function captureTarget(page, cssSizePx, product, metalKey, hdriRelPath) {
   await page.setViewport({ width: cssSizePx, height: cssSizePx, deviceScaleFactor: CAPTURE_SCALE });
-  await page.evaluate((p, m, s) => window.__renderTarget(p, m, s), product, metalKey, cssSizePx);
+  await page.evaluate((p, m, s, h) => window.__renderTarget(p, m, s, h), product, metalKey, cssSizePx, hdriRelPath);
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
   const handle = await page.$("#target");
   return handle.screenshot({ omitBackground: true });
@@ -530,22 +532,22 @@ function normalizeIconFraming(sharpPipeline, sizePx) {
 // through normalizeIconFraming for the icon, which every other UI spot
 // (label chips, cart line items, model-less fallback slides) wants as a
 // tightly-cropped, re-centered thumbnail instead.
-async function renderIconAndFallback(page, product, metalKey, fallbackOutPath, iconOutPath) {
-  const buffer = await captureTarget(page, ICON_SIZE, product, metalKey);
+async function renderIconAndFallback(page, product, metalKey, fallbackOutPath, iconOutPath, hdriRelPath) {
+  const buffer = await captureTarget(page, ICON_SIZE, product, metalKey, hdriRelPath);
   await writeWebp(sharp(buffer).resize(FALLBACK_IMG_SIZE, FALLBACK_IMG_SIZE), fallbackOutPath);
   await writeWebp(normalizeIconFraming(sharp(buffer), ICON_SIZE), iconOutPath);
 }
 
-async function captureTopShotTarget(page, cssSizePx, product, metalKey) {
+async function captureTopShotTarget(page, cssSizePx, product, metalKey, hdriRelPath) {
   await page.setViewport({ width: cssSizePx, height: cssSizePx, deviceScaleFactor: CAPTURE_SCALE });
-  await page.evaluate((p, m, s) => window.__renderTopShot(p, m, s), product, metalKey, cssSizePx);
+  await page.evaluate((p, m, s, h) => window.__renderTopShot(p, m, s, h), product, metalKey, cssSizePx, hdriRelPath);
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
   const handle = await page.$("#target");
   return handle.screenshot({ omitBackground: true });
 }
 
-async function renderTopShot(page, product, metalKey, outPath) {
-  const buffer = await captureTopShotTarget(page, TOP_SHOT_SIZE, product, metalKey);
+async function renderTopShot(page, product, metalKey, outPath, hdriRelPath) {
+  const buffer = await captureTopShotTarget(page, TOP_SHOT_SIZE, product, metalKey, hdriRelPath);
   await writeWebp(sharp(buffer).resize(TOP_SHOT_SIZE, TOP_SHOT_SIZE), outPath);
 }
 
@@ -643,6 +645,21 @@ function warnCategoryDrift(seriesIndex, targets) {
   }
 }
 
+// Same "warn but don't crash on data-integrity drift" shape as
+// warnCategoryDrift above — checks every series regardless of --series, not
+// just the ones this run is actually rendering.
+function warnHdriDrift(seriesIndex) {
+  const vocabulary = Object.keys(seriesIndex.hdris || {});
+  for (const entry of seriesIndex.series) {
+    if (!entry.hdri || !vocabulary.includes(entry.hdri)) {
+      console.warn(
+        "  warning: series \"" + entry.slug + "\" declares hdri \"" + entry.hdri +
+        "\" which isn't in data/series.json's top-level \"hdris\""
+      );
+    }
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
@@ -650,6 +667,7 @@ async function main() {
 
   const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
   const allMetals = seriesIndex.metals || [];
+  const allHdris = seriesIndex.hdris || {};
   const metals = requestedMetals.length ? requestedMetals : allMetals;
 
   const unknown = metals.filter((m) => !allMetals.includes(m));
@@ -673,12 +691,13 @@ async function main() {
   const targets = selected.map((s) => {
     const absPath = path.join(ROOT, s.products);
     const raw = fs.readFileSync(absPath, "utf8");
-    return { slug: s.slug, absPath, raw, text: raw, data: JSON.parse(raw) };
+    return { slug: s.slug, absPath, raw, text: raw, data: JSON.parse(raw), hdri: allHdris[s.hdri] };
   });
 
   console.log("auto-render — metal(s): " + metals.join(", ") +
     " — series: " + targets.map((t) => t.slug).join(", "));
   warnCategoryDrift(seriesIndex, targets);
+  warnHdriDrift(seriesIndex);
 
   const chromePath = findChrome();
   const server = await startServer();
@@ -753,7 +772,7 @@ async function main() {
 
           console.log("  fallback-img: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + fallbackRelPath);
           console.log("  icon: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + relOutPath);
-          await renderIconAndFallback(page, product, metal, fallbackAbsPath, absOutPath);
+          await renderIconAndFallback(page, product, metal, fallbackAbsPath, absOutPath, target.hdri);
 
           const oldFallbackRelPath = product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metal];
           if (oldFallbackRelPath !== fallbackRelPath) {
@@ -793,7 +812,7 @@ async function main() {
           const topShotAbsPath = path.join(ROOT, topShotRelPath);
 
           console.log("  top shot: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + topShotRelPath);
-          await renderTopShot(page, product, metal, topShotAbsPath);
+          await renderTopShot(page, product, metal, topShotAbsPath, target.hdri);
 
           const oldTopShotRelPath = product.assets && product.assets["top-shot"] && product.assets["top-shot"][metal];
           if (oldTopShotRelPath !== topShotRelPath) {

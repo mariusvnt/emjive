@@ -32,7 +32,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 (function () {
   "use strict";
 
-  var HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
+  // Fallback only, now — the real per-call choice is data/series.json's
+  // top-level "hdris" map, resolved by the caller (js/main.js, js/product.js,
+  // or scripts/auto-render.js) and passed in as options.hdri, exactly like
+  // metalKey already is. Used whenever a caller omits options.hdri (this
+  // module is deliberately series-unaware, and auto-render.js's headless
+  // harness never loads js/series.js at all, so it can't be resolved here).
+  var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -122,8 +128,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   }
 
   // ---- HDRI environment, loaded fresh for every viewer instance. NOT
-  // cached/shared across instances despite each one using the exact same
-  // source file: a PMREMGenerator's output texture is a GPU resource tied
+  // cached/shared across instances despite two instances often using the
+  // same source file (any two viewers showing series that picked the same
+  // hdris key): a PMREMGenerator's output texture is a GPU resource tied
   // to the specific WebGLRenderer/context that built it, and every
   // buildThreeViewer() call constructs its own renderer. A cross-instance
   // cache (an earlier version of this file had one, keyed only on the
@@ -141,12 +148,17 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // the HDRI and run PMREM generation — a modest, one-time-per-instance
   // cost (not a per-frame one), and normal HTTP caching keeps the repeat
   // fetches of the same file cheap after the first.
-  function loadEnvironment(renderer) {
+  //
+  // hdriSrc is the caller-resolved path (data/series.json's "hdris" map,
+  // looked up via that series' "hdri" key — see js/series.js's hdriPath()),
+  // falling back to DEFAULT_HDRI_SRC when omitted or unresolved.
+  function loadEnvironment(renderer, hdriSrc) {
+    var src = hdriSrc || DEFAULT_HDRI_SRC;
     var pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
     return new Promise(function (resolve, reject) {
       new HDRLoader().load(
-        HDRI_SRC,
+        src,
         function (hdrTexture) {
           var envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
           hdrTexture.dispose();
@@ -164,7 +176,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // already gets.
         function (err) {
           pmremGenerator.dispose();
-          console.error("emjive: failed to load HDRI environment", HDRI_SRC, err);
+          console.error("emjive: failed to load HDRI environment", src, err);
           reject(err);
         }
       );
@@ -321,7 +333,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // otherwise the first frame (the one the render harness screenshots)
     // could get captured before the environment texture has actually
     // landed on the scene, rendering flat black.
-    var environmentPromise = loadEnvironment(renderer).then(function (envMap) {
+    var environmentPromise = loadEnvironment(renderer, options.hdri).then(function (envMap) {
       scene.environment = envMap;
     });
 
@@ -795,7 +807,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     camera.position.set(0, 0, distance);
     camera.lookAt(0, 0, 0);
 
-    var environmentPromise = loadEnvironment(renderer).then(function (envMap) {
+    var environmentPromise = loadEnvironment(renderer, options.hdri).then(function (envMap) {
       scene.environment = envMap;
     });
 

@@ -9,6 +9,11 @@
     "wrist": { "sizes": [], "unit": "" }
   },
 
+  "hdris": {
+    "studio":         "assets/hdri/studio_kontrast_04_1k.hdr",
+    "blue-pure-sky":  "assets/hdri/autumn_field_puresky_1k.hdr"
+  },
+
   "series": [
     {
       "slug": "bones",
@@ -16,6 +21,7 @@
       "year": "2026",
       "categories": ["ring"],
       "products": "data/series/bones/products.json",
+      "hdri": "studio",
       "manifest": "data/series/bones/manifest.json",
       "hero": {
         "fragment": "series/bones/hero.html",

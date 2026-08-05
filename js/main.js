@@ -230,7 +230,9 @@
     // with no "assets.model" field at all uses, rather than leaving the
     // card blank.
     var gridIcon = product.assets && product.assets.icons && product.assets.icons[product["default-metal"]];
-    var modelHandle = (product.assets && product.assets.model) ? window.EmjiveModelViewer(product, product["default-metal"]) : null;
+    var modelHandle = (product.assets && product.assets.model)
+      ? window.EmjiveModelViewer(product, product["default-metal"], { hdri: window.EmjiveSeries.hdriPath(activeSlug) })
+      : null;
     if (modelHandle) {
       wireModelClickNavigation(modelHandle.el, href);
       figure.appendChild(modelHandle.el);

@@ -181,7 +181,9 @@
     // context (see its own comment) — falls through to the same icon
     // fallback branch a product with no "assets.model" field at all uses,
     // rather than leaving the carousel empty.
-    state.modelHandle = (product.assets && product.assets.model) ? window.EmjiveModelViewer(product, state.selectedMetal) : null;
+    state.modelHandle = (product.assets && product.assets.model)
+      ? window.EmjiveModelViewer(product, state.selectedMetal, { hdri: window.EmjiveSeries.hdriPath(state.seriesSlug) })
+      : null;
     if (state.modelHandle) {
       // Smaller than the photo slides on purpose — leaves generous empty
       // space around the model to drag/swipe the carousel from without
