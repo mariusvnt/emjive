@@ -97,6 +97,7 @@ series/<slug>/                                  One series' hero bundle (html/cs
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/shader tuning (npm run scene-tool)
+json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)
 ```
 
 ## Where to go next

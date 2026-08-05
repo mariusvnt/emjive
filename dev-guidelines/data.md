@@ -70,7 +70,7 @@ Verified directly against the file: Foramen, Disc, and Marrow have no `assets.ph
 
 ## How it's written
 
-By hand for most fields, or patched by `scripts/auto-render.js` for `assets.icons`/`assets.fallback-img`/`assets.top-shot` specifically — via regex text-surgery on the raw file text, not `JSON.stringify` (see `tooling.md` for why: it preserves the hand-aligned column formatting, which a full re-serialize would flatten). **Don't run a formatter/prettify pass on these files** — they'll survive structurally but lose that alignment.
+Directly in a text editor, via `npm run json-tool` (`http://localhost:5201/` — a form covering global parameters plus adding/editing/removing a series or product, see `tooling.md`), or patched by `scripts/auto-render.js` for `assets.icons`/`assets.fallback-img`/`assets.top-shot` specifically. All three ultimately produce the same text-surgery shape rather than a `JSON.stringify` round-trip (see `tooling.md` for why: it preserves the hand-aligned column formatting, which a full re-serialize would flatten) — `json-tool` regenerates a whole product/series block on any edit (canonical spacing, not necessarily byte-identical to what was there), but never touches a field it wasn't given, and never `assets.icons`/`assets.fallback-img`/`assets.top-shot` under any circumstance. **Don't run a formatter/prettify pass on these files** — they'll survive structurally but lose that alignment.
 
 ## Pointers
 

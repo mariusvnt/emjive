@@ -13,6 +13,14 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
 
 ## Adding a product
 
+**`npm run json-tool` (open `http://localhost:5201/`) does steps 1, 2, and 4
+below for you** — a form with drag-and-drop for the model/x-ray/photos,
+computing the folder/filename convention itself rather than asking you to
+get it right by hand. It deliberately leaves icons/fallback-img/top-shot
+alone (step 3 stays a separate `npm run auto-render` run, see below) — see
+`tooling.md` for the tool's own architecture. The steps below are what it's
+doing under the hood, and still the way to do this by hand if you'd rather.
+
 Products belong to a series. Everything below assumes you're adding to an
 existing one — `bones` is the only one so far. To start a *new* series, see
 "Adding a series" further down first.
@@ -146,6 +154,10 @@ custom-size field available.
 
 ## Adding a category
 
+**`npm run json-tool`'s Global tab does both steps below**, plus lets you
+edit an existing category's sizes/unit or remove one outright (blocked if
+any series/product still declares it — see "Removing things" further down).
+
 1. Add it to `data/series.json`'s **global** `"categories"` map, with its
    `sizes` and `unit` (both can start empty — see just above for what that
    does to the Select button).
@@ -162,6 +174,14 @@ the full label + list until a series' array has at least two entries — see
 "Header rubrics" above; it only fully hides for a series with none at all.
 
 ## Adding a series
+
+**`npm run json-tool`'s Series tab → "Add new" does steps 1–4 below** —
+scaffolds both JSON files, copies `series/bones/`'s hero bundle verbatim,
+and creates the empty asset folders, then appends the `data/series.json`
+entry. It can't do step 2's actual point, though (the hero bundle is
+copied as a *starting point*, not written for you — real hero art/copy
+still needs hand-authoring after), and setting `"featured"` (step 5) is a
+separate Global-tab action there, same as by hand.
 
 1. Create `data/series/<slug>/products.json` — `{ "series": "<slug>",
    "products": [] }` — and `data/series/<slug>/manifest.json` (see `data.md`
@@ -236,6 +256,14 @@ into that series' entry. The swatch renderer (metal-sample bars) has its
 own, separate `"swatch-hdri"` choice — see "Re-rendering icons and metal
 swatches" below.
 
+**Adding a brand-new `hdris` key** (rather than picking an existing one)
+isn't something `scene-tool.html` does — it only ever picks from the
+existing map. `npm run json-tool`'s Global tab is what does this: drop the
+`.hdr` file, type a key, Add. The same tab also has a Replace (drop a new
+file, overwrites the existing path in place — no JSON change needed) and
+Remove (deletes the mapping and the file, blocked if any series' `hdri` or
+the top-level `swatch-hdri` still points at it) for an existing key.
+
 ### Choosing a product's metal
 
 Add `"default-metal"` to a product entry to pick which PBR material preset the
@@ -259,6 +287,15 @@ entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
 metal swatches" just below for how those are made) — and add a
 `per-metal-specs` entry for it on every product, since the Characteristics
 section looks values up by metal name.
+
+`npm run json-tool`'s Global tab handles the first of those three places —
+add (or remove) a metal there and it only ever touches the `"metals"`
+list, showing an on-screen reminder about the other two, which still need
+doing by hand exactly as described above. Removing a metal there is more
+thorough than the JSON-only add: it's blocked if any product still uses it
+as `default-metal`, and otherwise cascades through every product in every
+series, dropping that metal's key from `per-metal-specs`/`icons`/
+`fallback-img`/`top-shot` wherever it appears — see `tooling.md`.
 
 To **tune an existing metal's values** (rather than add a new one),
 `scene-tool.html` previews the change live before you commit to it: pick
@@ -393,6 +430,36 @@ list, if none are given), across every series (or just one, with
 All three are captured at 2x the final pixel size and downscaled with
 `sharp` — real GPU MSAA already handles edge antialiasing, this step is
 just for retina-sharp source pixels before the final resize.
+
+## Removing a product, series, category, metal, or HDRI
+
+No manual procedure was ever documented for this — the reliable way is
+`npm run json-tool`, and each Remove button sits behind a confirm popup
+plus, where relevant, a check that blocks the removal outright rather than
+leaving the catalog in a broken state:
+
+- **Product** — deletes its whole asset folder (model, x-ray, photos, and
+  anything `auto-render` already generated there) and its entry in that
+  series' `products.json`. Nothing else points at a single product, so
+  there's no blocking check beyond it existing.
+- **Series** — deletes `data/series/<slug>/`, `series/<slug>/`, and
+  `assets/series/<slug>/` (every one of its products' assets included)
+  plus its entry in `data/series.json`. Blocked if it's the current
+  `"featured"` series (change Featured to another one first) or the last
+  series left.
+- **Category** — blocked if any series still declares it or any product
+  still uses it.
+- **Metal** — blocked if any product still has it as `default-metal`, or
+  if it's the last metal left. Otherwise cascades through every product in
+  every series (see "Choosing a product's metal" above).
+- **HDRI** — deletes the `.hdr` file too. Blocked if any series' `hdri` or
+  the top-level `swatch-hdri` still points at it.
+
+Doing any of these by hand instead means finding and deleting the right
+folder(s) *and* the right JSON entry *and* checking nothing else in the
+catalog still references it yourself — exactly the failure mode the tool
+exists to close off. See `tooling.md` for how the blocking checks/cascade
+are implemented.
 
 ## Header rubrics (nav vs. informative)
 
