@@ -190,53 +190,34 @@
     return node;
   }
 
-  // A real click (near-zero pointer movement between down and up) opens
-  // href; a drag past DRAG_THRESHOLD is left alone since that's the
-  // viewer's own TrackballControls rotating the model (js/three-viewer.js).
-  // Distance-based rather than a plain "click" listener because a click
-  // still fires at the end of a rotate-drag as long as the pointer lifts
-  // over the same element, which would otherwise navigate away every time
-  // someone just wanted to spin the model.
-  function wireModelClickNavigation(mv, href) {
-    var DRAG_THRESHOLD = 6;
-    var startX = 0;
-    var startY = 0;
-
-    mv.addEventListener("pointerdown", function (e) {
-      startX = e.clientX;
-      startY = e.clientY;
-    });
-
-    mv.addEventListener("pointerup", function (e) {
-      var dx = e.clientX - startX;
-      var dy = e.clientY - startY;
-      if (Math.sqrt(dx * dx + dy * dy) <= DRAG_THRESHOLD) {
-        window.location.href = href;
-      }
-    });
-  }
-
   function buildCard(product) {
     var card = el("article", "product-card");
     var figure = el("div", "product-card__figure");
     var href = window.EmjiveSeries.productHref(product, activeSlug);
 
-    // No metal picker on the homepage grid — always the product's own
-    // default metal (product["default-metal"]). window.EmjiveModelViewer is
-    // exposed by js/three-viewer.js — reused here so the viewer
-    // construction/material logic lives in exactly one place. It can
-    // return null if the browser couldn't grant a WebGL context (see its
-    // own comment) — falls through to the same gridIcon branch a product
-    // with no "assets.model" field at all uses, rather than leaving the
-    // card blank.
-    var gridIcon = product.assets && product.assets.icons && product.assets.icons[product["default-metal"]];
-    var modelHandle = (product.assets && product.assets.model)
-      ? window.EmjiveModelViewer(product, product["default-metal"], { hdri: window.EmjiveSeries.hdriPath(activeSlug) })
-      : null;
-    if (modelHandle) {
-      wireModelClickNavigation(modelHandle.el, href);
-      figure.appendChild(modelHandle.el);
-    } else if (gridIcon) {
+    // A static icon, never a 3D viewer: this page now builds exactly ONE
+    // WebGLRenderer — the magnified viewer inside the lens
+    // (js/lens-artefact.js), which renders whichever product is currently
+    // focused. That's what makes the "seen through the glass" design work,
+    // and it also retires this grid's oldest scaling hazard: a viewer per
+    // card used to exhaust the browser's per-page WebGL context budget,
+    // after which buildThreeViewer() returned null and the rest of the grid
+    // degraded to static icons permanently.
+    // fallback-img, NOT icons — the same choice, for the same reason, that
+    // js/three-viewer.js makes for its poster: icons is cropped/re-centered
+    // for use as a flat thumbnail elsewhere and does not match the model's
+    // real default framing, whereas fallback-img IS that framing captured
+    // as-is. Here that's what makes the magnification honest: the lens
+    // re-renders the same model from 1/1.25 the distance into a box the
+    // same size as this one, so the glass shows it exactly 1.25x bigger.
+    // With icons the two would differ by an arbitrary crop as well, and the
+    // lens would read as a reframe rather than a magnification.
+    // Always the product's own default metal — there's no metal picker here.
+    var metal = product["default-metal"];
+    var assets = product.assets || {};
+    var gridIcon = (assets["fallback-img"] && assets["fallback-img"][metal]) ||
+      (assets.icons && assets.icons[metal]);
+    if (gridIcon) {
       var img = el("img");
       img.src = gridIcon;
       img.alt = product.name || "";
@@ -244,20 +225,14 @@
       figure.appendChild(img);
     }
 
-    // The white divider bar itself IS the link (not a separate decorative
-    // element with an invisible link layered on top) — clicking anywhere
-    // on it opens the product page. aria-hidden/tabindex=-1 since it's a
-    // same-destination duplicate of .product-card__label below; that one
-    // stays the real keyboard-reachable link.
-    var barLink = document.createElement("a");
-    barLink.className = "product-card__bar-link";
-    barLink.href = href;
-    barLink.setAttribute("aria-hidden", "true");
-    barLink.setAttribute("tabindex", "-1");
-    card.appendChild(barLink);
-
     card.appendChild(figure);
 
+    // Kept in the DOM but visually hidden (see css/style.css). The black
+    // bar beside the lens is a painted, aria-hidden duplicate that only
+    // ever shows the ONE focused product, so this stays the real crawlable,
+    // keyboard-reachable link for every product in the grid — and it
+    // un-hides itself on :focus-visible, so tabbing through never lands on
+    // something invisible.
     if (product.name) {
       var label = document.createElement("a");
       label.className = "product-card__label";
@@ -273,11 +248,11 @@
   }
 
   // Every card, built ONCE, paired with the product it came from. Filtering
-  // toggles `hidden` on these rather than re-rendering the grid: a rebuild
-  // would destroy and recreate every three.js WebGLRenderer on each toggle,
-  // and nothing on the live site disposes contexts. Past the browser's
-  // per-page context budget buildThreeViewer() returns null, and the grid
-  // degrades to static icons — permanently, for that page.
+  // toggles `hidden` on these rather than re-rendering the grid. That used
+  // to be load-bearing (a rebuild destroyed and recreated a WebGLRenderer
+  // per card, and nothing disposes contexts on the live site); now that
+  // cards are static icons it's merely the cheaper path — but the pairing
+  // itself has a new job, as the payload of "emjive:grid-changed" below.
   var cards = [];
   var emptyMsg = null;
 
@@ -338,6 +313,24 @@
     }
 
     syncFilterButtons();
+
+    // The one funnel every card-visibility change passes through — the
+    // initial render calls this too — so it's the only place that has to
+    // announce "the set of visible cards changed". js/product-focus.js
+    // listens, re-derives which card is focused, and republishes that to
+    // js/lens-artefact.js. `entries` is handed over directly rather than
+    // re-queried from the DOM because it already pairs each card element
+    // with the product object the lens viewer needs to build from.
+    // Published as state as well as an event, and that is NOT redundant:
+    // this runs inside loadProducts()'s .then(), and on a warm cache that
+    // promise can resolve in the gap between two deferred scripts — so the
+    // event can fire before js/product-focus.js has even executed, let alone
+    // subscribed. It would then never learn the grid exists. A late
+    // subscriber reads this instead; the event stays for subsequent changes.
+    window.EmjiveGrid = { entries: cards };
+    window.dispatchEvent(new CustomEvent("emjive:grid-changed", {
+      detail: { entries: cards }
+    }));
   }
 
   function syncFilterUrl() {

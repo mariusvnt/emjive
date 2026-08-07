@@ -102,8 +102,8 @@ html {
      shift a few pixels depending on which page you're on. both-edges
      (not plain stable) matters here specifically because of how many
      "re-center on my own midpoint, then breakout to 100vw" tricks this
-     site relies on (product-card__bar-link, the hero images, the
-     carousel frame, .product-detail__select): plain stable reserves its
+     site relies on (the hero images, the carousel frame,
+     .product-detail__select): plain stable reserves its
      gutter on one edge only, which — on any engine that honors it even
      with no visible scrollbar to show (observed on Chrome for Android,
      which uses an overlay scrollbar on touch but still reserves the
@@ -551,24 +551,22 @@ button, input, textarea {
    Products
    ========================================================================== */
 
+/* The bottom padding is load-bearing, not decorative: the last product has
+   to be able to reach the middle of the screen like every other one, which
+   needs roughly half a viewport of scrollable room past the end of the
+   stack. Without it the strip simply can't scroll far enough and the last
+   item never centers under the lens. */
 .products {
   position: relative;
-  padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(3rem, 8vw, 6rem);
+  padding: clamp(2rem, 5vw, 3.5rem) 0 50svh;
 }
 
+/* No max-width/edge padding/gap any more: every card is its own full
+   viewport-height panel that centers one product on the screen's exact
+   center, so there's no row to cap or space out. */
 .product-grid {
   position: relative;
   z-index: 1;
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 0 var(--edge-px);
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (max-width: 640px) {
-  .product-grid { gap: 8rem; }
 }
 
 .product-grid__loading {
@@ -578,134 +576,90 @@ button, input, textarea {
   color: var(--category-col);
 }
 
-/* Two even halves, split exactly at the row's (and so the screen's, since
-   the grid itself is centered) horizontal center. The model is pinned to
-   the end of the left half — i.e. its right border sits exactly on that
-   center line — and the label starts flush at the beginning of the right
-   half, regardless of how wide either one is.
-   min-width: 0 overrides a grid item's default min-width: auto, which
-   otherwise sizes it to fit its own content's minimum — here that's
-   product-card__figure's explicit clamp() floor (210px) plus
-   product-card__label's nowrap text, which together already exceed half
-   of a narrow phone's available width before the label's text is even
-   considered. Without this, that content forces .product-card's own
-   internal 1fr 1fr tracks to grow, which (since .product-card has no
-   width of its own beyond stretching to fill .product-grid's single
-   column) bubbles up into .product-grid itself — this is what was
-   actually widening the whole page past the viewport on phones (seen
-   as product-card__bar-link's 100vw breakout sitting a few px right of
-   center, with a matching hairline of genuinely scrollable overflow on
-   the right), not the scrollbar-gutter concern in the base rules, which
-   only applies to browsers/platforms that reserve scrollbar space at
-   all. With min-width: 0 here, .product-grid can no longer be forced
-   wider than the viewport; figure/label instead just overflow their own
-   (now correctly viewport-capped) row visually if they still don't fit,
-   a self-contained layout squeeze rather than a page-wide one. */
+/* One card per product, each just its icon plus a small gap, so the grid
+   reads as a single close-packed vertical stack of specimens with the
+   neighbours still on screen either side of the lens — rather than one
+   product per screenful with empty space between.
+   Each card still centers its icon horizontally and vertically, which is
+   the whole contract js/product-focus.js relies on: "scroll until this
+   card's center is the viewport's center" puts the product precisely under
+   the glass, with no per-card offset math. */
 .product-card {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  min-height: calc(var(--lens-disc-d) + var(--card-gap));
+  display: flex;
   align-items: center;
-  background: transparent;
-  min-width: 0;
+  justify-content: center;
 }
-/* Required, not decorative: the `display: grid` above beats the UA
+/* Required, not decorative: the `display: flex` above beats the UA
    stylesheet's `[hidden] { display: none }`, so without this the category
    filter's `card.hidden = true` would do nothing at all. Same precedence
-   trap as .selection-bar__icons[hidden] further down. Cards are hidden
-   rather than removed and re-rendered on purpose — rebuilding them would
-   destroy and recreate every three.js WebGLRenderer on each toggle, and
-   nothing on the live site disposes contexts, so the grid would silently
-   and permanently degrade to static icons once the browser's context
-   budget ran out. */
+   trap as .selection-bar__icons[hidden] further down. */
 .product-card[hidden] { display: none; }
 
-/* A full-viewport-width divider bar behind each row, doubling as the
-   click target for the row (so clicking anywhere on the bar — not just
-   the model or the product-card__label text — opens the product page).
-   One real <a> instead of a separate decorative pseudo-element + an
-   invisible link layered on top of it. left: calc(50% - 50vw) computes
-   the bar's absolute position directly off the viewport in one step,
-   re-centering on the card's own midpoint and overflowing evenly past
-   both edges out to the true screen edges — this only lines up because
-   the card's midpoint really does sit on the viewport's true center. If
-   it visibly doesn't (a gap on one edge, a hair of real horizontal
-   scroll on the other, seen on phones specifically), check
-   .product-card's own min-width: 0 first — that's what stops its
-   content from ballooning .product-grid past the viewport width in the
-   first place (see the comment there); html's scrollbar-gutter rule in
-   the base rules is a secondary, desktop/Chrome-specific version of the
-   same symptom, not the one that showed up on iOS Safari. z-index: 0
-   keeps it behind the figure/label (z-index: 1), so those still take
-   priority over their own areas. */
-.product-card__bar-link {
-  position: absolute;
-  top: 50%;
-  left: calc(50% - 50vw);
-  background: var(--black-bg);
-  transform: translateY(-50%);
-  width: 100vw;
-  height: 1.2rem;
-  z-index: 0;
-}
-
-/* Fluid, not a desktop/mobile pair of fixed sizes — same formula at every
-   viewport width so the model shrinks smoothly and the label always stays
-   beside it (never wraps below) instead of the row breaking into a stack
-   on narrow screens.
-   height repeats the same clamp() as width (a square) rather than using
-   aspect-ratio: 1/1 to derive it — Safari has a documented history of
-   grid row-sizing not correctly accounting for an aspect-ratio-derived
-   size on a grid item, which would make .product-card's align-items:
-   center (and so .product-card__bar-link's own top: 50%, which reads
-   .product-card's height independently) center against a height the
-   grid *thinks* the figure has rather than its real rendered height —
-   visible as the model box sitting off from the white band. An explicit
-   height sidesteps that: both numbers are unambiguous before layout
-   even starts, nothing needs to be derived. */
+/* Sized to the lens's glass disc exactly, so an unfocused icon reads as
+   the same object at "true size" that the glass then magnifies — the
+   before/after of the magnification is a like-for-like comparison rather
+   than two unrelated sizes. */
+/* Never hidden, not even while focused. The lens paints its own magnified
+   copy of the stack over the glass area, so the real icon stays put and
+   simply continues past the circle's edge — which is what makes the
+   boundary read as a magnifier rather than a cutout. */
 .product-card__figure {
-  grid-column: 1;
-  justify-self: end;
   position: relative;
-  width: clamp(210px, 45vw, 795px);
-  height: clamp(210px, 45vw, 795px);
-  padding: clamp(24px, 6vw, 110px);
-  overflow: hidden;
+  width: var(--lens-disc-d);
+  height: var(--lens-disc-d);
+  cursor: pointer;
 }
 
-.product-card__figure > img,
-.product-card__figure .emjive-3d-viewer {
-  position: relative;
-  z-index: 1;
+/* contain, not cover: these icons are square renders of the whole object,
+   and the box they sit in is now the glass disc's own square rather than
+   a cropping frame. */
+.product-card__figure > img {
   width: 100%;
   height: 100%;
-}
-.product-card__figure > img {
-  object-fit: cover;
+  object-fit: contain;
 }
 
-/* A fixed-width box centered in the right column (grid-column: 2 — itself
-   already the right half of .product-grid's centered, max-width-capped
-   row, so centering here reads as centering in "the right column of the
-   viewport"), with its text left-justified inside that box. Replaces an
-   earlier version flush against the center line with a fluid
-   padding-left: 12vw push — fine on wide screens, but that push scales
-   with viewport width while the model column's own clamp()-based sizing
-   doesn't, so the two drifted out of proportion on narrow phone screens
-   specifically (the label crowding the model or overflowing toward the
-   screen edge). A fixed box width anchored to the column's own center
-   stays visually consistent at any viewport size instead. */
+/* Visually hidden, deliberately NOT removed: the black bar beside the lens
+   is an aria-hidden painted duplicate showing only the focused product, so
+   this stays the real, crawlable, keyboard-reachable link for every product
+   in the grid. */
 .product-card__label {
-  grid-column: 2;
-  justify-self: center;
-  width: 6.25rem; /* 100px at the root 16px font-size */
-  position: relative;
-  z-index: 1;
-  text-align: left;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
   font-size: 1rem;
   letter-spacing: 0.05em;
   color: var(--black);
+}
+
+/* Tabbing through the grid must never focus something invisible, so a
+   keyboard-focused card label takes over the lens label's own bar geometry
+   (same left edge, same height, same black band) and paints there instead. */
+.product-card__label:focus-visible {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + var(--lens-disc-r) + var(--label-gap));
+  right: 0;
+  width: auto;
+  height: var(--label-h);
+  margin: 0;
+  padding-left: var(--label-pad);
+  clip-path: none;
+  overflow: visible;
+  transform: translateY(-50%);
+  z-index: 32;
+  display: flex;
+  align-items: center;
+  background: var(--black-bg);
+  outline: 1px solid var(--white);
 }
 .product-card__label-name {
   font-family: var(--font-main);
@@ -1405,7 +1359,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    .product-detail__intro's own align-items: center then centers this
    wider-than-its-container box the same way it would a narrower one, no
    separate breakout trick needed (unlike the left:50%+translateX(-50%)
-   technique .product-card__bar-link/.product-detail__label-bar::before use
+   technique .product-detail__label-bar::before uses
    elsewhere, which is only for absolutely-positioned overlays, not a
    normal-flow box like this one that needs to reserve its own real layout
    height).
@@ -2353,21 +2307,99 @@ body.has-series-hero .selection-bar {
 
 /* ==========================================================================
    Lab-lens artefact
-   A fixed, purely decorative overlay: the lab-magnifier render hovers
-   centered over the viewport once the hero reveal has finished, reading
-   as an eye-focusing artefact over the product grid. pointer-events: none
-   always, so it never steals drags/clicks from the 3D viewers underneath
-   it. Visibility is toggled by js/lens-artefact.js, subscribed to
-   window.EmjiveHero the same way .selection-bar is (see that file's own
-   comment above), so it fades back out if the user scrolls back up into
-   the hero rather than staying revealed for good.
+   The fixed lab-magnifier render, centered on the viewport once the hero
+   reveal has finished, with the focused product magnified inside its glass.
+   Three stacked fixed layers, all sharing one center point:
+     .lens-viewer   (z 25) — the ONE live 3D viewer on this page, circular-
+                             clipped to the glass disc, showing the focused
+                             product zoomed. Interactive (draggable).
+     .lens-artefact (z 30) — the glass render itself, painted over it.
+                             pointer-events: none, so drags fall through to
+                             the viewer beneath rather than being swallowed.
+     .lens-label    (z 31) — the focused product's name, on a black bar
+                             running from just clear of the glass to the
+                             right screen edge.
+   Visibility is driven by js/lens-artefact.js: the glass off
+   window.EmjiveHero (so it fades back out on scrolling up into the hero,
+   rather than revealing permanently), the viewer and label off
+   window.EmjiveFocus (js/product-focus.js).
    ========================================================================== */
+
+/* The one place the lens's geometry is defined. The disc is concentric
+   with the render (measured from its alpha channel: center 959.5,540 in a
+   1920x1080 image whose own center is 960,540 — a half-pixel off, so
+   centering the image centers the glass) and its radius is 340.5px of that
+   image's 1080px height. Everything that has to line up with the glass —
+   the magnified viewer's circle, the label bar's left edge, each card's
+   icon box — derives from these, so re-sizing the lens is a one-line
+   change here rather than four numbers kept in sync by hand. */
+:root {
+  /* Capped against viewport WIDTH as well as height, which matters because
+     the label bar can only begin past the glass's right edge: sized in svh
+     alone, a tall narrow phone gets a glass scaled to its long axis while
+     the label's room is dictated by its short one, and the name runs out of
+     space. The vw term only ever binds on narrow viewports — at desktop
+     widths 58vw is far larger than 45svh, so this is a no-op there. */
+  --lens-h: min(45svh, 58vw);
+  --lens-disc-d: calc(var(--lens-h) * 0.630556); /* 2 * 340.5 / 1080 */
+  --lens-disc-r: calc(var(--lens-h) * 0.315278); /*     340.5 / 1080 */
+  /* How much the glass magnifies. The single source of truth: the still
+     images, the live viewer's box and js/lens-artefact.js's layout maths
+     all read this one number, which is what keeps the still and the live
+     render the same size as each other. */
+  --lens-mag: 1.25;
+  /* Vertical breathing room between stacked product icons. Also the
+     grid's scroll step, since a card is exactly one icon plus this. */
+  --card-gap: 1.25rem;
+  /* The label bar's own metrics. Variables rather than literals purely so
+     the narrow-screen block below can scale the whole lens system — glass,
+     icons, stack pitch, bar — by one factor without re-deriving anything. */
+  --label-h: 1.2rem;
+  --label-font: 1rem;
+  --label-gap: 1.25rem;  /* clearance between the glass edge and the bar */
+  --label-pad: 0.75rem;
+}
+
+/* Everything lens-related, scaled to 75%. On a phone the glass is a huge
+   share of the screen width, and since the label bar can only start past
+   the glass's right edge, that left the label too little room to show a
+   name in full. Scaling --lens-h cascades to the disc, the card icons and
+   the stack's pitch (all derived from it) and moves the bar's start point
+   inward with it; the label's own metrics are scaled alongside by hand.
+   Reuses the 640px breakpoint already established elsewhere in this file
+   rather than introducing another one. */
+@media (max-width: 640px) {
+  :root {
+    --lens-h: min(33.75svh, 56vw); /* 45svh * 0.75, still width-capped */
+    --card-gap: 0.9375rem;
+    --label-h: 0.9rem;
+    --label-font: 0.75rem;
+    --label-gap: 0.75rem;
+    --label-pad: 0.5rem;
+  }
+}
+
+/* The narrowest phones still in circulation (320px). One more step down —
+   at that width the 75% scale above leaves the bar about a character short
+   of a full product name. */
+@media (max-width: 380px) {
+  :root {
+    --lens-h: min(30svh, 50vw);
+    --label-font: 0.6875rem;
+    --label-gap: 0.5rem;
+    --label-pad: 0.375rem;
+  }
+}
 
 .lens-artefact {
   position: fixed;
   top: 50%;
   left: 50%;
-  height: 45svh;
+  /* MUST stay var(--lens-h), never a literal: --lens-disc-d/-r are derived
+     from it, so a hardcoded height here would leave the drawn glass circle
+     and the magnified disc it's supposed to frame at different sizes on any
+     viewport where --lens-h resolves to something else. */
+  height: var(--lens-h);
   width: auto;
   /* The global `img { max-width: 100% }` reset above would otherwise clamp
      the computed width on a narrower viewport without shrinking the
@@ -2386,5 +2418,147 @@ body.has-series-hero .selection-bar {
 
 .lens-artefact.is-visible {
   opacity: 1;
+}
+
+/* The magnified view, clipped to the glass. Fades only with the glass
+   itself (never per product), because it isn't a per-item reveal — it's the
+   magnification, and a lens magnifies whatever happens to be under it. */
+.lens-viewer {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: var(--lens-disc-d);
+  height: var(--lens-disc-d);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 25;
+  /* Opaque, and that's the point: everything the lens draws — the stills and
+     the live canvas alike — renders on transparency, so without a fill the
+     real, unmagnified stack behind the glass shows straight through it and
+     you see the product twice, once at each size. A magnifier occludes what
+     it magnifies. */
+  background: var(--bg);
+  opacity: 0;
+  /* The container never takes pointers; only the live model does, once it
+     has actually taken over (below). Everything else in here is a painted
+     copy of what's already behind it, and swallowing clicks meant for the
+     real stack would break click-to-focus. */
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+}
+.lens-viewer.is-visible { opacity: 1; }
+
+/* A magnified duplicate of the icon stack: one <img> per product, laid out
+   every frame by js/lens-artefact.js so each sits exactly where the real
+   icon behind it would appear under 1.25x magnification about the screen's
+   center. Same src as the cards' own images, so these cost no extra
+   requests. This is what makes the glass magnify continuously as products
+   travel through it, rather than only once one has settled. */
+.lens-viewer__mag {
+  position: absolute;
+  inset: 0;
+}
+.lens-viewer__mag img {
+  position: absolute;
+  object-fit: contain;
+  /* Required, not tidying. The global `img { max-width: 100% }` reset above
+     clamps these to the disc's width while leaving the height alone — so
+     the magnified box collapses back to 1:1 horizontally, contain letterboxes
+     it, and the "magnified" still ends up the same size as the card icon,
+     misaligned with the live render that replaces it. Same trap as
+     .lens-artefact's own max-width note below. */
+  max-width: none;
+}
+
+/* The live model, sized to the disc (see js/three-viewer.js — the wrapper
+   carries no size of its own, same contract .product-carousel__slide
+   provides on the product page).
+   visibility, NOT opacity: the handoff from the magnified still to the live
+   render has to be instantaneous. Both show the same model at the same size
+   — the still is fallback-img, which IS the model's default framing, scaled
+   by exactly the factor the lens camera is pulled in by — so swapping them
+   in a single frame is imperceptible, whereas any crossfade would show the
+   two briefly double-exposed. */
+/* The live viewer is positioned by js/lens-artefact.js from exactly the same
+   magnification maths as the stills above — it is one of the stack's items,
+   not a fixture of the glass. That's what lets a model the visitor has set
+   spinning travel out of the glass still rendering and still spinning,
+   instead of being swapped for a still that cannot roll.
+   The camera is deliberately left at the product's own default orbit, the
+   exact pose fallback-img was captured at, so a still and its live render
+   are the same picture and can replace one another unnoticed. Dollying the
+   camera in by the magnification factor instead would be subtly wrong: a
+   perspective camera's projected size doesn't scale linearly with
+   1/distance, so 1.25x closer is ~1.27x bigger. Rendering the default pose
+   into a 1.25x box has no such error, and is sharper than scaling a canvas
+   up after the fact.
+   Geometry and visibility are set inline; this only establishes the
+   positioning context and the default hidden state. */
+.lens-viewer .emjive-3d-viewer {
+  position: absolute;
+  visibility: hidden;
+}
+
+/* three-viewer.js gives every instance a poster that crossfades out on
+   load. The lens runs its own, better-matched handoff above, so its poster
+   would just be a second, unsynchronised fade of the same image. */
+.lens-viewer .emjive-3d-viewer__poster { display: none; }
+
+/* Runs from just clear of the glass to the right screen edge — deliberately
+   not edge-to-edge like the full-width bars it replaces, so the lens stays
+   visually unobstructed and the bar reads as hanging off it. */
+.lens-label {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + var(--lens-disc-r) + var(--label-gap));
+  right: 0;
+  height: var(--label-h);
+  transform: translateY(-50%);
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  padding-left: var(--label-pad);
+  background: var(--black-bg);
+  font-size: var(--label-font);
+  letter-spacing: 0.05em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-decoration: none;
+  /* Parked off the right edge. A product change slides the bar out to the
+     right and brings the next one back in, rather than crossfading in
+     place. translateX(100%) clears the screen exactly: the bar's right
+     edge already sits on it, so moving by its own width puts its left edge
+     where its right edge was. */
+  transform: translateY(-50%) translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.lens-label.is-in {
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+/* Faded deliberately OUT OF PHASE with the bar it sits on (the timing chain
+   lives in js/lens-artefact.js): the text only fades in once the bar has
+   finished arriving, and is gone again before the bar starts to leave — so
+   a name is never seen sliding across the screen. */
+.lens-label__text {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.lens-label.is-labelled .lens-label__text {
+  opacity: 1;
+}
+/* Mirrors .product-card__label-name/-type — the same two-part
+   "Name.category" treatment, on the bar rather than in the grid. */
+.lens-label__name {
+  font-family: var(--font-main);
+  color: var(--white);
+}
+.lens-label__type {
+  font-family: var(--font-secondary);
+  font-size: 0.75em;
+  color: var(--category-col);
 }
 

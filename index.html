@@ -94,13 +94,20 @@
 
 </main>
 
-<!-- Lab-lens artefact: a fixed, purely decorative overlay, hidden until
-     js/lens-artefact.js reveals it once the hero's scroll-driven wipe is
-     done. Lives as a direct child of <body> (not inside <main>/.series-hero)
-     so nothing in its ancestor chain can break its position: fixed the same
-     way the .series-hero comment above warns an overflow/transform/filter
-     ancestor would break .reveal__pin's position: sticky. -->
+<!-- The lab-lens stack: three fixed layers sharing one center point, all
+     hidden until js/lens-artefact.js reveals them (the glass once the
+     hero's wipe is done, the viewer and label once a product is focused).
+     Direct children of <body>, not inside <main>/.series-hero, so nothing
+     in their ancestor chain can break position: fixed the same way the
+     .series-hero comment above warns an overflow/transform/filter ancestor
+     would break .reveal__pin's position: sticky.
+     #lensViewer is filled at runtime with THE page's only 3D viewer,
+     showing whichever product is focused, magnified inside the glass.
+     #lensLabel duplicates that product's own (visually hidden) card label,
+     so it's aria-hidden — the per-card link stays the real one. -->
+<div class="lens-viewer" id="lensViewer" aria-hidden="true"><div class="lens-viewer__mag" id="lensMag"></div></div>
 <img class="lens-artefact" id="lensArtefact" src="assets/lab-lens.webp" alt="" aria-hidden="true" />
+<a class="lens-label" id="lensLabel" href="#" aria-hidden="true" tabindex="-1"><span class="lens-label__text"><span class="lens-label__name" id="lensLabelName"></span><span class="lens-label__type" id="lensLabelType"></span></span></a>
 
 <!-- defer: js/three-viewer.js (a module, loaded in <head>) executes on the
      same deferred queue as this script, in document order — since the
@@ -112,6 +119,14 @@
 <script src="js/main.js" defer></script>
 <script src="js/selection.js"></script>
 <script src="js/selection-bar.js"></script>
-<script src="js/lens-artefact.js"></script>
+<!-- Both deferred for the same reason main.js is: lens-artefact.js builds
+     the magnified viewer through window.EmjiveModelViewer, which the
+     three-viewer.js module in <head> only sets once it executes. Deferred
+     scripts run in document order after that module, so by the time these
+     run both it and product-focus.js's window.EmjiveFocus exist. Order
+     between these two matters — lens-artefact.js subscribes to the
+     registry product-focus.js defines. -->
+<script src="js/product-focus.js" defer></script>
+<script src="js/lens-artefact.js" defer></script>
 </body>
 </html>

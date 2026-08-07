@@ -487,6 +487,24 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var modelRoot = null;
     var modelLoaded = false;
 
+    // Releases the current model's GPU resources before another replaces it
+    // (loadProduct, above). applyMaterial() assigns a freshly-built material
+    // to every mesh rather than reusing the glTF's own, so disposing them
+    // here can't strand anything still in use elsewhere.
+    function disposeModelRoot() {
+      if (!modelRoot) return;
+      scene.remove(modelRoot);
+      modelRoot.traverse(function (node) {
+        if (!node.isMesh) return;
+        if (node.geometry) node.geometry.dispose();
+        var material = node.material;
+        if (!material) return;
+        if (Array.isArray(material)) material.forEach(function (m) { m.dispose(); });
+        else material.dispose();
+      });
+      modelRoot = null;
+    }
+
     function applyMaterial() {
       if (!modelRoot) return;
       var params = metalToStandardMaterialParams(currentMetal);
@@ -562,6 +580,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var pauseTimeoutId = null;
     var resetTweenActive = false;
     var resetTweenStartTime = 0;
+    // Per-tween, because the idle ease-back and an explicitly requested one
+    // want very different pacing: the idle one is a slow, unhurried settle,
+    // while a caller asking for it (js/lens-artefact.js, when a product
+    // leaves the lens) needs the pose to arrive within a known, much
+    // shorter window.
+    var resetTweenDuration = ROLLBACK_DURATION;
     var resetTweenFromPosition = new THREE.Vector3();
     var resetTweenFromUp = new THREE.Vector3();
     var nudgeActive = false;
@@ -579,6 +603,31 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var fromDirection = new THREE.Vector3();
     var toDirection = new THREE.Vector3();
     var tweenDirection = new THREE.Vector3();
+
+    // Zeroes TrackballControls' OWN internal momentum accumulator
+    // (_lastAngle/_lastAxis, decayed and re-applied every controls.update()
+    // call — see node_modules/three/examples/jsm/controls/TrackballControls
+    // .js's _rotateCamera()). Entirely separate from this file's own
+    // lastAngularSpeed/eyeDirectionPrev bookkeeping just below, and NOT
+    // touched by controls.reset() (which only restores the pose captured at
+    // construction, never this).
+    //
+    // Needed anywhere a camera pose gets programmatically re-seated in a way
+    // that must not carry a visitor's still-decaying release-inertia along
+    // with it: the pre-existing idle-triggered ease-back never needed this,
+    // because it only arms once waitingForSettle's own angular-velocity
+    // check confirms momentum has ALREADY decayed to near-nothing. This
+    // one's callers (returnToDefaultPose, loadProduct) offer no such
+    // guarantee — a caller-requested pose change can interrupt a fast spin
+    // at full speed. Left unzeroed, that stale value just sits frozen
+    // (controls.update() is skipped for the whole reset-tween branch) and
+    // resumes the instant a LATER controls.update() call runs — which, once
+    // one viewer instance started being reused across products, meant a
+    // later product visibly spinning with an earlier one's leftover motion.
+    function clearControlsMomentum() {
+      controls._lastAngle = 0;
+      controls._movePrev.copy(controls._moveCurr);
+    }
 
     function cancelReturnToPose() {
       waitingForSettle = false;
@@ -665,6 +714,29 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         frameCamera(orbitConfig);
         renderer.render(scene, camera);
       },
+      // Starts the same ease-back-to-default-pose tween the idle timer
+      // arms, but now, and over a caller-chosen duration. Exists for
+      // js/lens-artefact.js: when a product leaves the lens it hands back
+      // over to a still capture of its DEFAULT pose, so a model the visitor
+      // has spun has to be walked back to that pose before the handover, or
+      // the swap snaps the object to a different orientation and kills any
+      // spin mid-flight. Easing there is a continuation of the motion
+      // rather than an interruption of it.
+      // Returns false if there's nothing to ease (no model loaded yet).
+      // Note this takes precedence over the spin in the animate loop, which
+      // is the point — it absorbs the remaining momentum instead of letting
+      // it fight the tween.
+      returnToDefaultPose: function (durationMs) {
+        if (!modelLoaded) return false;
+        cancelReturnToPose(); // drop any pending idle arming, then re-arm now
+        clearControlsMomentum();
+        resetTweenFromPosition.copy(camera.position);
+        resetTweenFromUp.copy(camera.up);
+        resetTweenStartTime = performance.now();
+        resetTweenDuration = Math.max(1, durationMs || ROLLBACK_DURATION);
+        resetTweenActive = true;
+        return true;
+      },
       // Internal handles, unused by the interactive site — exist so
       // scripts/auto-render.js's render harness can add its own top-shot-
       // only lighting/shadow-plane setup without that scope leaking into
@@ -676,6 +748,69 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       camera: camera,
       renderer: renderer,
       target: controls.target,
+      // Swaps a different product's model into THIS viewer, keeping the
+      // renderer, its WebGL context and — the expensive part — its PMREM'd
+      // environment map. Added for js/lens-artefact.js, whose lens changes
+      // product on every scroll step: building a fresh viewer each time
+      // meant a new context plus a full HDR decode and PMREM generation per
+      // step, measured at ~180ms of blocked main thread, which landed as a
+      // dropped frame in the middle of the scroll animation. The
+      // environment can't be shared BETWEEN renderers (see loadEnvironment's
+      // note — a PMREM texture belongs to the context that built it), so the
+      // only way to stop paying for it repeatedly is to stop making
+      // renderers. Reusing one leaves just the glTF load.
+      // Returns a promise resolving true once the new model is framed and
+      // painted, false if there was nothing to load or the viewer has since
+      // been disposed.
+      loadProduct: function (nextProduct, nextMetalKey) {
+        if (isDisposed || !nextProduct || !nextProduct.assets || !nextProduct.assets.model) {
+          return Promise.resolve(false);
+        }
+        // Everything frameCamera()/applyMaterial() read about "which product
+        // is this" has to move with the model, or the new one gets framed to
+        // the old one's orbit and camera target.
+        defaultOrbit = nextProduct["3d-viewer-camera-default"] || DEFAULT_ORBIT;
+        explicitTarget = parseTargetString(nextProduct.cameraTarget);
+        currentMetal = nextMetalKey || nextProduct["default-metal"] || currentMetal;
+
+        // Drop anything still animating the outgoing model's pose, or it
+        // would keep tweening a camera that's now framing a different object.
+        cancelReturnToPose();
+        // Defense in depth alongside returnToDefaultPose's own call to this:
+        // that method is the normal way a departing model's momentum gets
+        // cleared, but not every departure goes through it (a product with
+        // no model has nothing to call it on), so a swap two or more
+        // products removed from the one that was actually spun could still
+        // find it unzeroed here. Idempotent and cheap to call unconditionally.
+        clearControlsMomentum();
+        clearIdleTimer();
+        nudgeActive = false;
+        nudgeHandEl.style.opacity = "0";
+        modelLoaded = false;
+        disposeModelRoot();
+
+        return new Promise(function (resolve, reject) {
+          new GLTFLoader().load(
+            nextProduct.assets.model,
+            function (gltf) {
+              if (isDisposed) return resolve(false);
+              modelRoot = gltf.scene;
+              scene.add(modelRoot);
+              applyMaterial();
+              frameCamera(defaultOrbit);
+              modelLoaded = true;
+              renderer.render(scene, camera);
+              scheduleIdleNudge();
+              resolve(true);
+            },
+            undefined,
+            function (err) {
+              console.error("emjive: failed to load model", nextProduct.assets.model, err);
+              reject(err);
+            }
+          );
+        });
+      },
       // Tool-only teardown (scene-tool.html) — every existing caller
       // (main.js's grid, product.js's carousel, the render harness) builds
       // exactly one, page-lifetime viewer and never calls this. Without
@@ -746,7 +881,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
           }
         }
       } else if (resetTweenActive) {
-        var t = Math.min(1, (performance.now() - resetTweenStartTime) / ROLLBACK_DURATION);
+        var t = Math.min(1, (performance.now() - resetTweenStartTime) / resetTweenDuration);
         var eased = cubicBezierEase(t, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
 
         fromDirection.copy(resetTweenFromPosition).sub(controls.target).normalize();
@@ -806,6 +941,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
                 resetTweenFromPosition.copy(camera.position);
                 resetTweenFromUp.copy(camera.up);
                 resetTweenStartTime = performance.now();
+                resetTweenDuration = ROLLBACK_DURATION;
                 resetTweenActive = true;
               }, POST_INERTIA_PAUSE);
             }
