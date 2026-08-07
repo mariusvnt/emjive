@@ -1985,12 +1985,23 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* ---- size guide: a separate helper band appended directly under the
    modal panel's bottom edge (sibling of .size-modal__panel, not nested
    inside .size-modal__content anymore) — full-bleed like the panel
-   itself, at 75% opacity so it reads as secondary to the modal above it.
-   Toggle reveal is the same 0fr/1fr technique .site-header__menu uses. ---- */
+   itself, at full opacity so it reads as clearly as the modal above it.
+   position: relative + z-index: 1 mirrors .size-modal__panel exactly —
+   both need to outrank .size-modal__backdrop (position: absolute,
+   z-index: auto, full-bleed over the whole modal) in paint order, or the
+   backdrop's dark tint sits on top of and intercepts clicks on whatever's
+   underneath. (Previously this fell out "for free": opacity < 1 implicitly
+   creates its own stacking context, which happened to promote this above
+   the backdrop the same way — an accidental side effect of the old 0.75
+   opacity, not a deliberate choice, and one that silently broke once
+   opacity went to 1.) Toggle reveal is the same 0fr/1fr technique
+   .site-header__menu uses. ---- */
 .size-modal__guide {
+  position: relative;
+  z-index: 1;
   width: 100%;
   background: var(--bg);
-  opacity: 0.75;
+  opacity: 1;
 }
 .size-modal__guide-toggle {
   display: flex;
@@ -2021,6 +2032,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin: 0 auto;
   padding: 0 var(--edge-px) 1.5rem;
   font-family: var(--font-main);
+  font-size: 0.75rem;
   color: var(--category-col);
 }
 
