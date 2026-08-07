@@ -48,9 +48,15 @@ Two path conventions live side by side in one folder, which is the easy thing to
 
 Hero slots (above), then `#productGrid`, empty in the markup and populated by `js/main.js` from the active series' products. `?series=<slug>` shows any past series' main page instead of the featured one; `?cat=ring,neck` pre-applies the category filter.
 
-**Filtering hides already-built cards** (`card.hidden`) rather than re-rendering the grid. Re-rendering would destroy and recreate every three.js `WebGLRenderer` on each toggle, and nothing on the live site disposes contexts — past the browser's per-page budget `buildThreeViewer()` returns `null` and the grid degrades to static icons, permanently. `.product-card[hidden] { display: none }` in `css/style.css` is required for the hiding to work at all, since the card's own `display: grid` beats the UA `[hidden]` rule.
+**The grid is a close-packed vertical stack, snap-scrolled one product at a time, seen through a fixed magnifying lens** — not a free-scrolling two-column layout any more. Each card is just an icon (`product.assets["fallback-img"]`) plus a small gap; `js/product-focus.js` (self-guarded to this page) turns scroll gestures into discrete one-item steps, always settling whichever card is centered on the viewport's own center. Three fixed elements share that same center point (`#lensViewer`/`#lensArtefact`/`#lensLabel`, direct children of `<body>` — not inside `<main>`, so nothing in their ancestor chain can accidentally break their `position: fixed` the way an `overflow`/`transform`/`filter` ancestor breaks `.reveal__pin`'s `position: sticky` above): the lab-lens render itself, a magnified live view of the focused product inside it, and a label bar that slides in from the right. `js/lens-artefact.js` owns all three — see `client-scripts.md` for the full mechanism (why the magnification is real rather than a CSS trick, why there's only ever one WebGL viewer on the page, and how a spinning model survives a scroll instead of being cut). The glass itself only appears once the hero is behind the visitor — measured off `#seriesHero`'s own bottom edge, not `window.EmjiveHero` — and both it and the label/viewer close again on scrolling back up into the hero.
 
-**The floating selection bar here specifically** slides in as a continuation of the hero's own wipe. The hero owns that geometry and publishes one number via `window.EmjiveHero`; `js/selection-bar.js` subscribes and measures its own travel (see `client-scripts.md`).
+**Filtering hides already-built cards** (`card.hidden`) rather than re-rendering the grid, same as before — though the original WebGL-context reason no longer strictly applies (the grid builds none any more; see below), the array itself is now also what `product-focus.js` re-derives the focused/visible card list from, and rebuilding it on every toggle would drop that state along with whatever was mid-snap. `.product-card[hidden] { display: none }` in `css/style.css` is still required for the hiding to work at all, since the card's own `display: flex` beats the UA `[hidden]` rule.
+
+**No card holds a 3D viewer any more.** `js/main.js` renders every card as a plain icon; the page's one and only `WebGLRenderer` belongs to the lens (`js/lens-artefact.js`), reused across whichever product is currently focused rather than rebuilt per product — the fix for a real cost measured while building this: a fresh renderer per scroll step meant re-decoding the HDRI and regenerating its PMREM environment map every time, ~180ms of blocked main thread landing as a dropped frame mid-snap.
+
+**Scroll position survives a back-navigation.** The focused product is saved to `sessionStorage` on `pagehide` and restored — instantly, no re-play of the snap animation — the moment the grid re-populates on the next load of this page (see `client-scripts.md`'s `product-focus.js` section for why that restore is sticky rather than one-shot).
+
+**The floating selection bar here specifically** slides in as a continuation of the hero's own wipe. The hero owns that geometry and publishes one number via `window.EmjiveHero`; `js/selection-bar.js` subscribes and measures its own travel (see `client-scripts.md`). This is a separate mechanism from the lens's own hero-boundary check above — two different consumers measuring the hero for two different purposes, on purpose (see `client-scripts.md`'s `lens-artefact.js` section for why the lens couldn't reuse `window.EmjiveHero`'s own number).
 
 ## `product.html` — product detail
 
@@ -84,17 +90,17 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
-|---|---|---|---|---|---|---|---|---|
-| `index.html` | ✓ | ✓ | ✓ (defer) | ✓ | | ✓ | | |
-| `product.html` | ✓ | ✓ | ✓ (defer) | ✓ | ✓ (defer) | ✓ | | |
-| `launch-order.html` | ✓ | | ✓ | ✓ | | | ✓ | |
-| `archives.html` | ✓ | | ✓ | ✓ | | ✓ | | |
-| `creation-process.html` | ✓ | | ✓ | ✓ | | ✓ | | |
-| `terms.html` | ✓ | | ✓ | ✓ | | ✓ | | |
-| `series.html` | ✓ | | ✓ | ✓ | | ✓ | | ✓ |
+| | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` | `product-focus.js` | `lens-artefact.js` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `index.html` | ✓ | ✓ | ✓ (defer) | ✓ | | ✓ | | | ✓ (defer) | ✓ (defer) |
+| `product.html` | ✓ | ✓ | ✓ (defer) | ✓ | ✓ (defer) | ✓ | | | | |
+| `launch-order.html` | ✓ | | ✓ | ✓ | | | ✓ | | | |
+| `archives.html` | ✓ | | ✓ | ✓ | | ✓ | | | | |
+| `creation-process.html` | ✓ | | ✓ | ✓ | | ✓ | | | | |
+| `terms.html` | ✓ | | ✓ | ✓ | | ✓ | | | | |
+| `series.html` | ✓ | | ✓ | ✓ | | ✓ | | ✓ | | |
 
-`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. Only `index.html`/`product.html` load `three-viewer.js`; nothing else has 3D content.
+`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. `three-viewer.js`'s only load-bearing consumer left is `product.html`'s carousel — `index.html` still loads it (`js/lens-artefact.js` calls `window.EmjiveModelViewer` for the lens's one reused viewer), but `main.js`'s own grid code no longer touches it at all. `product-focus.js`/`lens-artefact.js` are `index.html`-only, both `defer`, both after `main.js` in document order — see `client-scripts.md`'s "Load order" for why that relative order (and the order between the two of them) matters.
 
 **Why `js/series.js` is blocking in `<head>`** (no `defer`, not a module): it has to define `window.EmjiveSeries` before `main.js` runs, and `launch-order.html` loads `main.js` as a plain synchronous body script — a deferred `series.js` would run *after* it. Blocking also starts the `series.json` fetch at head-parse time, which is what the hero's anti-flash story depends on. It doesn't disturb the `defer` contract below: a blocking `<head>` script runs before the entire deferred queue.
 
