@@ -12,7 +12,7 @@
         "silver": { "price": 350, "weight": "", "composition": "" },
         "bronze": { "price": 240,   "weight": "", "composition": "" }
       },
-      "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
+      "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 30, "tilt": 70, "zoom": 100 },
       "assets": {
         "model": "assets/series/bones/products/furcula_ring/furcula_gltf.glb",
@@ -49,7 +49,7 @@
         "silver": { "price": 0, "weight": "", "composition": "" },
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
-      "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
+      "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 9, "rotation": 5 },
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 85 },
       "assets": {
         "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
@@ -83,7 +83,7 @@
         "silver": { "price": 0, "weight": "", "composition": "" },
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
-      "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 5, "rotation": 19 },
+      "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 105 },
       "assets": {
         "model": "assets/series/bones/products/disc_ring/disc_gltf.glb",
