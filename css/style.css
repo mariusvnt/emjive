@@ -2351,3 +2351,40 @@ body.has-series-hero .selection-bar {
 .selection-bar__row-unselect:hover { color: var(--white); }
 .selection-bar__row-unselect:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ==========================================================================
+   Lab-lens artefact
+   A fixed, purely decorative overlay: the lab-magnifier render hovers
+   centered over the viewport once the hero reveal has finished, reading
+   as an eye-focusing artefact over the product grid. pointer-events: none
+   always, so it never steals drags/clicks from the 3D viewers underneath
+   it. Visibility is toggled by js/lens-artefact.js, subscribed to
+   window.EmjiveHero the same way .selection-bar is (see that file's own
+   comment above), so it fades back out if the user scrolls back up into
+   the hero rather than staying revealed for good.
+   ========================================================================== */
+
+.lens-artefact {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  height: 45svh;
+  width: auto;
+  /* The global `img { max-width: 100% }` reset above would otherwise clamp
+     the computed width on a narrower viewport without shrinking the
+     explicit height to match, squishing the render out of its own ratio.
+     aspect-ratio (the render's true 1920x1080 pixel ratio) is a second,
+     belt-and-suspenders safeguard against the same distortion. */
+  max-width: none;
+  aspect-ratio: 1920 / 1080;
+  transform: translate(-50%, -50%);
+  z-index: 30; /* above grid content (z-index 1) and the hero; below the
+                  fixed header (80), selection bar (90) and size modal (300) */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+.lens-artefact.is-visible {
+  opacity: 1;
+}
+

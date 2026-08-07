@@ -94,6 +94,14 @@
 
 </main>
 
+<!-- Lab-lens artefact: a fixed, purely decorative overlay, hidden until
+     js/lens-artefact.js reveals it once the hero's scroll-driven wipe is
+     done. Lives as a direct child of <body> (not inside <main>/.series-hero)
+     so nothing in its ancestor chain can break its position: fixed the same
+     way the .series-hero comment above warns an overflow/transform/filter
+     ancestor would break .reveal__pin's position: sticky. -->
+<img class="lens-artefact" id="lensArtefact" src="assets/lab-lens.webp" alt="" aria-hidden="true" />
+
 <!-- defer: js/three-viewer.js (a module, loaded in <head>) executes on the
      same deferred queue as this script, in document order — since the
      module tag comes first, it's guaranteed to have already set
@@ -104,5 +112,6 @@
 <script src="js/main.js" defer></script>
 <script src="js/selection.js"></script>
 <script src="js/selection-bar.js"></script>
+<script src="js/lens-artefact.js"></script>
 </body>
 </html>
