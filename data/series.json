@@ -17,7 +17,7 @@
 
   "swatch-primitive": "cylinder",
   "swatch-hdri":      "studio",
-  "swatch-camera":    { "rotation": 0, "tilt": 90, "zoom": 100 },
+  "swatch-camera": { "rotation": -141, "tilt": 67, "zoom": 20 },
 
   "series": [
     {
