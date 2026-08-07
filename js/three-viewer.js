@@ -38,7 +38,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // metalKey already is. Used whenever a caller omits options.hdri (this
   // module is deliberately series-unaware, and auto-render.js's headless
   // harness never loads js/series.js at all, so it can't be resolved here).
-  var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
+  var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_2k.hdr";
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
