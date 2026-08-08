@@ -17,6 +17,26 @@
   var siteHeaderMenu = document.getElementById("siteHeaderMenu");
   var siteHeader = document.querySelector(".site-header");
   var siteHeaderRow = document.querySelector(".site-header__row");
+  var siteHeaderBrand = document.querySelector(".site-header__brand");
+
+  // On index.html (href="#top") this always cancels any in-flight snap and
+  // animates home, rather than letting the in-page fragment jump fight
+  // js/product-focus.js's own scroll tween the way a plain anchor would.
+  // window.EmjiveFocus is checked at click time, not here — this file is
+  // the first deferred script to run (see index.html's script order), so
+  // product-focus.js hasn't defined it yet when this line executes, only
+  // by the time a visitor actually clicks. On every other page the brand
+  // link is a real cross-page navigation (href="index.html#top") and
+  // window.EmjiveFocus never exists at all, so the native click goes
+  // through untouched.
+  if (siteHeaderBrand) {
+    siteHeaderBrand.addEventListener("click", function (e) {
+      if (window.EmjiveFocus && window.EmjiveFocus.goHome) {
+        e.preventDefault();
+        window.EmjiveFocus.goHome();
+      }
+    });
+  }
 
   // Registered with window.EmjiveMenus (js/series.js) so a click away from
   // the header closes it — root spans the whole header (toggle included),

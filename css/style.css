@@ -2323,7 +2323,7 @@ body.has-series-hero .selection-bar {
    sequence keyed off the hero's own geometry (not window.EmjiveHero — see
    that file's own comment for why), the viewer and label off
    window.EmjiveFocus (js/product-focus.js), deferred until the glass has
-   reached GLASS_REVEAL_FRAME.
+   reached its last frame.
    ========================================================================== */
 
 /* The one place the lens's geometry is defined. The disc is concentric
@@ -2450,7 +2450,10 @@ body.has-series-hero .selection-bar {
 
 /* The magnified view, clipped to the glass. Fades only with the glass
    itself (never per product), because it isn't a per-item reveal — it's the
-   magnification, and a lens magnifies whatever happens to be under it. */
+   magnification, and a lens magnifies whatever happens to be under it.
+   0.5s rather than the rest of the lens system's usual 0.3s: this fade
+   lands right after the glass's own 850ms extend, and at 0.3s it read as a
+   pop off the back of that build-up rather than a fade of its own. */
 .lens-viewer {
   position: fixed;
   top: 50%;
@@ -2461,21 +2464,35 @@ body.has-series-hero .selection-bar {
   border-radius: 50%;
   overflow: hidden;
   z-index: 25;
-  /* Opaque, and that's the point: everything the lens draws — the stills and
-     the live canvas alike — renders on transparency, so without a fill the
-     real, unmagnified stack behind the glass shows straight through it and
-     you see the product twice, once at each size. A magnifier occludes what
-     it magnifies. */
-  background: var(--bg);
+  /* Frosted rather than a flat fill, but still occluding — that's the
+     point: everything the lens draws — the stills and the live canvas
+     alike — renders on transparency, so without SOME fill behind it the
+     real, unmagnified stack behind the glass shows straight through and
+     you see the product twice, once at each size. A magnifier occludes
+     what it magnifies; it just doesn't have to do it with a matte disc.
+     color-mix keeps this tied to --bg (the page's own background) rather
+     than a hardcoded tint, same reasoning as the flat fill it replaces. */
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   opacity: 0;
   /* The container never takes pointers; only the live model does, once it
      has actually taken over (below). Everything else in here is a painted
      copy of what's already behind it, and swallowing clicks meant for the
      real stack would break click-to-focus. */
   pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.6, 1);
 }
 .lens-viewer.is-visible { opacity: 1; }
+
+/* Browsers with no backdrop-filter support get the old flat --bg fill
+   back outright, rather than a half-transparent disc with nothing behind
+   it to blur — occlusion (see above) must never be lost, only its look. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lens-viewer {
+    background: var(--bg);
+  }
+}
 
 /* A magnified duplicate of the icon stack: one <img> per product, laid out
    every frame by js/lens-artefact.js so each sits exactly where the real

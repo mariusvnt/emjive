@@ -10,12 +10,14 @@
    is handed the current value immediately on registering rather than
    waiting for the next change.
 
-   Snapping deliberately does NOT extend over the hero. The hero owns a
-   ~200vh scroll-driven wipe (see the active series' hero.js) that has to
-   stay freely scrubbable, so every handler below no-ops while the page is
-   still above the first card, and releases back to free scrolling at both
-   ends of the strip — scrolling up off the first product returns you to
-   the hero normally.
+   Snapping deliberately does NOT extend up into the hero's own scroll
+   range — the hero owns a ~200vh scroll-driven wipe (see the active
+   series' hero.js) that has to stay freely scrubbable, so every handler
+   below no-ops once the page is above the first card. The one edge that
+   IS snapped is the seam itself: scrolling up off the first product snaps
+   back down to the boundary (see goToHero()/heroTargetScroll()), the
+   mirror of the settle logic below that catches a downward arrival onto
+   that same first product.
    ========================================================================== */
 
 (function () {
@@ -23,6 +25,10 @@
 
   var grid = document.getElementById("productGrid");
   if (!grid) return;
+
+  // Mirrors js/lens-artefact.js's own reference to the same element — see
+  // heroTargetScroll() below for why.
+  var heroSlot = document.getElementById("seriesHero");
 
   // Ignore the sub-pixel wheel noise a trackpad emits between real gestures.
   var WHEEL_MIN_DELTA = 4;
@@ -189,7 +195,21 @@
     },
     // The visible cards, in order, each paired with its product — what the
     // lens lays its magnified duplicate of the stack out from.
-    entries: function () { return entries.slice(); }
+    entries: function () { return entries.slice(); },
+    // The brand logo's click handler (js/main.js) — always wins over
+    // whatever the strip is doing, however far into a snap it is.
+    // animateScrollTo() below cancels the in-flight tween itself (same as
+    // every goTo()); clearing pendingRestore here on top of that is the
+    // one thing goTo() doesn't need — a settle firing after this must not
+    // be allowed to drag the page back down to a stale saved position.
+    goHome: function () {
+      clearPendingRestore();
+      locked = true;
+      if (lockTimer) clearTimeout(lockTimer);
+      lockTimer = setTimeout(unlock, LOCK_FALLBACK_MS);
+      setIndex(-1);
+      animateScrollTo(0, 0);
+    }
   };
 
   /* ---- geometry ---------------------------------------------------------- */
@@ -203,6 +223,21 @@
     var center = rect.top + window.scrollY + rect.height / 2;
     var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
     return Math.max(0, Math.min(center - window.innerHeight / 2, maxScroll));
+  }
+
+  // Where the page must be scrolled to for the hero to read as "in view,
+  // toward the x-ray hand" — the exact same boundary js/lens-artefact.js's
+  // syncGlass() already tests live (heroSlot's bottom edge on the
+  // viewport's vertical middle), just solved for the scrollY that puts it
+  // there instead of read as a live true/false. That file's own comment
+  // already frames crossing it upward as "scrolling back up toward the
+  // x-ray hand" — this reuses that same, already-established measurement
+  // rather than reaching for something series-specific (an actual x-ray
+  // element id) that a future series' hero might not even have.
+  function heroTargetScroll() {
+    if (!heroSlot) return 0;
+    var rect = heroSlot.getBoundingClientRect();
+    return Math.max(0, window.scrollY + rect.bottom - window.innerHeight / 2);
   }
 
   function nearestIndex() {
@@ -356,18 +391,34 @@
     return true;
   }
 
-  // Shared by every input. Three outcomes, and the difference between the
-  // last two is the whole reason this isn't a boolean:
+  // goTo()'s counterpart for the strip's own top edge: scrolling up off the
+  // first product snaps back to the hero boundary (heroTargetScroll()),
+  // mirroring how a downward arrival out of the hero snaps onto the first
+  // product. No tangent — same standing-start feel every other discrete
+  // gesture-driven snap already uses (see goTo()'s own comment).
+  function goToHero() {
+    locked = true;
+    if (lockTimer) clearTimeout(lockTimer);
+    lockTimer = setTimeout(unlock, LOCK_FALLBACK_MS);
+    setIndex(-1);
+    animateScrollTo(heroTargetScroll(), 0);
+    return true;
+  }
+
+  // Shared by every input. Four outcomes:
   //   "free"    — not ours; hand it to the browser untouched (still in the
-  //               hero, or scrolling up off the first product, which is how
-  //               you get back to the hero).
+  //               hero — index is -1 there, already released, nothing left
+  //               for a further upward gesture to do).
+  //   "hero"    — ours; scrolling up off the first product snaps back to
+  //               the hero boundary rather than releasing to free scroll.
   //   "absorb"  — ours, and the answer is "nothing happens": swallow the
   //               gesture at the end of the strip so the page can't drift
   //               into the empty run-off below and spring back.
   //   "advance" — ours; move one product.
   function gestureMode(direction) {
     if (!entries.length || !inStrip()) return "free";
-    if (direction < 0 && index <= 0) return "free";
+    if (direction < 0 && index === 0) return "hero";
+    if (direction < 0 && index < 0) return "free";
     if (direction > 0 && index >= entries.length - 1) return "absorb";
     return "advance";
   }
@@ -387,7 +438,8 @@
     e.preventDefault();
     if (mode === "absorb" || locked) return;
     clearPendingRestore();
-    goTo(index + direction);
+    if (mode === "hero") goToHero();
+    else goTo(index + direction);
   }
 
   var touchStartY = null;
@@ -414,7 +466,8 @@
     e.preventDefault();
     if (mode === "absorb" || locked || Math.abs(delta) < TOUCH_MIN_DELTA) return;
     clearPendingRestore();
-    goTo(index + direction);
+    if (mode === "hero") goToHero();
+    else goTo(index + direction);
     touchArmed = false; // one product per swipe, however far it travels
   }
 
@@ -434,7 +487,8 @@
     e.preventDefault();
     if (mode === "absorb" || locked) return;
     clearPendingRestore();
-    goTo(index + direction);
+    if (mode === "hero") goToHero();
+    else goTo(index + direction);
   }
 
   /* ---- settling ---------------------------------------------------------- */
