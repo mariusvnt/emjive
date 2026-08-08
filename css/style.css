@@ -2327,10 +2327,12 @@ body.has-series-hero .selection-bar {
    ========================================================================== */
 
 /* The one place the lens's geometry is defined. The disc is concentric
-   with the render (measured from its alpha channel: center 959,542.5 in a
+   with the render (measured from its alpha channel: center 960,544.5 in a
    1920x1080 image whose own center is 960,540 — close enough to treat as
-   centered, same as the previous render's own half-pixel offset) and its
-   radius is 196px of that image's 1080px height. Everything that has to
+   centered, same margin the previous two renders both measured within) and
+   its radius is 196px of that image's 1080px height — unchanged from the
+   render before this one, so these ratios needed no update alongside its
+   most recent re-render. Everything that has to
    line up with the glass — the magnified viewer's circle, the label bar's
    left edge, each card's icon box — derives from these, so re-sizing the
    lens is a one-line change here rather than four numbers kept in sync by

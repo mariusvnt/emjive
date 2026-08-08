@@ -1,6 +1,6 @@
 # Styling
 
-One file, `css/style.css` (~2590 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
+One file, `css/style.css` (~2592 lines), plain CSS — no preprocessor, no CSS-in-JS. Line numbers below verified directly against the file; re-check them if the file has grown/shrunk a lot since.
 
 ## Design tokens (`:root`, lines 5–56)
 
@@ -26,7 +26,7 @@ Regular (400), Bold (700), and Black (900, driven by `--button-font-weight` — 
 
 ## Section map
 
-`css/style.css` is 2590 lines and holds only what's shared across pages. **The homepage hero's styling is no longer here** — it moved wholesale into the featured series' own bundle at `series/<slug>/hero.css`, along with the `--reveal-pin-height` and `--reveal-xray-opacity` tokens it owns (see `pages.md`).
+`css/style.css` is 2592 lines and holds only what's shared across pages. **The homepage hero's styling is no longer here** — it moved wholesale into the featured series' own bundle at `series/<slug>/hero.css`, along with the `--reveal-pin-height` and `--reveal-xray-opacity` tokens it owns (see `pages.md`).
 
 | Lines | Section |
 |---|---|
@@ -41,7 +41,7 @@ Regular (400), Bold (700), and Black (900, driven by `--button-font-weight` — 
 | 1115–1208 | Checkout bar — `launch-order.html`'s own "liquid glass" bar (`.order-checkout-bar`), not `.selection-bar` (see `pages.md`/`client-scripts.md`) |
 | 1209–1994 | Product detail page (by far the largest — sub-map below) |
 | 1995–2307 | Floating selection bar |
-| 2308–2590 | Lab-lens artefact — the fixed magnifying-glass overlay over the homepage grid, now a scroll-boundary-triggered 60-frame extend/retract sequence rather than a plain fade (see its own section below) |
+| 2308–2592 | Lab-lens artefact — the fixed magnifying-glass overlay over the homepage grid, now a scroll-boundary-triggered 60-frame extend/retract sequence rather than a plain fade (see its own section below) |
 
 No more standalone Footer section — `<footer class="site-footer">` (and its CSS) was removed along with the rest of `launch-order.html`'s old layout; it was never used anywhere else.
 
@@ -101,11 +101,11 @@ That selector used to be `body:has(#revealSection)`, which broke the moment the 
 
 The actual entrance is driven by the active series' hero, which publishes how far past its trigger point the page has scrolled via `window.EmjiveHero`; `js/selection-bar.js` subscribes and sets `.selection-bar`'s `transform` directly, every scroll frame, as a continuous function of that — continuing straight out of the hero's own x-ray wipe rather than switching to a separate, time-based animation once some threshold is crossed. That's exactly why there's no CSS `transition` here: one would lag behind the live scroll-computed value instead of tracking it exactly, undermining the "same physical scroll motion" effect. Pages with no hero never get `has-series-hero` and nothing ever publishes, so the bar there is just always visible — the whole mechanic never runs (see `client-scripts.md`).
 
-## Lab-lens artefact (lines 2308–2590, to end of file)
+## Lab-lens artefact (lines 2308–2592, to end of file)
 
 A fixed magnifying-glass overlay over the homepage grid — see `pages.md`/`client-scripts.md` for the full JS mechanism (why it's there, what it magnifies, why there's only one 3D viewer on the page, how the 60-frame extend/retract sequence plays). This section is the geometry/CSS half only.
 
-**One `:root` block (2351–2377) is the single source of truth for the whole system, and the disc/frame relationship inside it is inverted from how it reads at first glance**: `--lens-icon-h` (`min(45svh, 58vw)`) is the actual anchor, frozen at the exact value/formula it always had; `--lens-disc-d`/`--lens-disc-r` (the *glass disc's* on-screen diameter/radius, `0.630556`/`0.315278` of `--lens-icon-h`, unchanged) derive from it, which is what keeps `.product-card__figure` — sized to match `--lens-disc-d` exactly — the same size regardless of the artwork's own scale. `--lens-h` (the `<img id="lensArtefact">`'s own rendered frame height) is what's derived *from* the disc instead of the other way around: `var(--lens-disc-d) / 0.362963`, that divisor being the 60-frame sequence's own disc-to-frame ratio (392px disc diameter of a 1080px-tall frame, measured off its alpha channel same as the old single render was) — so the artwork's rendered size grows or shrinks around a disc that stays put, rather than the disc changing with a re-render. `--lens-mag` (the magnification factor, read into JS once via `getComputedStyle` — see `client-scripts.md` — so the CSS and the JS layout math can never independently drift), `--card-gap` (vertical space between stacked icons, also the grid's scroll step), and `--label-h`/`--label-font`/`--label-gap`/`--label-pad` (the sliding label bar's own metrics) round out the block. Two `@media (max-width: …)` blocks (640px, 380px) override a subset of these for narrow screens, `--lens-icon-h` included — sized in `svh` alone, a tall/narrow phone gets a glass scaled to its long axis while the label bar's actual room (which starts past the disc's right edge) is dictated by the short one, and a product name runs out of space, hence the same `vw` cap at each step.
+**One `:root` block (2353–2379) is the single source of truth for the whole system, and the disc/frame relationship inside it is inverted from how it reads at first glance**: `--lens-icon-h` (`min(45svh, 58vw)`) is the actual anchor, frozen at the exact value/formula it always had; `--lens-disc-d`/`--lens-disc-r` (the *glass disc's* on-screen diameter/radius, `0.630556`/`0.315278` of `--lens-icon-h`, unchanged) derive from it, which is what keeps `.product-card__figure` — sized to match `--lens-disc-d` exactly — the same size regardless of the artwork's own scale. `--lens-h` (the `<img id="lensArtefact">`'s own rendered frame height) is what's derived *from* the disc instead of the other way around: `var(--lens-disc-d) / 0.362963`, that divisor being the 60-frame sequence's own disc-to-frame ratio (392px disc diameter of a 1080px-tall frame, measured off its alpha channel same as the old single render was) — so the artwork's rendered size grows or shrinks around a disc that stays put, rather than the disc changing with a re-render. `--lens-mag` (the magnification factor, read into JS once via `getComputedStyle` — see `client-scripts.md` — so the CSS and the JS layout math can never independently drift), `--card-gap` (vertical space between stacked icons, also the grid's scroll step), and `--label-h`/`--label-font`/`--label-gap`/`--label-pad` (the sliding label bar's own metrics) round out the block. Two `@media (max-width: …)` blocks (640px, 380px) override a subset of these for narrow screens, `--lens-icon-h` included — sized in `svh` alone, a tall/narrow phone gets a glass scaled to its long axis while the label bar's actual room (which starts past the disc's right edge) is dictated by the short one, and a product name runs out of space, hence the same `vw` cap at each step.
 
 **Three fixed layers, same center point, distinct z-indices**: `.lens-viewer` (25, the live-magnified view — see below), `.lens-artefact` (30, the glass render itself, painted over the viewer), `.lens-label` (31, the sliding name bar). All three are direct children of `<body>` in the markup, not inside `<main>` — same reasoning as `.series-hero` needing to stay a plain box above: nothing in a `position: fixed` element's ancestor chain may pick up `overflow`/`transform`/`filter`, or it stops being fixed to the viewport.
 

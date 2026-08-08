@@ -94,46 +94,44 @@
   // onChange never fires a real one) — whichever notices first wins, the
   // other becomes a no-op via enterGrid()'s own guard.
   var glassEntered = false;
-  // Has the glass actually reached GLASS_REVEAL_FRAME for THIS "past"
-  // session? Read by the wiring section below to decide whether a focused
-  // product's label may present immediately or has to wait — see
+  // Has the glass actually reached its last frame for THIS "past" session?
+  // Read by the wiring section below to decide whether a focused product's
+  // label may present immediately or has to wait — see
   // revealMagnifiedContent().
   var glassRevealReady = false;
 
   /* The 60-frame extend/retract sequence: a hand-authored "lens
-     progressively extends in place" render, 60 frames @ 30fps. Frame 60 is
-     deliberately not a file of its own here — it's already wired up as
-     assets/lab-lens.webp (index.html's #lensArtefact src), so the
-     fully-extended, settled state is just that plain static image, exactly
-     as it was before this sequence existed, with nothing left running once
-     it's reached.
+     progressively extends in place" render, 60 frames @ 30fps, re-rendered
+     once already (the disc's own geometry — --lens-disc-d/-r's ratios in
+     css/style.css — happened to come out identical the second time, so no
+     CSS change was needed alongside this one). Frame 60 is deliberately not
+     a file of its own here — it's already wired up as assets/lab-lens.webp
+     (index.html's #lensArtefact src), so the fully-extended, settled state
+     is just that plain static image, exactly as it was before this
+     sequence existed, with nothing left running once it's reached.
 
-     Playback is two-phase, not one continuous sweep, because the glass's
-     entrance is paced to the grid's OWN entrance, not to the source clip's
-     raw length: js/product-focus.js's own snap-to-first-item tween
-     (SNAP_DURATION_MS below, mirrored by hand — see its comment) is what
-     actually settles the strip on the first product, and the glass's main,
-     clearly visible extending motion (frames 1-GLASS_REVEAL_FRAME) is timed
-     to finish in that same span, so the lens looks fully formed at the exact
-     moment the view settles — see enterGrid(). What's left after that
-     (GLASS_REVEAL_FRAME-60) is the source clip's own barely-perceptible
-     settle/wobble tail (confirmed by inspecting its frames: alpha content is
-     within a fraction of a percent of frame 60's from GLASS_REVEAL_FRAME
-     on), which just plays out afterward at the clip's native rate — nothing
-     is watching for it to finish. */
+     Frame 60 is THE sync mark, revised from an earlier version of this
+     render that visibly settled by around frame 45 — this one keeps moving
+     (a bounce/wobble, confirmed by inspecting its alpha content) well past
+     that point, so the magnified viewer/label now wait for the very last
+     frame instead. The whole 1->60 span is timed as one entrance, paced to
+     js/product-focus.js's own snap-to-first-item tween (SNAP_DURATION_MS
+     below, mirrored by hand — see its comment) rather than to the clip's
+     own raw length — see enterGrid(). */
   var GLASS_FRAME_COUNT = 60;
-  var GLASS_NATIVE_FRAME_MS = 1000 / 30; // the clip's own authored rate
+  var GLASS_NATIVE_FRAME_MS = 1000 / 30; // the clip's own authored rate —
+                                          // only the retreat plays at this;
+                                          // see enterGrid() for the entrance
   // js/product-focus.js's SNAP_DURATION_MS. No shared module system exists
   // between these two plain scripts to import it for real, so it's mirrored
   // here by hand — same as DEPART_RESET_MS's own comment below already
   // hand-mirrors this exact number for the same reason.
   var SNAP_DURATION_MS = 850;
-  var GLASS_REVEAL_FRAME = 45; // frame the magnified viewer/label wait for
-  // The rate phase 1 (1 -> GLASS_REVEAL_FRAME) plays at: whatever's needed
-  // for that FULL span to take exactly SNAP_DURATION_MS. Faster than the
-  // clip's own native rate — a deliberate retiming to match the snap, not
-  // an oversight.
-  var GLASS_PHASE1_FRAME_MS = SNAP_DURATION_MS / (GLASS_REVEAL_FRAME - 1);
+  // The rate the entrance (1 -> GLASS_FRAME_COUNT) plays at: whatever's
+  // needed for that FULL span to take exactly SNAP_DURATION_MS. Faster than
+  // the clip's own native rate — a deliberate retiming to match the snap,
+  // not an oversight.
+  var GLASS_ENTER_FRAME_MS = SNAP_DURATION_MS / (GLASS_FRAME_COUNT - 1);
   var glassFrame = GLASS_FRAME_COUNT; // which frame # is currently in glass.src
   var glassToken = 0; // bumped on every playGlass() call — same idiom as
                        // loadToken below — so a crossing that reverses
@@ -196,22 +194,18 @@
     requestAnimationFrame(tick);
   }
 
-  // The forward entrance: phase 1 to GLASS_REVEAL_FRAME at the rate that
+  // The forward entrance: plays 1 -> GLASS_FRAME_COUNT at the rate that
   // makes a FULL run of it take exactly SNAP_DURATION_MS (a partial one,
-  // resuming mid-retract, takes proportionally less — same interrupt
-  // handling as playGlass itself), then phase 2 covers whatever's left at
-  // the clip's native rate. Idempotent per "past" session via glassEntered,
-  // since two independent signals can each call this around the same
-  // moment — see its declaration above.
+  // resuming mid-retreat, takes proportionally less — same interrupt
+  // handling as playGlass itself), revealing the magnified content the
+  // instant it lands on the last frame. Idempotent per "past" session via
+  // glassEntered, since two independent signals can each call this around
+  // the same moment — see its declaration above.
   function enterGrid() {
     if (glassEntered) return;
     glassEntered = true;
-    var toReveal = Math.abs(GLASS_REVEAL_FRAME - glassFrame);
-    playGlass(GLASS_REVEAL_FRAME, toReveal * GLASS_PHASE1_FRAME_MS, function () {
-      revealMagnifiedContent();
-      var toEnd = Math.abs(GLASS_FRAME_COUNT - glassFrame);
-      playGlass(GLASS_FRAME_COUNT, toEnd * GLASS_NATIVE_FRAME_MS);
-    });
+    var toEnd = Math.abs(GLASS_FRAME_COUNT - glassFrame);
+    playGlass(GLASS_FRAME_COUNT, toEnd * GLASS_ENTER_FRAME_MS, revealMagnifiedContent);
   }
 
   function syncGlass() {
@@ -582,9 +576,9 @@
   }
 
   // The entrance's counterpart to leaveGrid(): called once playGlass()
-  // reaches GLASS_REVEAL_FRAME, never in sync with the crossing itself — a
-  // product's name (and the magnified viewer) must never be seen floating
-  // inside a half-formed glass shape. Reveals the viewer container
+  // reaches the glass's last frame, never in sync with the crossing itself
+  // — a product's name (and the magnified viewer) must never be seen
+  // floating inside a half-formed glass shape. Reveals the viewer container
   // immediately and, if a product got focused while the glass was still
   // extending, presents its label now instead of at focus time.
   function revealMagnifiedContent() {
