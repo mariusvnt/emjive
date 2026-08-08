@@ -2326,13 +2326,27 @@ body.has-series-hero .selection-bar {
    ========================================================================== */
 
 /* The one place the lens's geometry is defined. The disc is concentric
-   with the render (measured from its alpha channel: center 959.5,540 in a
-   1920x1080 image whose own center is 960,540 — a half-pixel off, so
-   centering the image centers the glass) and its radius is 340.5px of that
-   image's 1080px height. Everything that has to line up with the glass —
-   the magnified viewer's circle, the label bar's left edge, each card's
-   icon box — derives from these, so re-sizing the lens is a one-line
-   change here rather than four numbers kept in sync by hand. */
+   with the render (measured from its alpha channel: center 959,542.5 in a
+   1920x1080 image whose own center is 960,540 — close enough to treat as
+   centered, same as the previous render's own half-pixel offset) and its
+   radius is 196px of that image's 1080px height. Everything that has to
+   line up with the glass — the magnified viewer's circle, the label bar's
+   left edge, each card's icon box — derives from these, so re-sizing the
+   lens is a one-line change here rather than four numbers kept in sync by
+   hand.
+
+   --lens-icon-h anchors the disc's ON-SCREEN size, not the artwork's own
+   rendered size — kept at its pre-existing value (and formula) on purpose:
+   the 60-frame lab-lens-extend render this glass now plays through frames
+   its disc at a smaller fraction of its own canvas than the old single
+   still did (196/1080 here vs the old render's 340.5/1080), and
+   .product-card__figure is deliberately sized to match --lens-disc-d
+   exactly — so if --lens-disc-d moved, every icon in the grid would resize
+   with it. --lens-h (the <img id="lensArtefact">'s actual rendered frame
+   height, js/lens-artefact.js's 60-frame sequence lives at this size) is
+   instead DERIVED from the frozen disc size divided by the new render's
+   ratio, so the frame grows around an unchanged disc rather than the disc
+   shrinking with the frame. */
 :root {
   /* Capped against viewport WIDTH as well as height, which matters because
      the label bar can only begin past the glass's right edge: sized in svh
@@ -2340,9 +2354,10 @@ body.has-series-hero .selection-bar {
      the label's room is dictated by its short one, and the name runs out of
      space. The vw term only ever binds on narrow viewports — at desktop
      widths 58vw is far larger than 45svh, so this is a no-op there. */
-  --lens-h: min(45svh, 58vw);
-  --lens-disc-d: calc(var(--lens-h) * 0.630556); /* 2 * 340.5 / 1080 */
-  --lens-disc-r: calc(var(--lens-h) * 0.315278); /*     340.5 / 1080 */
+  --lens-icon-h: min(45svh, 58vw);
+  --lens-disc-d: calc(var(--lens-icon-h) * 0.630556); /* 2 * 340.5 / 1080, unchanged */
+  --lens-disc-r: calc(var(--lens-icon-h) * 0.315278); /*     340.5 / 1080, unchanged */
+  --lens-h: calc(var(--lens-disc-d) / 0.362963); /* 392 / 1080 — the new render's own disc ratio */
   /* How much the glass magnifies. The single source of truth: the still
      images, the live viewer's box and js/lens-artefact.js's layout maths
      all read this one number, which is what keeps the still and the live
@@ -2363,14 +2378,15 @@ body.has-series-hero .selection-bar {
 /* Everything lens-related, scaled to 75%. On a phone the glass is a huge
    share of the screen width, and since the label bar can only start past
    the glass's right edge, that left the label too little room to show a
-   name in full. Scaling --lens-h cascades to the disc, the card icons and
-   the stack's pitch (all derived from it) and moves the bar's start point
-   inward with it; the label's own metrics are scaled alongside by hand.
-   Reuses the 640px breakpoint already established elsewhere in this file
-   rather than introducing another one. */
+   name in full. Scaling --lens-icon-h cascades to the disc, the card icons
+   and the stack's pitch (all derived from it, and --lens-h along with them
+   via its own derivation above) and moves the bar's start point inward
+   with it; the label's own metrics are scaled alongside by hand. Reuses
+   the 640px breakpoint already established elsewhere in this file rather
+   than introducing another one. */
 @media (max-width: 640px) {
   :root {
-    --lens-h: min(33.75svh, 56vw); /* 45svh * 0.75, still width-capped */
+    --lens-icon-h: min(33.75svh, 56vw); /* 45svh * 0.75, still width-capped */
     --card-gap: 0.9375rem;
     --label-h: 0.9rem;
     --label-font: 0.75rem;
@@ -2384,7 +2400,7 @@ body.has-series-hero .selection-bar {
    of a full product name. */
 @media (max-width: 380px) {
   :root {
-    --lens-h: min(30svh, 50vw);
+    --lens-icon-h: min(30svh, 50vw);
     --label-font: 0.6875rem;
     --label-gap: 0.5rem;
     --label-pad: 0.375rem;
@@ -2395,10 +2411,11 @@ body.has-series-hero .selection-bar {
   position: fixed;
   top: 50%;
   left: 50%;
-  /* MUST stay var(--lens-h), never a literal: --lens-disc-d/-r are derived
-     from it, so a hardcoded height here would leave the drawn glass circle
-     and the magnified disc it's supposed to frame at different sizes on any
-     viewport where --lens-h resolves to something else. */
+  /* MUST stay var(--lens-h), never a literal: --lens-h is itself derived
+     from --lens-disc-d/-r now (see the :root block above), so a hardcoded
+     height here would leave the drawn glass circle and the magnified disc
+     it's supposed to frame at different sizes on any viewport where
+     --lens-icon-h resolves to something else. */
   height: var(--lens-h);
   width: auto;
   /* The global `img { max-width: 100% }` reset above would otherwise clamp
@@ -2416,6 +2433,14 @@ body.has-series-hero .selection-bar {
   transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
 
+/* A pre-JS FOUC guard only now, not a per-crossing toggle: js/lens-artefact.js
+   adds this class exactly once, on its very first syncGlass() call, and
+   never removes it again — the static src (assets/lab-lens.webp, now the
+   60-frame sequence's OWN fully-extended last frame) would otherwise paint
+   at full opacity for the brief window before that script runs. Actually
+   appearing/disappearing at the hero boundary is the frame sequence's own
+   job from here: frame 1 is fully transparent, so "hidden" falls out of the
+   image's own alpha content rather than this opacity rule. */
 .lens-artefact.is-visible {
   opacity: 1;
 }

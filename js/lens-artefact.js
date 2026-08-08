@@ -5,11 +5,23 @@
    the glass render itself, the magnified view inside it, and the label bar
    hanging off its right edge. Two independent inputs drive them:
 
-     the hero's own geometry                 -> the glass fades in once the
-                                                hero is behind us, and back
-                                                out on scrolling up into it.
-     window.EmjiveFocus (js/product-focus.js) -> which product is centered;
-                                                drives the viewer and label.
+     window.EmjiveFocus (js/product-focus.js) -> which product is centered,
+                                                driving the viewer and label;
+                                                and, the instant it settles
+                                                on the first product, the
+                                                trigger for the glass's own
+                                                60-frame extend, paced to
+                                                finish its main motion in the
+                                                same span as that snap (see
+                                                enterGrid()).
+     the hero's own geometry                 -> a fallback forward trigger
+                                                for a grid with no visible
+                                                products (EmjiveFocus never
+                                                fires one there); and the
+                                                authoritative trigger for the
+                                                reverse — the same sequence
+                                                played backward on scrolling
+                                                back up into the hero.
 
    The magnified view is a duplicate of the product stack, drawn at
    --lens-mag about the screen's centre and clipped to the glass: one still
@@ -67,28 +79,193 @@
   var heroSlot = document.getElementById("seriesHero");
   var glassTicking = false;
   var glassWasPast = false;
+  // Guards the very first syncGlass() call (page load): it must snap
+  // straight to the right frame, never animate — otherwise a reload that
+  // restores an already-scrolled-past-the-boundary position (see
+  // js/product-focus.js's sessionStorage["emjive_grid_position"]) would
+  // replay the whole extend sequence on every refresh instead of just
+  // showing the settled glass.
+  var glassInited = false;
+  // Has the forward extend already been kicked off for THIS "past"
+  // session? Guards against double-triggering: entering the grid can be
+  // signalled by two independent sources below (EmjiveFocus.onChange's
+  // snap-to-first-item, the primary trigger; syncGlass's own hero-geometry
+  // boundary, a fallback for a grid with no visible products, where
+  // onChange never fires a real one) — whichever notices first wins, the
+  // other becomes a no-op via enterGrid()'s own guard.
+  var glassEntered = false;
+  // Has the glass actually reached GLASS_REVEAL_FRAME for THIS "past"
+  // session? Read by the wiring section below to decide whether a focused
+  // product's label may present immediately or has to wait — see
+  // revealMagnifiedContent().
+  var glassRevealReady = false;
+
+  /* The 60-frame extend/retract sequence: a hand-authored "lens
+     progressively extends in place" render, 60 frames @ 30fps. Frame 60 is
+     deliberately not a file of its own here — it's already wired up as
+     assets/lab-lens.webp (index.html's #lensArtefact src), so the
+     fully-extended, settled state is just that plain static image, exactly
+     as it was before this sequence existed, with nothing left running once
+     it's reached.
+
+     Playback is two-phase, not one continuous sweep, because the glass's
+     entrance is paced to the grid's OWN entrance, not to the source clip's
+     raw length: js/product-focus.js's own snap-to-first-item tween
+     (SNAP_DURATION_MS below, mirrored by hand — see its comment) is what
+     actually settles the strip on the first product, and the glass's main,
+     clearly visible extending motion (frames 1-GLASS_REVEAL_FRAME) is timed
+     to finish in that same span, so the lens looks fully formed at the exact
+     moment the view settles — see enterGrid(). What's left after that
+     (GLASS_REVEAL_FRAME-60) is the source clip's own barely-perceptible
+     settle/wobble tail (confirmed by inspecting its frames: alpha content is
+     within a fraction of a percent of frame 60's from GLASS_REVEAL_FRAME
+     on), which just plays out afterward at the clip's native rate — nothing
+     is watching for it to finish. */
+  var GLASS_FRAME_COUNT = 60;
+  var GLASS_NATIVE_FRAME_MS = 1000 / 30; // the clip's own authored rate
+  // js/product-focus.js's SNAP_DURATION_MS. No shared module system exists
+  // between these two plain scripts to import it for real, so it's mirrored
+  // here by hand — same as DEPART_RESET_MS's own comment below already
+  // hand-mirrors this exact number for the same reason.
+  var SNAP_DURATION_MS = 850;
+  var GLASS_REVEAL_FRAME = 45; // frame the magnified viewer/label wait for
+  // The rate phase 1 (1 -> GLASS_REVEAL_FRAME) plays at: whatever's needed
+  // for that FULL span to take exactly SNAP_DURATION_MS. Faster than the
+  // clip's own native rate — a deliberate retiming to match the snap, not
+  // an oversight.
+  var GLASS_PHASE1_FRAME_MS = SNAP_DURATION_MS / (GLASS_REVEAL_FRAME - 1);
+  var glassFrame = GLASS_FRAME_COUNT; // which frame # is currently in glass.src
+  var glassToken = 0; // bumped on every playGlass() call — same idiom as
+                       // loadToken below — so a crossing that reverses
+                       // direction mid-animation invalidates the in-flight
+                       // rAF loop rather than racing it
+
+  function glassFramePath(n) {
+    return n === GLASS_FRAME_COUNT
+      ? "assets/lab-lens.webp"
+      : "assets/lab-lens-frames/lab-lens_" + (n < 10 ? "0" + n : n) + ".webp";
+  }
+
+  // Buffered at load time, not lazily on approach to the boundary: eager,
+  // plain preload (not <link rel=preload>, which would compete with the
+  // hero's own critical preloads for bandwidth this sequence doesn't need
+  // until well into the scroll), kicked off unconditionally the instant
+  // this script runs. References kept alive in this array so later src
+  // swaps on the visible glass paint instantly from cache rather than
+  // re-fetching mid-animation.
+  var glassPreload = [];
+  for (var gp = 1; gp <= GLASS_FRAME_COUNT; gp++) {
+    var preloadImg = new Image();
+    preloadImg.src = glassFramePath(gp);
+    glassPreload.push(preloadImg);
+  }
+
+  function setGlassFrame(n) {
+    if (n === glassFrame) return;
+    glassFrame = n;
+    glass.src = glassFramePath(n);
+  }
+
+  // Animates from wherever the sequence currently sits to `target` over
+  // `durationMs`, calling `onComplete` (if given) once it arrives — or
+  // immediately, if it's already there. A fresh call always wins over one
+  // already in flight via the token bump, same pattern loadToken uses below
+  // for a stale glTF load — so a crossing that reverses direction
+  // mid-animation resumes from the CURRENT frame rather than restarting or
+  // jumping, and its superseded onComplete never fires.
+  function playGlass(target, durationMs, onComplete) {
+    var token = ++glassToken;
+    var from = glassFrame;
+    if (target === from) {
+      if (onComplete) onComplete();
+      return;
+    }
+    var start = null;
+
+    function tick(now) {
+      if (token !== glassToken) return; // superseded by a newer crossing
+      if (start === null) start = now;
+      var t = Math.min(1, (now - start) / durationMs);
+      setGlassFrame(Math.round(from + (target - from) * t));
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else if (onComplete) {
+        onComplete();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // The forward entrance: phase 1 to GLASS_REVEAL_FRAME at the rate that
+  // makes a FULL run of it take exactly SNAP_DURATION_MS (a partial one,
+  // resuming mid-retract, takes proportionally less — same interrupt
+  // handling as playGlass itself), then phase 2 covers whatever's left at
+  // the clip's native rate. Idempotent per "past" session via glassEntered,
+  // since two independent signals can each call this around the same
+  // moment — see its declaration above.
+  function enterGrid() {
+    if (glassEntered) return;
+    glassEntered = true;
+    var toReveal = Math.abs(GLASS_REVEAL_FRAME - glassFrame);
+    playGlass(GLASS_REVEAL_FRAME, toReveal * GLASS_PHASE1_FRAME_MS, function () {
+      revealMagnifiedContent();
+      var toEnd = Math.abs(GLASS_FRAME_COUNT - glassFrame);
+      playGlass(GLASS_FRAME_COUNT, toEnd * GLASS_NATIVE_FRAME_MS);
+    });
+  }
 
   function syncGlass() {
     glassTicking = false;
     // No hero on this page (or the bundle failed to load, leaving the slot
     // empty): nothing to stay clear of, so the lens is simply available.
     var past = !heroSlot || heroSlot.getBoundingClientRect().bottom <= window.innerHeight / 2;
-    glass.classList.toggle("is-visible", past);
-    // The magnified view appears and disappears WITH the glass, never per
-    // product — it isn't a reveal, it's the magnification itself.
-    if (viewerHost) viewerHost.classList.toggle("is-visible", past);
 
-    // Belt and suspenders: js/product-focus.js has its own, separate
-    // boundary for "have we left the strip" (card-geometry-based, since it
-    // has no notion of the hero at all), which should agree with this one
-    // but — observed on phones, where the narrow-screen CSS scales the
-    // whole lens system by a different factor than the hero's own layout —
-    // can occasionally disagree by a frame or two, leaving the label/viewer
-    // shown a beat into the hero. This measurement is the simpler and more
-    // direct one for "are we clear of the hero", so on the transition back
-    // into it, it forces the label/viewer closed regardless of what focus
-    // state product-focus.js currently thinks it's in.
-    if (glassWasPast && !past) leaveGrid();
+    if (!glassInited) {
+      glassInited = true;
+      setGlassFrame(past ? GLASS_FRAME_COUNT : 1);
+      glass.classList.add("is-visible"); // one-time FOUC release — see css/style.css
+      if (viewerHost) viewerHost.classList.toggle("is-visible", past);
+      glassEntered = past;
+      glassRevealReady = past;
+      glassWasPast = past;
+      if (past) layoutLens();
+      return;
+    }
+
+    if (past && !glassWasPast) {
+      // The real trigger is EmjiveFocus.onChange, below in the wiring
+      // section — it fires in the same synchronous call js/product-focus.js
+      // starts its own snap-to-first-item tween in, which is what
+      // enterGrid()'s timing is actually paced against. This is only the
+      // fallback, for a grid with zero visible products, where onChange
+      // never fires a real one.
+      enterGrid();
+    } else if (!past && glassWasPast) {
+      // Belt and suspenders: js/product-focus.js has its own, separate
+      // boundary for "have we left the strip" (card-geometry-based, since it
+      // has no notion of the hero at all), which should agree with this one
+      // but — observed on phones, where the narrow-screen CSS scales the
+      // whole lens system by a different factor than the hero's own layout —
+      // can occasionally disagree by a frame or two, leaving the label/viewer
+      // shown a beat into the hero. This measurement is the simpler and more
+      // direct one for "are we clear of the hero", so on the transition back
+      // into it, it forces the label/viewer closed regardless of what focus
+      // state product-focus.js currently thinks it's in.
+      //
+      // The actual closing (glassEntered/viewerHost) happens right here,
+      // not inside leaveGrid() itself: that function is shared with
+      // EmjiveFocus's very first, synchronous "nothing focused yet" ping,
+      // fired the instant the wiring section subscribes below — before the
+      // grid has rendered a single card. Resetting glassEntered there would
+      // spuriously undo an "already past the boundary" state a restored
+      // scroll position can set up moments earlier in this very same
+      // synchronous script run.
+      leaveGrid();
+      glassEntered = false;
+      glassRevealReady = false;
+      if (viewerHost) viewerHost.classList.remove("is-visible");
+      playGlass(1, Math.abs(glassFrame - 1) * GLASS_NATIVE_FRAME_MS);
+    }
     glassWasPast = past;
 
     if (past) layoutLens();
@@ -144,6 +321,10 @@
   var loadToken = 0;      // guards against a stale load resolving late
   var departTimer = null;
   var labelTimer = null;
+  var labelWaiting = null; // a focused product whose label is queued behind
+                            // the glass finishing its extend — see
+                            // revealMagnifiedContent() and the onChange
+                            // handler below
 
   /* ---- geometry ----------------------------------------------------------- */
 
@@ -383,7 +564,14 @@
   // the two disagree). Same departure treatment either way — the outgoing
   // model eases home rather than being cut, per the rule at the top of this
   // file — this just skips straight to it without a next product queued.
+  // Note: this does NOT touch glassEntered/glassRevealReady/viewerHost's
+  // is-visible — that's syncGlass()'s own reverse-crossing branch's job (see
+  // its comment). This function also runs on EmjiveFocus's very first,
+  // synchronous "nothing focused yet" ping at subscribe time, before the
+  // grid has rendered a single card — touching that glass-side state here
+  // would fire on every page load, not just a real departure.
   function leaveGrid() {
+    labelWaiting = null;
     if (departTimer) clearTimeout(departTimer);
     if (shown && viewer) {
       if (viewer.returnToDefaultPose) viewer.returnToDefaultPose(DEPART_RESET_MS);
@@ -393,7 +581,35 @@
     retractLabel();
   }
 
+  // The entrance's counterpart to leaveGrid(): called once playGlass()
+  // reaches GLASS_REVEAL_FRAME, never in sync with the crossing itself — a
+  // product's name (and the magnified viewer) must never be seen floating
+  // inside a half-formed glass shape. Reveals the viewer container
+  // immediately and, if a product got focused while the glass was still
+  // extending, presents its label now instead of at focus time.
+  function revealMagnifiedContent() {
+    glassRevealReady = true;
+    if (viewerHost) viewerHost.classList.add("is-visible");
+    layoutLens();
+    if (labelWaiting) {
+      var product = labelWaiting;
+      labelWaiting = null;
+      retractLabel(function () { presentLabel(product); });
+    }
+  }
+
   window.EmjiveFocus.onChange(function (product) {
+    // The real entrance trigger (see enterGrid()'s own comment): this fires
+    // in the exact synchronous call js/product-focus.js's goTo() starts its
+    // snap-to-first-item tween in — "Focus changes up front, not on
+    // arrival" is that file's own words for it — so the glass starts
+    // extending in the same frame the strip starts moving. Guarded by
+    // glassEntered, not by "is this the first product ever": EmjiveFocus
+    // calls this synchronously with its current value the instant it's
+    // subscribed to, below, which — before the grid has rendered a single
+    // card — is always null, and there's nothing to guard there anyway.
+    if (product && !glassEntered) enterGrid();
+
     if (!product) {
       leaveGrid();
       return;
@@ -412,7 +628,14 @@
     }
 
     pending = product;
-    retractLabel(function () { presentLabel(product); });
+    if (glassRevealReady) {
+      labelWaiting = null;
+      retractLabel(function () { presentLabel(product); });
+    } else {
+      // The glass hasn't finished extending yet — revealMagnifiedContent()
+      // presents this once it does, rather than showing it now.
+      labelWaiting = product;
+    }
   });
 
   window.EmjiveFocus.onSettled(function () {
