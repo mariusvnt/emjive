@@ -2319,10 +2319,11 @@ body.has-series-hero .selection-bar {
      .lens-label    (z 31) — the focused product's name, on a black bar
                              running from just clear of the glass to the
                              right screen edge.
-   Visibility is driven by js/lens-artefact.js: the glass off
-   window.EmjiveHero (so it fades back out on scrolling up into the hero,
-   rather than revealing permanently), the viewer and label off
-   window.EmjiveFocus (js/product-focus.js).
+   Driven by js/lens-artefact.js: the glass plays a 60-frame extend/retract
+   sequence keyed off the hero's own geometry (not window.EmjiveHero — see
+   that file's own comment for why), the viewer and label off
+   window.EmjiveFocus (js/product-focus.js), deferred until the glass has
+   reached GLASS_REVEAL_FRAME.
    ========================================================================== */
 
 /* The one place the lens's geometry is defined. The disc is concentric
