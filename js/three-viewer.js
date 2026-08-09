@@ -26,11 +26,26 @@
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
 (function () {
   "use strict";
+
+  // Shared across every viewer instance and every GLTFLoader.load() call —
+  // unlike loadEnvironment()'s PMREM texture (tied to one WebGLRenderer's
+  // context), Draco decoding is plain WASM/JS with no GPU context involved,
+  // so one decoder can serve every model on the page. Self-hosted (not the
+  // Google CDN three.js's own examples default to) so this stays a fully
+  // offline, no-external-request static site like the rest of it — see
+  // assets.md for the assets/draco/ folder these three files came from
+  // (verbatim, unmodified, copied from three's own npm package). Only
+  // products actually using KHR_draco_mesh_compression ever trigger a
+  // fetch of these; GLTFLoader ignores an attached DRACOLoader entirely for
+  // a model that doesn't use the extension.
+  var dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath("assets/draco/");
 
   // Fallback only, now — the real per-call choice is data/series.json's
   // top-level "hdris" map, resolved by the caller (js/main.js, js/product.js,
@@ -543,7 +558,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       modelPromise = Promise.resolve();
     } else {
       modelPromise = new Promise(function (resolve, reject) {
-        new GLTFLoader().load(
+        var gltfLoader = new GLTFLoader();
+        gltfLoader.setDRACOLoader(dracoLoader);
+        gltfLoader.load(
           product.assets.model,
           function (gltf) {
             modelRoot = gltf.scene;
@@ -790,7 +807,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         disposeModelRoot();
 
         return new Promise(function (resolve, reject) {
-          new GLTFLoader().load(
+          var gltfLoader = new GLTFLoader();
+          gltfLoader.setDRACOLoader(dracoLoader);
+          gltfLoader.load(
             nextProduct.assets.model,
             function (gltf) {
               if (isDisposed) return resolve(false);
