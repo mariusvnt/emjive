@@ -683,6 +683,20 @@ button, input, textarea {
 .product-card__figure > img {
   object-fit: cover;
 }
+/* js/main.js toggles this icon's [hidden] once a lazily-built 3D viewer
+   takes over its spot (see buildViewerFor/disposeViewerFor) — same trap as
+   .product-card[hidden] above and .selection-empty[hidden]/
+   .selection-list[hidden] elsewhere: the base img rule's `display: block`
+   is an AUTHOR-origin declaration, which beats the UA stylesheet's
+   `[hidden] { display: none }` regardless of specificity (normal-priority
+   author rules always win over normal-priority user-agent ones). Without
+   this, a "hidden" icon stayed laid out and interactive on top of the
+   canvas underneath it — invisible-looking (the canvas painted over it)
+   but still very much there for hit-testing, silently swallowing every
+   pointer event meant for the model and making it undraggable. */
+.product-card__figure > img[hidden] {
+  display: none;
+}
 
 /* A fixed-width box centered in the right column (grid-column: 2 — itself
    already the right half of .product-grid's centered, max-width-capped
