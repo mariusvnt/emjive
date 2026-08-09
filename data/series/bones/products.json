@@ -135,6 +135,142 @@
         "top-shot": { "steel": "assets/series/bones/products/marrow_ring/marrow_top-shot_steel.webp", "silver": "assets/series/bones/products/marrow_ring/marrow_top-shot_silver.webp", "bronze": "assets/series/bones/products/marrow_ring/marrow_top-shot_bronze.webp" },
         "photos": []
       }
+    },
+    {
+      "id": "05",
+      "name": "suture",
+      "category": "ring",
+      "description": "",
+      "default-metal": "steel",
+      "per-metal-specs": {
+        "steel": { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 105 },
+      "assets": {
+        "model": "assets/series/bones/products/suture_ring/suture_gltf.glb",
+        "icons": {
+          "steel": "assets/series/bones/products/suture_ring/suture_icon_steel.webp",
+          "silver": "assets/series/bones/products/suture_ring/suture_icon_silver.webp",
+          "bronze": "assets/series/bones/products/suture_ring/suture_icon_bronze.webp"
+        },
+        "fallback-img": {
+          "steel": "assets/series/bones/products/suture_ring/suture_fallback-img_steel.webp",
+          "silver": "assets/series/bones/products/suture_ring/suture_fallback-img_silver.webp",
+          "bronze": "assets/series/bones/products/suture_ring/suture_fallback-img_bronze.webp"
+        },
+        "xray": "",
+        "top-shot": {
+          "steel": "assets/series/bones/products/suture_ring/suture_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/suture_ring/suture_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/suture_ring/suture_top-shot_bronze.webp"
+        },
+        "photos": []
+      }
+    },
+    {
+      "id": "06",
+      "name": "cartilage",
+      "category": "ring",
+      "description": "",
+      "default-metal": "steel",
+      "per-metal-specs": {
+        "steel": { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 105 },
+      "assets": {
+        "model": "assets/series/bones/products/cartilage_ring/cartilage_gltf.glb",
+        "icons": {
+          "steel": "assets/series/bones/products/cartilage_ring/cartilage_icon_steel.webp",
+          "silver": "assets/series/bones/products/cartilage_ring/cartilage_icon_silver.webp",
+          "bronze": "assets/series/bones/products/cartilage_ring/cartilage_icon_bronze.webp"
+        },
+        "fallback-img": {
+          "steel": "assets/series/bones/products/cartilage_ring/cartilage_fallback-img_steel.webp",
+          "silver": "assets/series/bones/products/cartilage_ring/cartilage_fallback-img_silver.webp",
+          "bronze": "assets/series/bones/products/cartilage_ring/cartilage_fallback-img_bronze.webp"
+        },
+        "xray": "",
+        "top-shot": {
+          "steel": "assets/series/bones/products/cartilage_ring/cartilage_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/cartilage_ring/cartilage_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/cartilage_ring/cartilage_top-shot_bronze.webp"
+        },
+        "photos": []
+      }
+    },
+    {
+      "id": "07",
+      "name": "rib-cage",
+      "category": "ring",
+      "description": "",
+      "default-metal": "steel",
+      "per-metal-specs": {
+        "steel": { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "3d-viewer-camera-default": { "rotation": 47, "tilt": 52, "zoom": 105 },
+      "assets": {
+        "model": "assets/series/bones/products/rib-cage_ring/rib-cage_gltf.glb",
+        "icons": {
+          "steel": "assets/series/bones/products/rib-cage_ring/rib-cage_icon_steel.webp",
+          "silver": "assets/series/bones/products/rib-cage_ring/rib-cage_icon_silver.webp",
+          "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage_icon_bronze.webp"
+        },
+        "fallback-img": {
+          "steel": "assets/series/bones/products/rib-cage_ring/rib-cage_fallback-img_steel.webp",
+          "silver": "assets/series/bones/products/rib-cage_ring/rib-cage_fallback-img_silver.webp",
+          "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage_fallback-img_bronze.webp"
+        },
+        "xray": "",
+        "top-shot": {
+          "steel": "assets/series/bones/products/rib-cage_ring/rib-cage_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/rib-cage_ring/rib-cage_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage_top-shot_bronze.webp"
+        },
+        "photos": []
+      }
+    },
+    {
+      "id": "08",
+      "name": "rib-cage-extended",
+      "category": "ring",
+      "description": "",
+      "default-metal": "steel",
+      "per-metal-specs": {
+        "steel": { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "3d-viewer-camera-default": { "rotation": -42, "tilt": 39, "zoom": 105 },
+      "assets": {
+        "model": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_gltf.glb",
+        "icons": {
+          "steel": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_icon_steel.webp",
+          "silver": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_icon_silver.webp",
+          "bronze": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_icon_bronze.webp"
+        },
+        "fallback-img": {
+          "steel": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_fallback-img_steel.webp",
+          "silver": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_fallback-img_silver.webp",
+          "bronze": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_fallback-img_bronze.webp"
+        },
+        "xray": "",
+        "top-shot": {
+          "steel": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_top-shot_steel.webp",
+          "silver": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_top-shot_silver.webp",
+          "bronze": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_top-shot_bronze.webp"
+        },
+        "photos": []
+      }
     }
   ]
 }
