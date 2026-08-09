@@ -706,7 +706,34 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         clearIdleTimer();
         resizeObserver.disconnect();
         controls.dispose();
+        // Beyond the renderer/controls/observer teardown above, the loaded
+        // model's own GPU buffers and the environment's PMREM texture are
+        // real GPU memory too, tied to THIS renderer's context — freeing
+        // just the renderer/controls left both to linger until GC. Needed
+        // now that js/main.js's grid lazily builds/disposes a viewer per
+        // card on scroll rather than building one, page-lifetime — without
+        // a real teardown here, repeated build/dispose cycles would leak
+        // exactly the GPU memory this whole lazy scheme exists to cap.
+        if (modelRoot) {
+          modelRoot.traverse(function (node) {
+            if (!node.isMesh) return;
+            if (node.geometry) node.geometry.dispose();
+            var material = node.material;
+            if (!material) return;
+            if (Array.isArray(material)) material.forEach(function (m) { m.dispose(); });
+            else material.dispose();
+          });
+        }
+        if (scene.environment) scene.environment.dispose();
         renderer.dispose();
+        // renderer.dispose() alone frees the renderer's own bookkeeping
+        // (shader program cache, render lists) but doesn't reliably return
+        // the underlying WebGL context to the browser — forceContextLoss
+        // does, and is what actually frees up a slot against the browser's
+        // finite per-page WebGL context budget (js/main.js's grid can hit
+        // this repeatedly now, unlike the old build-once-per-page-load
+        // caller this method was originally written for).
+        if (renderer.forceContextLoss) renderer.forceContextLoss();
       }
     };
 

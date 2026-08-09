@@ -216,32 +216,87 @@
     });
   }
 
+  // Building a live three.js viewer for every card — one WebGLRenderer, one
+  // full glTF fetch/decode, one from-scratch HDRI PMREM build, each — used
+  // to happen unconditionally and instantly for every product in the
+  // series the moment the grid rendered. That was fine with a handful of
+  // small models; it stopped being fine once the catalog grew to several
+  // tens-of-MB models each (eight of them for Bones alone, over 100MB of
+  // glTF data combined) — doing all eight at once on page load overloads
+  // real devices' GPU/memory badly enough to crash the tab outright (a
+  // repeated "Aw, Snap!"), not just run slowly. Built lazily instead — only
+  // once a card scrolls near the viewport — and disposed again once it's
+  // scrolled well clear (see three-viewer.js's dispose(), strengthened
+  // alongside this to actually free the model/environment GPU memory, not
+  // just the renderer shell), so at most a handful of viewers/models exist
+  // at once regardless of how large the catalog grows. The two margins are
+  // deliberately far apart (build early, dispose late) so a card doesn't
+  // thrash build/dispose right at one boundary during ordinary scrolling.
+  var LAZY_BUILD_MARGIN = "150px 0px 150px 0px";
+  var LAZY_DISPOSE_MARGIN = "300px 0px 300px 0px";
+  var supportsLazyViewers = "IntersectionObserver" in window;
+
+  // No metal picker on the homepage grid — always the product's own default
+  // metal (product["default-metal"]). window.EmjiveModelViewer is exposed
+  // by js/three-viewer.js — reused here so the viewer construction/material
+  // logic lives in exactly one place. It can return null if the browser
+  // couldn't grant a WebGL context (see its own comment) — the icon (never
+  // removed from the card, only hidden) is left showing in that case,
+  // same as a product with no "assets.model" field at all.
+  function buildViewerFor(entry) {
+    if (entry.modelHandle || !entry.product.assets || !entry.product.assets.model) return;
+    var handle = window.EmjiveModelViewer(
+      entry.product,
+      entry.product["default-metal"],
+      { hdri: window.EmjiveSeries.hdriPath(activeSlug) }
+    );
+    if (!handle) return;
+    entry.modelHandle = handle;
+    wireModelClickNavigation(handle.el, entry.href);
+    if (entry.iconEl) entry.iconEl.hidden = true;
+    entry.figure.appendChild(handle.el);
+  }
+
+  function disposeViewerFor(entry) {
+    if (!entry.modelHandle) return;
+    entry.modelHandle.dispose();
+    entry.figure.removeChild(entry.modelHandle.el);
+    entry.modelHandle = null;
+    if (entry.iconEl) entry.iconEl.hidden = false;
+  }
+
+  // Two observers, not one, for the hysteresis noted above — figure.cardEntry
+  // (set in renderProducts) is how each observed element finds its way back
+  // to the per-card state buildViewerFor/disposeViewerFor need.
+  var buildObserver = supportsLazyViewers && new IntersectionObserver(function (observerEntries) {
+    observerEntries.forEach(function (observerEntry) {
+      if (observerEntry.isIntersecting) buildViewerFor(observerEntry.target.cardEntry);
+    });
+  }, { rootMargin: LAZY_BUILD_MARGIN });
+
+  var disposeObserver = supportsLazyViewers && new IntersectionObserver(function (observerEntries) {
+    observerEntries.forEach(function (observerEntry) {
+      if (!observerEntry.isIntersecting) disposeViewerFor(observerEntry.target.cardEntry);
+    });
+  }, { rootMargin: LAZY_DISPOSE_MARGIN });
+
   function buildCard(product) {
     var card = el("article", "product-card");
     var figure = el("div", "product-card__figure");
     var href = window.EmjiveSeries.productHref(product, activeSlug);
 
-    // No metal picker on the homepage grid — always the product's own
-    // default metal (product["default-metal"]). window.EmjiveModelViewer is
-    // exposed by js/three-viewer.js — reused here so the viewer
-    // construction/material logic lives in exactly one place. It can
-    // return null if the browser couldn't grant a WebGL context (see its
-    // own comment) — falls through to the same gridIcon branch a product
-    // with no "assets.model" field at all uses, rather than leaving the
-    // card blank.
+    // The icon is now always the card's initial content (previously only a
+    // fallback for a model-less product, or one that failed to get a WebGL
+    // context) — the live 3D viewer, when there's a model to show, is
+    // swapped in later, lazily, by buildViewerFor above.
     var gridIcon = product.assets && product.assets.icons && product.assets.icons[product["default-metal"]];
-    var modelHandle = (product.assets && product.assets.model)
-      ? window.EmjiveModelViewer(product, product["default-metal"], { hdri: window.EmjiveSeries.hdriPath(activeSlug) })
-      : null;
-    if (modelHandle) {
-      wireModelClickNavigation(modelHandle.el, href);
-      figure.appendChild(modelHandle.el);
-    } else if (gridIcon) {
-      var img = el("img");
-      img.src = gridIcon;
-      img.alt = product.name || "";
-      img.loading = "lazy";
-      figure.appendChild(img);
+    var iconEl = null;
+    if (gridIcon) {
+      iconEl = el("img");
+      iconEl.src = gridIcon;
+      iconEl.alt = product.name || "";
+      iconEl.loading = "lazy";
+      figure.appendChild(iconEl);
     }
 
     // The white divider bar itself IS the link (not a separate decorative
@@ -269,15 +324,16 @@
       card.appendChild(label);
     }
 
-    return card;
+    return { el: card, figure: figure, iconEl: iconEl, href: href };
   }
 
   // Every card, built ONCE, paired with the product it came from. Filtering
   // toggles `hidden` on these rather than re-rendering the grid: a rebuild
-  // would destroy and recreate every three.js WebGLRenderer on each toggle,
-  // and nothing on the live site disposes contexts. Past the browser's
-  // per-page context budget buildThreeViewer() returns null, and the grid
-  // degrades to static icons — permanently, for that page.
+  // would destroy and recreate every already-lazily-built three.js
+  // WebGLRenderer on each toggle. Past the browser's per-page context
+  // budget buildViewerFor() leaves entry.modelHandle null and the card
+  // just keeps showing its icon — same graceful-degradation contract as
+  // before, just discovered lazily now instead of all at once on load.
   var cards = [];
   var emptyMsg = null;
 
@@ -290,9 +346,27 @@
       return;
     }
     products.forEach(function (product) {
-      var card = buildCard(product);
-      cards.push({ product: product, el: card });
-      grid.appendChild(card);
+      var built = buildCard(product);
+      var entry = {
+        product: product,
+        el: built.el,
+        figure: built.figure,
+        iconEl: built.iconEl,
+        href: built.href,
+        modelHandle: null
+      };
+      cards.push(entry);
+      grid.appendChild(built.el);
+      if (supportsLazyViewers) {
+        built.figure.cardEntry = entry;
+        buildObserver.observe(built.figure);
+        disposeObserver.observe(built.figure);
+      } else {
+        // No IntersectionObserver (very old browser) — fall back to the
+        // previous behavior of building every viewer immediately/eagerly
+        // rather than leaving every card icon-only forever.
+        buildViewerFor(entry);
+      }
     });
   }
 
