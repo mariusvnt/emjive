@@ -10,11 +10,13 @@ assets/
     hero/      hand-rings-under-flesh_4k.webp, hand_xray.webp,
                hand_xray_extension_1.webp, hand_xray_extension_2.webp
     products/  furcula_ring/  foramen_ring/  disc_ring/  marrow_ring/
-  fonts/                            ─┐
-  hdri/                              │
-  logo.svg, logo_compact.svg         ├─ global — every series shares these
+               suture_ring/  cartilage_ring/  rib-cage_ring/  rib-cage-extended_ring/
+  draco/                             ─┐
+  fonts/                              │
+  hdri/                               │
+  logo.svg, logo_compact.svg          ├─ global — every series shares these
   metal-sample_{steel,silver,bronze}.webp
-  hand-pointer-thumb-opened.svg     ─┘
+  hand-pointer-thumb-opened.svg      ─┘
 ```
 
 Anything under `assets/series/<slug>/` belongs to that collection and dies with it; everything else is brand-level and referenced from series-unaware code. That boundary isn't a guess — it's exactly what the global code paths point at: `css/style.css`'s only `url()`s are the three `@font-face` rules and the three `.product-metals__option[data-metal]` swatches, `js/three-viewer.js` hardcodes the pointer SVG and its `DEFAULT_HDRI_SRC` fallback (`assets/hdri/studio_kontrast_04_1k.hdr` — the real per-call choice comes from `data/series.json`'s `"hdris"` map instead, see below), and `auto-render.js` writes `assets/metal-sample_<metal>.webp`.
@@ -32,12 +34,18 @@ For Bones: WebP (quality 90) rather than PNG, since these are full-bleed photogr
 One folder per product, matching that series' `products.json` path fields:
 
 ```text
-disc_ring/       disc_gltf.glb, disc_icon_{bronze,silver,steel}.webp, disc_fallback-img_{bronze,silver,steel}.webp, disc_top-shot_{bronze,silver,steel}.webp, disc_xray.webp
-foramen_ring/    Foramen_gltf.glb, foramen_icon_{bronze,silver,steel}.webp, foramen_fallback-img_{bronze,silver,steel}.webp, foramen_top-shot_{bronze,silver,steel}.webp, foramen_xray.webp
-furcula_ring/    furcula_gltf.glb, furcula_icon_{bronze,silver,steel}.webp, furcula_fallback-img_{bronze,silver,steel}.webp, furcula_top-shot_{bronze,silver,steel}.webp,
-                 furcula_xray.png, Furcula_photo1.png, Furcula_photo2.png
-marrow_ring/     Marrow_gltf.glb, marrow_icon_{bronze,silver,steel}.webp, marrow_fallback-img_{bronze,silver,steel}.webp, marrow_top-shot_{bronze,silver,steel}.webp, marrow_xray.webp
+disc_ring/                disc_gltf.glb, disc_icon_{bronze,silver,steel}.webp, disc_fallback-img_{bronze,silver,steel}.webp, disc_top-shot_{bronze,silver,steel}.webp, disc_xray.webp
+foramen_ring/              Foramen_gltf.glb, foramen_icon_{bronze,silver,steel}.webp, foramen_fallback-img_{bronze,silver,steel}.webp, foramen_top-shot_{bronze,silver,steel}.webp, foramen_xray.webp
+furcula_ring/              furcula_gltf.glb, furcula_icon_{bronze,silver,steel}.webp, furcula_fallback-img_{bronze,silver,steel}.webp, furcula_top-shot_{bronze,silver,steel}.webp,
+                           furcula_xray.png, Furcula_photo1.png, Furcula_photo2.png
+marrow_ring/               Marrow_gltf.glb, marrow_icon_{bronze,silver,steel}.webp, marrow_fallback-img_{bronze,silver,steel}.webp, marrow_top-shot_{bronze,silver,steel}.webp, marrow_xray.webp
+suture_ring/               suture_gltf.glb, suture_icon_{bronze,silver,steel}.webp, suture_fallback-img_{bronze,silver,steel}.webp, suture_top-shot_{bronze,silver,steel}.webp — no xray/photos
+cartilage_ring/            cartilage_gltf.glb, cartilage_icon_{bronze,silver,steel}.webp, cartilage_fallback-img_{bronze,silver,steel}.webp, cartilage_top-shot_{bronze,silver,steel}.webp — no xray/photos
+rib-cage_ring/             rib-cage_gltf.glb (Draco-compressed*), rib-cage_icon_{bronze,silver,steel}.webp, rib-cage_fallback-img_{bronze,silver,steel}.webp, rib-cage_top-shot_{bronze,silver,steel}.webp — no xray/photos
+rib-cage-extended_ring/    rib-cage-extended_gltf.glb (Draco-compressed*), rib-cage-extended_icon_{bronze,silver,steel}.webp, rib-cage-extended_fallback-img_{bronze,silver,steel}.webp, rib-cage-extended_top-shot_{bronze,silver,steel}.webp — no xray/photos
 ```
+
+\* `rib-cage_gltf.glb`/`rib-cage-extended_gltf.glb` are the only two models on the site exported with `KHR_draco_mesh_compression` (check via a model's `extensionsRequired` in its own glTF JSON chunk) — that's what keeps their file sizes down (6.7MB/12.4MB) despite being some of the heavier meshes in the catalog. `js/three-viewer.js`'s `GLTFLoader` needs a `DRACOLoader` to decode that extension at all — see `draco/` below and `client-scripts.md`. Without one, `GLTFLoader` doesn't degrade gracefully: it throws synchronously per-model, the load promise rejects, and the model just never appears (the pre-load poster stays up forever, silently, with no visible error) — confirmed as the root cause the one time these two models shipped ahead of the decoder being wired up.
 
 **Naming conventions:**
 - Folder: `<slug>_<category>` (lowercase product name + underscore + category). **This one is load-bearing now** — `auto-render.js` *constructs* the render output path from `assets/series/<slug>/products/<slug(name)>_<category>/` rather than reading it off `product.assets.model`, so a hand-renamed folder gets a new one created beside it instead of being silently found. It warns when a model sits outside the folder the convention predicts.
@@ -48,6 +56,7 @@ marrow_ring/     Marrow_gltf.glb, marrow_icon_{bronze,silver,steel}.webp, marrow
 
 ## Global items
 
+- `draco/` — `draco_decoder.js`, `draco_decoder.wasm`, `draco_wasm_wrapper.js`, copied verbatim (unmodified) from `node_modules/three/examples/jsm/libs/draco/` — three's own Draco decoder, self-hosted here rather than pointed at the Google CDN three.js's examples default to, so the site makes no external requests. `js/three-viewer.js` points a shared, module-scope `DRACOLoader` at this folder (`setDecoderPath("assets/draco/")`) and attaches it to every `GLTFLoader` it builds; a model without `KHR_draco_mesh_compression` never triggers a fetch of these files at all. Needs re-copying by hand from `node_modules/three` on a `three` upgrade if the decoder's own wire format ever changes (rare — Draco's bitstream is stable) — not automated by any script.
 - `hdri/` — environment HDRIs. Three today: `studio_kontrast_04_2k.hdr` (re-derived from an 8k EXR master via linear-space 2×2 box downsampling — an old `_1k.hdr` variant it replaced was itself a downscale of the same source), `autumn_field_puresky_1k.hdr` (a 1024×512 downscale from an 8k EXR source), and `white-room_2k.hdr` (4096×2048 — added at its native resolution, deliberately *not* downscaled to match the other two, so it's a noticeably larger file). Resolved by name via `data/series.json`'s top-level `"hdris"` map (`studio`/`blue-pure-sky`/`white-room`), not a single hardcoded path — each series picks one via its own `"hdri"` key (`js/series.js`'s `hdriPath()`), and the swatch renderer's own choice is the separate top-level `"swatch-hdri"` key (see `data.md`). A brand-new `.hdr` file plus its `hdris` map key is added (or replaced/removed) via `npm run json-tool`'s Global tab now, rather than hand-copying the file in and hand-editing the map — see `procedures.md`. `js/three-viewer.js`'s `DEFAULT_HDRI_SRC` (still `studio_kontrast_04_2k.hdr`) is only the fallback of last resort for a caller that omits `options.hdri` entirely — `scripts/auto-render.js`'s bare harness is one such caller, since it never loads `js/series.js`. Loaded by `loadEnvironment(renderer, hdriSrc)`, used by the live site and by every one of `scripts/auto-render.js`'s renders — icons, swatches, and top shots alike (top shots used to be lit with a plain `RoomEnvironment` instead; that override was removed, see `procedures.md`).
 - `logo.svg`, `logo_compact.svg` — brand marks.
 - `metal-sample_steel.webp`, `metal-sample_silver.webp`, `metal-sample_bronze.webp` — the metal-picker swatch bars, generated by `scripts/auto-render.js`, referenced from `css/style.css`'s `.product-metals__option[data-metal="..."]` rules. Global by nature: a material sample, not any product. Rendered from whichever primitive shape, HDRI, and camera angle `data/series.json`'s `"swatch-primitive"`/`"swatch-hdri"`/`"swatch-camera"` fields currently say — a cylinder is the default, not the only option; `scene-tool.html` (`npm run scene-tool`) is how those three get previewed and tuned (see `tooling.md`/`procedures.md`).
