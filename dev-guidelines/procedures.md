@@ -31,7 +31,10 @@ existing one — `bones` is the only one so far. To start a *new* series, see
    differently-named folder gets a second one created beside it.
 2. Drop in a 3D model as `.glb` (or `.gltf`), e.g. `model.glb`.
    - Export from Blender/Cinema4D/etc. as glTF Binary (.glb) — keep it under
-     a few MB for fast loading.
+     a few MB for fast loading. Draco mesh compression is supported (`js/
+     three-viewer.js` ships a `DRACOLoader` pointed at `assets/draco/` — see
+     `assets.md`/`client-scripts.md`) if a model is too heavy otherwise —
+     `rib-cage`/`rib-cage-extended` both use it.
 3. (Optional) drop in icons too — 512×512 transparent WebPs of just the
    product (no background), one per metal it can be shown in (not just its
    default — the product page's metal picker swaps the icon to match
