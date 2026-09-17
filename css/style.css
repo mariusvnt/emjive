@@ -201,6 +201,41 @@ body:has(.selection-bar) {
   padding-bottom: var(--selection-bar-height);
 }
 
+/* Landing-page scroll memory — js/scroll-memory.js adds this class (and
+   sets --emjive-restore-height inline) on <html> in the <head>, before
+   <body> is even parsed, when a back-navigation has a saved offset to
+   return to. It's removed again once the real content has grown past the
+   reservation, so none of this survives into the settled page.
+
+   min-height on BODY, never on html: html keeps its own
+   background: var(--bg) (see its rule above) painting the reserved region,
+   so the visitor looks at the site's background at the right offset rather
+   than a white void. Putting the reservation on html instead would make
+   that background box the reserved height too — same pixels, but it also
+   drags html's scrollHeight around, which is the very thing
+   js/scroll-memory.js measures to decide when the real content has caught
+   up.
+
+   overflow-anchor: none because the hero grows from 100svh to 200vh ABOVE
+   the restored position once its bundle lands. Scroll anchoring's whole job
+   is to shift the offset to keep content visually still through exactly
+   that kind of insertion — correct in general, wrong here, where the saved
+   absolute offset is the thing being preserved.
+
+   visibility (not display: none) on the grid: the cards stay laid out, so
+   IntersectionObserver still fires and loading="lazy" placeholders still
+   fetch, and js/main.js's lazy 3D viewers start building on schedule
+   underneath. They're hidden only so the grid is revealed with its
+   on-screen cards already decoded instead of as a row of empty boxes —
+   see settle() in js/scroll-memory.js. */
+html.emjive-restoring-scroll body {
+  min-height: var(--emjive-restore-height, 0);
+  overflow-anchor: none;
+}
+html.emjive-restoring-scroll .product-grid {
+  visibility: hidden;
+}
+
 h1, h2, h3 {
   font-family: var(--font-main);
   font-weight: 400;

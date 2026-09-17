@@ -245,18 +245,54 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // failed load evicts its own entry so a later viewer can retry rather
   // than inheriting a permanently-rejected promise.
   var hdrSourceCache = {};
+  var hdrLoadsInFlight = 0;
 
   function loadHdrSource(src) {
     if (!hdrSourceCache[src]) {
+      hdrLoadsInFlight++;
       hdrSourceCache[src] = new Promise(function (resolve, reject) {
-        new HDRLoader().load(src, resolve, undefined, function (err) {
+        new HDRLoader().load(src, resolve, undefined, reject);
+      }).then(
+        function (texture) {
+          hdrLoadsInFlight--;
+          return texture;
+        },
+        function (err) {
+          hdrLoadsInFlight--;
+          // Evicted so a later viewer can retry rather than inheriting a
+          // permanently-rejected promise.
           delete hdrSourceCache[src];
-          reject(err);
-        });
-      });
+          throw err;
+        }
+      );
     }
     return hdrSourceCache[src];
   }
+
+  // What this cache actually costs is invisible in a heap profile, because a
+  // DataTexture's pixels live in an external ArrayBuffer rather than the JS
+  // heap: Bones' studio_kontrast_04_2k.hdr is 5.9MB on the wire and decodes
+  // to 2048 x 1024 half-float RGBA — ~16.8MB — held at module scope for the
+  // life of the document. Worth every byte while viewers are being built and
+  // rebuilt during a scroll (it's what stops N simultaneous viewers decoding
+  // the same file N times), and worth nothing at all once the page is frozen
+  // or backgrounded, which on iOS is precisely when the memory is wanted
+  // elsewhere. Rebuilding it costs one re-decode on the next viewer built
+  // after the visitor returns, by which point they're looking at an icon
+  // fading into a model anyway.
+  //
+  // Guarded on in-flight loads rather than cancelling them: clearing the map
+  // mid-load doesn't stop the decode (its awaiters hold the promise
+  // directly), it just guarantees the next caller starts a second one.
+  function releaseHdrSources() {
+    if (hdrLoadsInFlight > 0) return;
+    hdrSourceCache = {};
+  }
+
+  window.addEventListener("pagehide", releaseHdrSources);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") releaseHdrSources();
+  });
 
   function loadEnvironment(renderer, hdriSrc) {
     var src = hdriSrc || DEFAULT_HDRI_SRC;

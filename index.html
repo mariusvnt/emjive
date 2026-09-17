@@ -44,6 +44,14 @@
 
 <link rel="stylesheet" href="css/style.css" />
 
+<!-- Back-navigation scroll memory (this page only — see the header comment
+     in js/scroll-memory.js). Blocking, and deliberately the FIRST script on
+     the page: it has to reserve the old document height before <body> is
+     parsed, so the saved offset is already reachable on the first painted
+     frame. Placed after the stylesheet so the .emjive-restoring-scroll
+     rules it relies on are parsed by the time it adds the class. -->
+<script src="js/scroll-memory.js"></script>
+
 <!-- Series resolution (which series this page shows, and its data).
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>

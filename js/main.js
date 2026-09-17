@@ -251,6 +251,31 @@
   var LAZY_DISPOSE_MARGIN = "300px 0px 300px 0px";
   var supportsLazyViewers = "IntersectionObserver" in window;
 
+  // A hard ceiling on live viewers, on top of the margins above. The margins
+  // alone bound the count only indirectly — what they really bound is a
+  // DISTANCE, and how many cards fall inside it is a function of the
+  // viewport and the card pitch. On a phone (figure 210px + the 8rem
+  // mobile row gap = a 338px pitch, inside an 860px viewport plus 300px of
+  // dispose margin each side) that works out to five at once, each holding
+  // its own WebGL context, decoded model and — the expensive part — its own
+  // PMREM environment render target, since a PMREM texture belongs to the
+  // one renderer that built it and cannot be shared (see loadEnvironment in
+  // js/three-viewer.js). Five of those is what pushes iOS Safari's page-wide
+  // budget over.
+  //
+  // Three covers everything genuinely on screen at any realistic viewport
+  // (a phone shows ~2.5 cards, a desktop fewer, since the figure grows with
+  // the viewport too) plus one in hand for the direction of travel. The
+  // trade is a very tall narrow window, where a fourth card can be on screen
+  // and will sit on its icon — the same graceful degradation a
+  // context-budget rejection already produces, and far better than the tab
+  // reloading underneath the visitor.
+  var MAX_LIVE_VIEWERS = 3;
+  // Reconciling costs a getBoundingClientRect per wanted card, so it's
+  // throttled rather than run per scroll event. Leading-edge on the first
+  // call (nothing is waiting when the page settles), trailing after that.
+  var RECONCILE_INTERVAL_MS = 250;
+
   // Lazy building alone bounds how many viewers EXIST at once; it does
   // nothing about how many start loading at once. A brisk scroll through
   // the grid crosses every card's build margin within a second or two, so
@@ -281,6 +306,13 @@
       entry.queued = false;
       if (entry.wantsViewer && !entry.modelHandle) startViewerLoad(entry);
     }
+    // The queue is first-in-first-out, which was the whole point when it was
+    // the only gate — but it knows nothing about where the viewport is now.
+    // An entry queued three screens ago can reach the front long after a
+    // nearer card started wanting a viewer, so re-run the nearest-first
+    // ordering afterwards and let it move the memory to where the visitor
+    // actually is.
+    if (supportsLazyViewers) scheduleReconcile();
   }
 
   // No metal picker on the homepage grid — always the product's own default
@@ -299,9 +331,21 @@
     function releaseSlot() {
       if (settled) return;
       settled = true;
+      entry.releaseSlot = null;
       activeModelLoads--;
       pumpLoadQueue();
     }
+    // A dispose that lands mid-load is the ONE way this viewer can settle
+    // without either callback below ever firing: three-viewer.js guards its
+    // whole ready path on isDisposed, and its error path on isDisposed too,
+    // so a card scrolled past while its model was still downloading
+    // silently kept the slot it had taken. Two of those (this is a
+    // two-slot pipeline) and the grid stopped loading models entirely for
+    // the rest of the page's life — every later card queued behind a
+    // counter that could never come back down, showing its icon forever
+    // with nothing in the console to say why. Handing the release to the
+    // entry is what lets teardownViewer close that path.
+    entry.releaseSlot = releaseSlot;
 
     var handle = window.EmjiveModelViewer(
       entry.product,
@@ -398,13 +442,19 @@
     entry.figure.removeChild(entry.modelHandle.el);
     entry.modelHandle = null;
     if (entry.iconEl) entry.iconEl.hidden = false;
+    // Last — pumpLoadQueue() runs inside this and can start the next
+    // viewer synchronously, so this entry has to be fully torn down first.
+    // A no-op on the onError path (releaseSlot already ran there) and on a
+    // viewer that had finished loading.
+    if (entry.releaseSlot) entry.releaseSlot();
   }
 
-  function disposeViewerFor(entry) {
-    entry.wantsViewer = false;
-    // Still waiting its turn: drop the intent now so pumpLoadQueue skips
-    // it, instead of letting a card that's long since scrolled past still
-    // claim a slot and pull its model down.
+  // Gives up this card's viewer (and its place in the queue) without giving
+  // up on the card itself: entry.wantsViewer is left alone, so the next
+  // reconcile can hand it a slot again the moment one frees up. That's the
+  // difference between "evicted to stay under the ceiling" and
+  // disposeViewerFor's "scrolled out of range entirely".
+  function evictViewer(entry) {
     if (entry.queued) {
       var i = loadQueue.indexOf(entry);
       if (i !== -1) loadQueue.splice(i, 1);
@@ -413,20 +463,89 @@
     teardownViewer(entry);
   }
 
+  function disposeViewerFor(entry) {
+    entry.wantsViewer = false;
+    // Still waiting its turn: drop the intent now so pumpLoadQueue skips
+    // it, instead of letting a card that's long since scrolled past still
+    // claim a slot and pull its model down.
+    evictViewer(entry);
+  }
+
+  function distanceFromViewportCenter(entry) {
+    var rect = entry.figure.getBoundingClientRect();
+    return Math.abs((rect.top + rect.bottom) / 2 - window.innerHeight / 2);
+  }
+
+  // The single decision point for which cards get a viewer. The observers
+  // only say which cards are in RANGE; this says which of those are worth
+  // the memory right now, nearest the middle of the screen first.
+  function reconcileViewers() {
+    var wanted = cards.filter(function (entry) {
+      return entry.wantsViewer && !entry.el.hidden;
+    });
+    wanted.sort(function (a, b) {
+      return distanceFromViewportCenter(a) - distanceFromViewportCenter(b);
+    });
+    wanted.forEach(function (entry, i) {
+      if (i < MAX_LIVE_VIEWERS) buildViewerFor(entry);
+      else evictViewer(entry);
+    });
+  }
+
+  // A timer, deliberately, not requestAnimationFrame — and the pending
+  // timer's own handle is the "already scheduled" flag, cleared as the first
+  // statement of the callback, so there is no separate boolean that can be
+  // left set by a reconcile that threw.
+  //
+  // rAF is the obvious choice for something driven by scrolling and it is
+  // the wrong one here: rAF only fires while the page is actually producing
+  // frames, so a reconcile armed just as the compositor goes idle sits
+  // unfired indefinitely, and every later scroll returns early against it.
+  // Measured in a headless run — 0 to 3 rAF callbacks across a six-second
+  // idle window where setTimeout ticked ~350 times — with the visible
+  // symptom being cards stopping mid-screen on their icons, wanting a
+  // viewer, with no load in flight and nothing queued.
+  var reconcileTimer = 0;
+  var lastReconcile = 0;
+  function scheduleReconcile() {
+    if (reconcileTimer) return;
+    reconcileTimer = setTimeout(function () {
+      reconcileTimer = 0;
+      lastReconcile = Date.now();
+      reconcileViewers();
+    }, Math.max(0, RECONCILE_INTERVAL_MS - (Date.now() - lastReconcile)));
+  }
+
   // Two observers, not one, for the hysteresis noted above — figure.cardEntry
   // (set in renderProducts) is how each observed element finds its way back
-  // to the per-card state buildViewerFor/disposeViewerFor need.
+  // to the per-card state the reconcile needs.
   var buildObserver = supportsLazyViewers && new IntersectionObserver(function (observerEntries) {
     observerEntries.forEach(function (observerEntry) {
-      if (observerEntry.isIntersecting) buildViewerFor(observerEntry.target.cardEntry);
+      if (observerEntry.isIntersecting) observerEntry.target.cardEntry.wantsViewer = true;
     });
+    scheduleReconcile();
   }, { rootMargin: LAZY_BUILD_MARGIN });
 
   var disposeObserver = supportsLazyViewers && new IntersectionObserver(function (observerEntries) {
     observerEntries.forEach(function (observerEntry) {
       if (!observerEntry.isIntersecting) disposeViewerFor(observerEntry.target.cardEntry);
     });
+    // A card leaving range frees a slot — hand it straight to whatever was
+    // being held back by the ceiling.
+    scheduleReconcile();
   }, { rootMargin: LAZY_DISPOSE_MARGIN });
+
+  // Neither observer fires while a card merely moves WITHIN its margins, so
+  // without this the nearest-to-centre ordering would only ever be
+  // recomputed at a margin crossing: a card held back by the ceiling on the
+  // way in would stay on its icon all the way past the middle of the screen.
+  // Throttled, so a fast scroll doesn't churn build/dispose — and stable
+  // under one, since the card the ceiling evicts is by definition the one
+  // furthest from the middle, i.e. the one on its way out.
+  if (supportsLazyViewers) {
+    window.addEventListener("scroll", scheduleReconcile, { passive: true });
+    window.addEventListener("resize", scheduleReconcile);
+  }
 
   function buildCard(product) {
     var card = el("article", "product-card");
@@ -532,7 +651,10 @@
         // anything that stopped being worth loading while it queued.
         wantsViewer: false,
         queued: false,
-        fadeTimer: null
+        fadeTimer: null,
+        // Set only while this entry holds one of the concurrent load slots
+        // — see startViewerLoad.
+        releaseSlot: null
       };
       cards.push(entry);
       grid.appendChild(built.el);
@@ -591,6 +713,10 @@
     }
 
     syncFilterButtons();
+    // Hiding a card takes its figure out of layout, so the dispose observer
+    // drops its viewer on its own — this is for the other direction, where
+    // that frees a slot the remaining cards should be offered right away.
+    if (supportsLazyViewers) scheduleReconcile();
   }
 
   function syncFilterUrl() {
@@ -599,7 +725,11 @@
     else url.searchParams.delete("cat");
     // new URL(location.href) keeps ?series= and the "/emjive/" base intact
     // for free, and replaceState avoids stacking a history entry per toggle.
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    // history.state is passed back through rather than nulled: it carries
+    // js/scroll-memory.js's per-entry token, and wiping it here would make
+    // this entry forget where it was scrolled to on the next category
+    // toggle.
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
   }
 
   function setCategories(next) {
@@ -624,10 +754,66 @@
     renderHeaderFilter();
   });
 
+  function signalContentReady() {
+    if (window.EmjiveScrollMemory) window.EmjiveScrollMemory.contentReady();
+  }
+
+  /* ---- releasing the grid while the page is frozen ------------------------
+     Navigating to a product doesn't end this page. Both browsers this site
+     cares about put it in the back/forward cache instead, and a bfcached
+     document is a LIVE document: every viewer the grid had built stays
+     exactly where it was — renderer, WebGL context, decoded model geometry,
+     PMREM environment target — for as long as the entry survives, while
+     product.html goes on to build a viewer of its own on top of it. Even
+     under MAX_LIVE_VIEWERS that's four at once across the two pages, and
+     iOS Safari's budget is a page-wide total that counts every one of them.
+     That's the state that ends in the "a problem repeatedly occurred"
+     reload.
+
+     None of it is worth keeping. pagehide is the last moment this page is
+     still able to run code, and everything torn down here is reconstructible
+     — so hand the memory back, and rebuild on the way in if the page really
+     did come back from the cache rather than being reloaded outright.
+     ----------------------------------------------------------------------- */
+  function releaseAllViewers() {
+    // disposeViewerFor, not teardownViewer: a card that was still waiting
+    // its turn in the load queue has to lose that intent too, or the queue
+    // comes back from the cache still holding entries whose viewers this
+    // just dropped.
+    cards.forEach(disposeViewerFor);
+  }
+
+  function rebuildViewersInRange() {
+    if (!supportsLazyViewers) {
+      cards.forEach(buildViewerFor);
+      return;
+    }
+    // Re-observing is what re-delivers the CURRENT intersection state:
+    // both observers only fire on a threshold crossing, and no crossing
+    // happens while the page is frozen, so without this every card would
+    // sit on its icon until the visitor scrolled far enough to cross a
+    // margin. observe() on an already-observed element is a no-op, hence
+    // the unobserve first.
+    cards.forEach(function (entry) {
+      buildObserver.unobserve(entry.figure);
+      disposeObserver.unobserve(entry.figure);
+      buildObserver.observe(entry.figure);
+      disposeObserver.observe(entry.figure);
+    });
+  }
+
   // The catalog is per-series now: js/series.js owns resolving which series
   // this page is showing (?series=, else data/series.json's "featured") and
   // fetching its products, so nothing here talks to a JSON path directly.
   if (grid) {
+    window.addEventListener("pagehide", releaseAllViewers);
+    window.addEventListener("pageshow", function (e) {
+      // Only a bfcache restore needs this. An ordinary load builds its
+      // viewers through the observers in the normal way, and pageshow fires
+      // there too.
+      if (e.persisted) rebuildViewersInRange();
+    });
+
     window.EmjiveSeries.ready
       .then(function (ctx) {
         activeSlug = ctx.slug;
@@ -638,11 +824,22 @@
         // Cards exist now, so a ?cat= arrived at from another page (or a
         // shared link) can finally be applied.
         applyFilter();
+        // The grid is the last thing that changes this page's height, so
+        // this is the signal js/scroll-memory.js is waiting on to finish
+        // restoring a back-navigation's scroll position and reveal the
+        // grid. No-op on a normal load (nothing to restore) and on every
+        // page but this one (the script isn't loaded there).
+        signalContentReady();
       })
       .catch(function (err) {
         grid.innerHTML = "";
         grid.appendChild(el("p", "product-grid__loading",
           "Couldn't load products — if you're opening this file directly in a browser, run a local server instead (see README). " + err.message));
+        // Still signalled: a failed fetch means the height this page is
+        // ever going to have is the height it has now, so there's nothing
+        // for the restore to keep waiting for — without this it would sit
+        // on its deadline with the grid hidden for no reason.
+        signalContentReady();
       });
   }
 

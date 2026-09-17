@@ -182,19 +182,27 @@
     // context (see its own comment) — falls through to the same icon
     // fallback branch a product with no "assets.model" field at all uses,
     // rather than leaving the carousel empty.
+    // Factored out of the assignment below so the freeze/restore pair at the
+    // bottom of this function can rebuild an identical viewer later. Reads
+    // state.selectedMetal at call time, so a rebuild picks up whatever metal
+    // is selected then rather than the one the page opened on.
+    function buildModelViewer() {
+      return window.EmjiveModelViewer(product, state.selectedMetal, {
+        hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
+        // Fires for an initial load/HDRI failure OR — since
+        // three-viewer.js also treats a WebGL context loss as a failure
+        // — for a model that HAD already loaded and was on screen: iOS
+        // Safari can silently reclaim a GPU context under memory
+        // pressure at any time, not just during load. Previously nothing
+        // here handled this at all (unlike js/main.js's grid), so either
+        // failure just left an empty, permanently blank 3D-viewer slide
+        // with no fallback ever shown.
+        onError: replaceModelSlideWithIcon
+      });
+    }
+
     state.modelHandle = (product.assets && product.assets.model)
-      ? window.EmjiveModelViewer(product, state.selectedMetal, {
-          hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
-          // Fires for an initial load/HDRI failure OR — since
-          // three-viewer.js also treats a WebGL context loss as a failure
-          // — for a model that HAD already loaded and was on screen: iOS
-          // Safari can silently reclaim a GPU context under memory
-          // pressure at any time, not just during load. Previously nothing
-          // here handled this at all (unlike js/main.js's grid), so either
-          // failure just left an empty, permanently blank 3D-viewer slide
-          // with no fallback ever shown.
-          onError: replaceModelSlideWithIcon
-        })
+      ? buildModelViewer()
       : null;
     if (state.modelHandle) {
       // Smaller than the photo slides on purpose — leaves generous empty
@@ -244,6 +252,47 @@
         modelSlide.appendChild(img);
         state.iconFallbackImg = img;
       }
+    }
+
+    /* ---- releasing the viewer while the page is frozen --------------------
+       Same reasoning as js/main.js's releaseAllViewers, from the other end
+       of the same navigation. Pressing Back doesn't end this page: it goes
+       into the back/forward cache holding its WebGL context, its decoded
+       model and its PMREM environment, while the grid it returns to rebuilds
+       several viewers of its own. Both pages' footprints counted against one
+       page-wide iOS Safari budget is what tips it over.
+
+       Deliberately NOT replaceModelSlideWithIcon: that's the permanent
+       fallback for a viewer that genuinely failed, and it rewrites the slide
+       so no rebuild is possible afterwards. This leaves the slide alone, so
+       coming back from the cache restores the real thing.
+       --------------------------------------------------------------------- */
+    function releaseModelViewer() {
+      if (!state.modelHandle) return;
+      state.modelHandle.dispose();
+      if (state.modelHandle.el.parentNode) {
+        state.modelHandle.el.parentNode.removeChild(state.modelHandle.el);
+      }
+      state.modelHandle = null;
+    }
+
+    function restoreModelViewer() {
+      if (state.modelHandle || !modelSlide) return;
+      // The slide loses this class the moment replaceModelSlideWithIcon
+      // takes it over, which is exactly the case that must NOT be rebuilt —
+      // the visitor is looking at the icon fallback, and a viewer appended
+      // underneath it would be an invisible second context.
+      if (!modelSlide.classList.contains("product-carousel__slide--model")) return;
+      state.modelHandle = buildModelViewer();
+      if (state.modelHandle) modelSlide.appendChild(state.modelHandle.el);
+      else replaceModelSlideWithIcon();
+    }
+
+    if (state.modelHandle) {
+      window.addEventListener("pagehide", releaseModelViewer);
+      window.addEventListener("pageshow", function (e) {
+        if (e.persisted) restoreModelViewer();
+      });
     }
 
     ((product.assets && product.assets.photos) || []).forEach(function (photo) {
