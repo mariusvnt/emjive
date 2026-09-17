@@ -18,7 +18,7 @@ This file is an index into `dev-guidelines/`, the full agent-facing documentatio
 | [`dev-guidelines/procedures.md`](dev-guidelines/procedures.md) | You need a step-by-step: adding a product, changing/adding a metal, re-rendering icons, setting up fonts, etc. |
 | [`dev-guidelines/pages.md`](dev-guidelines/pages.md) | Working on any of the 7 HTML pages, their shared header, or a series' hero bundle |
 | [`dev-guidelines/styling.md`](dev-guidelines/styling.md) | Touching `css/style.css`, or debugging a layout/visual issue |
-| [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md) | Touching anything in `js/` (`series.js`, `main.js`, `product.js`, `selection*.js`, `series-page.js`, `three-viewer.js`) or a series' `hero.js` |
+| [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md) | Touching anything in `js/` (`series.js`, `main.js`, `product.js`, `selection*.js`, `series-page.js`, `three-viewer.js`, `scroll-memory.js`) or a series' `hero.js` |
 | [`dev-guidelines/data.md`](dev-guidelines/data.md) | Touching `data/series.json`, a series' `products.json`/`manifest.json`, or their schema |
 | [`dev-guidelines/tooling.md`](dev-guidelines/tooling.md) | Touching `package.json` scripts, `scripts/auto-render.js`, `scripts/scene-tool-server.js`/`scene-tool.html`, `scripts/json-tool-server.js`/`scripts/json-tool-blocks.js`/`json-tool.html`, `vite.config.js`, or the GitHub Pages deploy workflow |
 | [`dev-guidelines/assets.md`](dev-guidelines/assets.md) | Adding/moving files under `assets/` |

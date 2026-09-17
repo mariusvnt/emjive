@@ -86,19 +86,21 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
-|---|---|---|---|---|---|---|---|---|
-| `index.html` | ✓ | ✓ | ✓ (defer) | ✓ | | ✓ | | |
-| `product.html` | ✓ | ✓ | ✓ (defer) | ✓ | ✓ (defer) | ✓ | | |
-| `launch-order.html` | ✓ | | ✓ | ✓ | | | ✓ | |
-| `archives.html` | ✓ | | ✓ | ✓ | | ✓ | | |
-| `creation-process.html` | ✓ | | ✓ | ✓ | | ✓ | | |
-| `terms.html` | ✓ | | ✓ | ✓ | | ✓ | | |
-| `series.html` | ✓ | | ✓ | ✓ | | ✓ | | ✓ |
+| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
+|---|---|---|---|---|---|---|---|---|---|
+| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | | ✓ | | |
+| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ (defer) | ✓ | | |
+| `launch-order.html` | | ✓ | | ✓ | ✓ | | | ✓ | |
+| `archives.html` | | ✓ | | ✓ | ✓ | | ✓ | | |
+| `creation-process.html` | | ✓ | | ✓ | ✓ | | ✓ | | |
+| `terms.html` | | ✓ | | ✓ | ✓ | | ✓ | | |
+| `series.html` | | ✓ | | ✓ | ✓ | | ✓ | | ✓ |
 
 `main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. Only `index.html`/`product.html` load `three-viewer.js`; nothing else has 3D content.
 
 **Why `js/series.js` is blocking in `<head>`** (no `defer`, not a module): it has to define `window.EmjiveSeries` before `main.js` runs, and `launch-order.html` loads `main.js` as a plain synchronous body script — a deferred `series.js` would run *after* it. Blocking also starts the `series.json` fetch at head-parse time, which is what the hero's anti-flash story depends on. It doesn't disturb the `defer` contract below: a blocking `<head>` script runs before the entire deferred queue.
+
+**Why `js/scroll-memory.js` is blocking too, and first** (`index.html` only — it's the one page whose height is built asynchronously): it reserves the previous visit's document height as a `min-height` on `body`, and that has to be in place before `<body>` is parsed, which rules out `defer`. It sits immediately after `<link rel="stylesheet">` so the `.emjive-restoring-scroll` rules it relies on are already parsed when it adds the class, and ahead of `series.js` because nothing it does depends on series data. Two extra requests' worth of head-blocking is the cost; both are tiny and cached. See `client-scripts.md`.
 
 **Why `main.js`/`product.js` specifically carry `defer`**: module scripts (`three-viewer.js`) always execute after the document finishes parsing; plain classic scripts without `defer` execute immediately, inline, as the parser reaches them — which on these two pages is *before* the deferred module, even though the module's tag sits earlier in `<head>`. Both call `window.EmjiveModelViewer` (set by `three-viewer.js`) inside async callbacks that can resolve fast enough to race it. `defer` puts them on the same ordered, post-parse queue as the module, which — since the module's tag comes first — guarantees it runs first.
 
