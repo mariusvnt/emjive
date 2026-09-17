@@ -55,6 +55,45 @@
   --edge-px: clamp(20px, 2.5vw, 28px);
 }
 
+/* Geist Mono (SIL OFL, by Vercel) — self-hosted for the same reason DINish
+   below always was, just arrived at later. It used to come from Google
+   Fonts via a plain <link rel="stylesheet"> in every page's <head>, which
+   cost each page two extra DNS+TLS handshakes (fonts.googleapis.com and
+   fonts.gstatic.com) and a RENDER-BLOCKING stylesheet on a third-party
+   origin, before a single pixel of the site could paint — on a phone on
+   mobile data, comfortably the largest single item in the critical path,
+   for 37KB of font. Hosting it here makes it one same-origin request that
+   the browser discovers from a stylesheet it was already downloading, and
+   makes the "fully offline, no external requests" claim in
+   js/three-viewer.js's Draco comment true of the whole site rather than
+   just the parts that happened to avoid a CDN.
+
+   Two subsets, matching what Google's own CSS splits out: `latin` covers
+   everything the site actually writes, `latin-ext` is carried for product
+   names and copy that reach past it. The cyrillic/vietnamese/symbols
+   subsets Google also serves are deliberately not here — nothing on the
+   site uses them, and a browser only downloads a subset whose
+   unicode-range it actually needs, so listing them would be pure repo
+   weight. Both weights (400 and 500) resolve to the same file because
+   Geist Mono ships as one variable font; the two @font-face blocks per
+   subset are what let the browser pick a weight out of it. */
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../assets/fonts/geist-mono-woff2/GeistMono-latin.woff2") format("woff2");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../assets/fonts/geist-mono-woff2/GeistMono-latin-ext.woff2") format("woff2");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 /* DINish isn't on Google Fonts — it's a free (SIL OFL) font by Bert
    Driehuis, distributed outside any CDN. Download it and drop the file(s)
    at these paths to activate it; until then --font-main falls back to
@@ -663,18 +702,37 @@ button, input, textarea {
    visible as the model box sitting off from the white band. An explicit
    height sidesteps that: both numbers are unambiguous before layout
    even starts, nothing needs to be derived. */
+/* A single-cell grid, not a plain block — every child is placed in that
+   one cell (grid-area: 1 / 1 below) so the placeholder image and the live
+   3D viewer OVERLAP rather than following each other in normal flow.
+   That's required now that js/main.js crossfades between the two: both are
+   in the layout at once for the whole load plus the 400ms fade, and as
+   plain in-flow blocks each sized to the full content box, the second one
+   was pushed entirely below the first — leaving the canvas poking out
+   through the figure's own bottom padding as a stray band, with the model
+   itself clipped away by overflow: hidden until the fade finished. It
+   worked before only because exactly one of the two was ever in flow:
+   the icon was hidden the instant the viewer was appended. Layering them
+   properly removes that dependency instead of reinstating it. */
 .product-card__figure {
   grid-column: 1;
   justify-self: end;
   position: relative;
+  display: grid;
+  grid-template: 1fr / 1fr;
   width: clamp(210px, 45vw, 795px);
   height: clamp(210px, 45vw, 795px);
   padding: clamp(24px, 6vw, 110px);
   overflow: hidden;
 }
 
+/* Same cell for both, so paint order is DOM order — the viewer is
+   appended after the placeholder and therefore sits on top of it, which
+   is exactly what the crossfade needs. z-index keeps the pair above
+   .product-card__bar-link (z-index: 0) as before. */
 .product-card__figure > img,
 .product-card__figure .emjive-3d-viewer {
+  grid-area: 1 / 1;
   position: relative;
   z-index: 1;
   width: 100%;
@@ -1434,6 +1492,12 @@ body:has(.order-checkout-bar:not([hidden])) {
   width: 100vw;
   container-type: inline-size;
   --tile: min(560px, 100cqw - 4rem);
+  /* Below, only when .product-carousel--has-photos is also set —
+     .product-carousel__viewport adds these on top of --tile so a photo
+     slide's caption gets real reserved room instead of eating into the
+     photo's own --tile box (see that class further down). */
+  --caption-gap: 0.4rem;
+  --caption-h: 0.75rem;
 }
 /* No peek to reserve space for when there's nothing to peek at. */
 .product-carousel-frame.product-carousel--single {
@@ -1483,6 +1547,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   cursor: grab;
   touch-action: pan-y;
 }
+/* Extra room below --tile for every slide's caption band — reserved on
+   the viewport (not on each .product-carousel__slide, which stays fixed
+   at exactly --tile below) so a photo still fills --tile edge-to-edge
+   and tiles flush against its neighbors instead of getting letterboxed
+   to make room for its own caption. */
+.product-carousel--has-photos .product-carousel__viewport {
+  height: calc(var(--tile) + var(--caption-gap) + var(--caption-h));
+}
 .product-carousel--single .product-carousel__viewport {
   cursor: default;
 }
@@ -1500,10 +1572,16 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-carousel__slide {
   flex: 0 0 var(--tile);
   width: var(--tile);
-  height: 100%;
+  /* Fixed at --tile (not 100% of the viewport) so a photo slide's own
+     framing never changes when .product-carousel--has-photos grows the
+     viewport taller to fit captions below — every slide type keeps
+     lining up in the same top --tile band regardless of viewport
+     height. */
+  height: var(--tile);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 /* object-fit: contain (not cover, unlike .product-card__figure) — these
    are real product photos, not the grid's zoomed model framing, so
@@ -1532,6 +1610,33 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-carousel__slide--model .emjive-3d-viewer {
   width: 55%;
   height: 55%;
+}
+/* A real product photo (product.assets.photos), unlike the model/icon
+   slide above, carries its own "on display:" caption naming which
+   finish/context that shot is showing — js/product.js's buildPhotoSlide.
+   The <img> itself is untouched (still the plain full-bleed rule above,
+   filling --tile edge-to-edge so it stays flush against its neighbor
+   tiles); the caption is pinned to the slide's own bottom-right corner —
+   hugging its photo's right edge — inside the extra band
+   .product-carousel--has-photos reserves below --tile on the viewport.
+   Still a real child of .product-carousel__slide, the flex item
+   .product-carousel__track drags/transforms, so it rides the same plane
+   as its photo through any carousel motion. */
+.product-carousel__caption {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--caption-gap);
+  height: var(--caption-h);
+  line-height: 1;
+  font-family: var(--font-main);
+  font-size: 0.75rem;
+  color: var(--category-col);
+  text-align: right;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---- 3. metal selection: horizontal gradient bars (one per swatch),

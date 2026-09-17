@@ -85,8 +85,9 @@
   th, td { padding: 4px 6px; text-align: left; }
   td input { width: 100%; }
   .file-list { list-style: none; padding: 0; font-size: 12px; margin: 4px 0; }
-  .file-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; word-break: break-all; }
+  .file-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; padding: 4px 0; word-break: break-all; }
   .file-list li .actions { display: flex; gap: 4px; flex: none; }
+  .file-list li input[type="text"] { flex: 1 1 100%; font: inherit; font-size: 12px; padding: 2px 4px; }
   .fatal { background: #c0392b; color: white; padding: 10px 14px; }
   footer { margin-top: 32px; font-size: 12px; opacity: 0.6; }
   code { font-family: ui-monospace, monospace; }
@@ -773,6 +774,19 @@ async function removePhoto(photoPath) {
   } catch (err) { setStatus(els.productStatus, false, err.message); }
 }
 
+async function updatePhotoDescription(photoPath, description) {
+  try {
+    await postJson("/api/product/update-photo-description", {
+      seriesSlug: state.products.seriesSlug,
+      productId: state.products.productId,
+      photoPath,
+      description
+    });
+    setStatus(els.productStatus, true, "Description saved.");
+    await refreshAfterSave();
+  } catch (err) { setStatus(els.productStatus, false, err.message); }
+}
+
 async function removeProduct() {
   const product = currentProduct();
   if (!product) return;
@@ -916,10 +930,18 @@ function renderPhotosList(productArg) {
   existing.forEach((p) => {
     const li = document.createElement("li");
     li.innerHTML =
-      "<span>" + escapeHtml(p) + "</span>" +
+      "<span>" + escapeHtml(p.src) + "</span>" +
       '<span class="actions"><button type="button" data-act="replace">Replace</button><button type="button" data-act="remove">Remove</button></span>';
-    li.querySelector('[data-act="replace"]').addEventListener("click", () => triggerPhotoReplace(p));
-    li.querySelector('[data-act="remove"]').addEventListener("click", () => removePhoto(p));
+    li.querySelector('[data-act="replace"]').addEventListener("click", () => triggerPhotoReplace(p.src));
+    li.querySelector('[data-act="remove"]').addEventListener("click", () => removePhoto(p.src));
+
+    const descInput = document.createElement("input");
+    descInput.type = "text";
+    descInput.placeholder = 'Description shown as "On display: ..." under this photo';
+    descInput.value = p.description || "";
+    descInput.addEventListener("change", () => updatePhotoDescription(p.src, descInput.value));
+    li.appendChild(descInput);
+
     els.photosList.appendChild(li);
   });
 

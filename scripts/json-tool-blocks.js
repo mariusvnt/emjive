@@ -360,7 +360,14 @@ function renderProductBlock(p, metals) {
   const assets = p.assets || {};
   const hhv = p["hero-hand-visibility"] || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 };
   const cam = p["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 };
-  const photos = (assets.photos || []).map((x) => '"' + esc(x) + '"').join(", ");
+  // { src, description } objects, one per line — description names which
+  // finish/context that shot depicts, rendered under the photo on the
+  // product page (js/product.js's buildPhotoSlide). An inline `[]` for no
+  // photos at all matches every other empty-array product's file today.
+  const photoLines = (assets.photos || [])
+    .map((ph) => '          { "src": "' + esc(ph.src) + '", "description": "' + esc(ph.description) + '" }')
+    .join(",\n");
+  const photos = photoLines ? "[\n" + photoLines + "\n        ]" : "[]";
 
   return [
     "    {",
@@ -386,7 +393,7 @@ function renderProductBlock(p, metals) {
     '        "top-shot": {',
     renderMetalPathMap(assets["top-shot"], metals, "          "),
     "        },",
-    '        "photos": [' + photos + "]",
+    '        "photos": ' + photos,
     "      }",
     "    }"
   ].join("\n");

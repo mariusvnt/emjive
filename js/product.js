@@ -205,13 +205,22 @@
       }
     }
 
-    ((product.assets && product.assets.photos) || []).forEach(function (src) {
-      track.appendChild(buildImageSlide(src, product.name));
-      slideSources.push(src);
+    ((product.assets && product.assets.photos) || []).forEach(function (photo) {
+      track.appendChild(buildPhotoSlide(photo, product.name));
+      slideSources.push(photo.src);
     });
 
     state.slideCount = slideSources.length;
     carouselFrame.classList.toggle("product-carousel--single", state.slideCount <= 1);
+    // Reserves extra room below --tile for the photo slides' caption
+    // band — see css/style.css — rather than shrinking the photo slide
+    // itself to fit a caption inside it, which would letterbox every
+    // photo and break the flush, edge-to-edge tiling against its
+    // neighbors in the filmstrip.
+    carouselFrame.classList.toggle(
+      "product-carousel--has-photos",
+      ((product.assets && product.assets.photos) || []).length > 0
+    );
     // Bounds aren't synced here — #productDetailContent is still [hidden]
     // at this point (render() calls this before unhiding it), so every
     // element would measure as zero-size. render() does the initial
@@ -230,6 +239,30 @@
     // wireCarouselNav for the rest of this fix.
     img.draggable = false;
     slide.appendChild(img);
+    return slide;
+  }
+
+  // Real product photos (product.assets.photos), unlike the model/icon
+  // slide buildImageSlide handles above, carry their own "on display:"
+  // legend — which finish/context that specific shot is showing. The
+  // <img> itself stays a plain full-bleed slide child (same rules as
+  // buildImageSlide's), so it still fills --tile edge-to-edge and tiles
+  // flush against its neighbors; the caption is a separately-positioned
+  // sibling anchored to the slide's own bottom-right corner in the extra
+  // band css/style.css's .product-carousel--has-photos reserves below
+  // --tile — a real child of product-carousel__slide either way, so it
+  // rides the carousel drag/transform as one unit with its photo. Falls
+  // back to an em-dash for an empty description, same convention
+  // appendSpecRow's weight/composition rows already use.
+  function buildPhotoSlide(photo, alt) {
+    var slide = el("div", "product-carousel__slide product-carousel__slide--photo");
+    var img = document.createElement("img");
+    img.src = photo.src;
+    img.alt = alt || "";
+    img.loading = "lazy";
+    img.draggable = false;
+    slide.appendChild(img);
+    slide.appendChild(el("p", "product-carousel__caption", "On display: " + (photo.description || "—")));
     return slide;
   }
 

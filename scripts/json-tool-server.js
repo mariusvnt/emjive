@@ -703,7 +703,7 @@ async function handleProductAdd(req, res) {
       const ext = extOf(f.filename) || ".png";
       const dest = folder + "/" + name + "_photo" + (i + 1) + ext;
       writeBase64File(dest, f.contentBase64);
-      assets.photos.push(dest);
+      assets.photos.push({ src: dest, description: "" });
       written.push(dest);
     });
   } catch (err) {
@@ -791,9 +791,9 @@ async function handleProductEdit(req, res) {
       }
     });
     merged.assets.photos = (merged.assets.photos || []).map((p) => {
-      const newRel = newFolder + "/" + path.basename(p);
-      moveAssetFile(p, newRel, moved, warnings);
-      return newRel;
+      const newRel = newFolder + "/" + path.basename(p.src);
+      moveAssetFile(p.src, newRel, moved, warnings);
+      return { src: newRel, description: p.description };
     });
     warnings.push(
       "folder changed from " + oldFolder + " to " + newFolder +
@@ -826,7 +826,7 @@ async function handleProductEdit(req, res) {
       const ext = extOf(f.filename) || ".png";
       const dest = newFolder + "/" + nextName + "_photo" + photoIndex + ext;
       writeBase64File(dest, f.contentBase64);
-      merged.assets.photos.push(dest);
+      merged.assets.photos.push({ src: dest, description: "" });
       written.push(dest);
     });
   } catch (err) {
@@ -902,13 +902,54 @@ async function handleProductRemovePhoto(req, res) {
   if (!current) return sendJson(res, 404, { error: "no product with id " + productId });
 
   const existingPhotos = (current.assets && current.assets.photos) || [];
-  if (!existingPhotos.includes(photoPath)) return sendJson(res, 400, { error: "photo not found on this product: " + photoPath });
+  if (!existingPhotos.some((p) => p.src === photoPath)) return sendJson(res, 400, { error: "photo not found on this product: " + photoPath });
 
   const merged = Object.assign({}, current);
-  merged.assets = Object.assign({}, current.assets, { photos: existingPhotos.filter((p) => p !== photoPath) });
+  merged.assets = Object.assign({}, current.assets, { photos: existingPhotos.filter((p) => p.src !== photoPath) });
 
   const absPath = path.join(ROOT, photoPath);
   if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
+
+  const blockText = blocks.renderProductBlock(merged, metals);
+  const patched = blocks.replaceProductBlockInText(text, productId, blockText);
+  if (!patched) return sendJson(res, 500, { error: "could not locate product " + productId });
+  fs.writeFileSync(productsAbsPath, patched, "utf8");
+
+  sendJson(res, 200, { ok: true });
+}
+
+// Updates one existing photo's caption text (assets.photos[i].description
+// — shown on the product page under that photo as "On display: ..."), by
+// src match against the CURRENT saved list, same re-read/re-render/write
+// pattern every other single-field photo mutation above uses.
+async function handleProductUpdatePhotoDescription(req, res) {
+  const body = await readJsonBody(req);
+  const seriesSlug = body.seriesSlug;
+  const productId = body.productId;
+  const photoPath = body.photoPath;
+  if (!seriesSlug || !productId || !photoPath) {
+    return sendJson(res, 400, { error: "seriesSlug, productId and photoPath are required" });
+  }
+
+  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
+  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
+  const metals = seriesIndex.metals || [];
+
+  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const text = fs.readFileSync(productsAbsPath, "utf8");
+  const productsData = JSON.parse(text);
+  const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
+  if (!current) return sendJson(res, 404, { error: "no product with id " + productId });
+
+  const photos = (current.assets && current.assets.photos) || [];
+  const index = photos.findIndex((p) => p.src === photoPath);
+  if (index === -1) return sendJson(res, 400, { error: "photo not found on this product: " + photoPath });
+
+  const merged = Object.assign({}, current);
+  merged.assets = Object.assign({}, current.assets);
+  merged.assets.photos = photos.slice();
+  merged.assets.photos[index] = { src: photoPath, description: body.description || "" };
 
   const blockText = blocks.renderProductBlock(merged, metals);
   const patched = blocks.replaceProductBlockInText(text, productId, blockText);
@@ -1038,7 +1079,7 @@ async function handleProductReplacePhoto(req, res) {
   if (!current) return sendJson(res, 404, { error: "no product with id " + productId });
 
   const photos = (current.assets && current.assets.photos) || [];
-  const index = photos.indexOf(oldPhotoPath);
+  const index = photos.findIndex((p) => p.src === oldPhotoPath);
   if (index === -1) return sendJson(res, 400, { error: "photo not found on this product: " + oldPhotoPath });
 
   const ext = extOf(body.filename) || ".png";
@@ -1060,7 +1101,7 @@ async function handleProductReplacePhoto(req, res) {
   const merged = Object.assign({}, current);
   merged.assets = Object.assign({}, current.assets);
   merged.assets.photos = photos.slice();
-  merged.assets.photos[index] = dest;
+  merged.assets.photos[index] = { src: dest, description: photos[index].description };
 
   const blockText = blocks.renderProductBlock(merged, metals);
   const patched = blocks.replaceProductBlockInText(text, productId, blockText);
@@ -1103,6 +1144,7 @@ const ROUTES = {
   "POST /api/product/edit": handleProductEdit,
   "POST /api/product/remove": handleProductRemove,
   "POST /api/product/remove-photo": handleProductRemovePhoto,
+  "POST /api/product/update-photo-description": handleProductUpdatePhotoDescription,
   "POST /api/product/replace-asset": handleProductReplaceAsset,
   "POST /api/product/remove-asset": handleProductRemoveAsset,
   "POST /api/product/replace-photo": handleProductReplacePhoto,

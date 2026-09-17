@@ -30,11 +30,19 @@ existing one — `bones` is the only one so far. To start a *new* series, see
    *constructs* its output path from it rather than reading `model`, so a
    differently-named folder gets a second one created beside it.
 2. Drop in a 3D model as `.glb` (or `.gltf`), e.g. `model.glb`.
-   - Export from Blender/Cinema4D/etc. as glTF Binary (.glb) — keep it under
-     a few MB for fast loading. Draco mesh compression is supported (`js/
-     three-viewer.js` ships a `DRACOLoader` pointed at `assets/draco/` — see
-     `assets.md`/`client-scripts.md`) if a model is too heavy otherwise —
-     `rib-cage`/`rib-cage-extended` both use it.
+   - Export from Blender/Cinema4D/etc. as glTF Binary (.glb).
+   - **Then run `npm run optimize-models`** (`--dry-run` first if you want to
+     see the numbers). It is not optional housekeeping — it is what keeps a
+     ring from shipping at 20MB. It strips textures/UVs the viewer never
+     reads, welds, and Draco-compresses, then verifies the written file
+     decodes back to the same triangle count and bounding box before it lets
+     the run succeed. Typical result on a raw Blender export: **95% smaller**.
+     Safe to re-run over the whole folder. See `tooling.md`/`assets.md`.
+   - What it can't fix is triangle count. If your export is faceted or
+     un-decimated (check the vertex:triangle ratio the script prints — a
+     welded manifold mesh is ~0.5:1, the bad ones here are ~1.9:1), fix that
+     in Blender with smooth shading + merge-by-distance before exporting.
+     That's GPU cost, and no amount of compression touches it.
 3. (Optional) drop in icons too — 512×512 transparent WebPs of just the
    product (no background), one per metal it can be shown in (not just its
    default — the product page's metal picker swaps the icon to match

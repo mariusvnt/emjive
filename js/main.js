@@ -201,13 +201,28 @@
     var DRAG_THRESHOLD = 6;
     var startX = 0;
     var startY = 0;
+    // Which pointer this gesture belongs to, or null between gestures.
+    // Without it, a pointerup that never had a matching pointerdown on
+    // this element — a drag begun on the page background and released
+    // over a card, or a second finger lifting during a two-finger scroll
+    // — was measured against whatever startX/startY happened to be left
+    // over (0,0 on a fresh page), which reads as a zero-distance "click"
+    // and navigates to a product the visitor never tapped.
+    var activePointerId = null;
 
     mv.addEventListener("pointerdown", function (e) {
+      activePointerId = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
     });
 
+    mv.addEventListener("pointercancel", function (e) {
+      if (e.pointerId === activePointerId) activePointerId = null;
+    });
+
     mv.addEventListener("pointerup", function (e) {
+      if (e.pointerId !== activePointerId) return;
+      activePointerId = null;
       var dx = e.clientX - startX;
       var dy = e.clientY - startY;
       if (Math.sqrt(dx * dx + dy * dy) <= DRAG_THRESHOLD) {
@@ -236,6 +251,38 @@
   var LAZY_DISPOSE_MARGIN = "300px 0px 300px 0px";
   var supportsLazyViewers = "IntersectionObserver" in window;
 
+  // Lazy building alone bounds how many viewers EXIST at once; it does
+  // nothing about how many start loading at once. A brisk scroll through
+  // the grid crosses every card's build margin within a second or two, so
+  // every model's fetch+decode used to be kicked off nearly simultaneously
+  // — several tens of MB of glTF in flight together, each one's decode
+  // landing on the main thread whenever it happens to finish. That's both
+  // the slowest possible path to seeing ANY single model (bandwidth split
+  // N ways, so they all finish late together instead of one finishing
+  // early) and the worst possible memory profile on a phone. Two at a time
+  // keeps the pipe busy while letting cards resolve one after another, in
+  // the order they were scrolled past.
+  var MAX_CONCURRENT_MODEL_LOADS = 2;
+  var activeModelLoads = 0;
+  var loadQueue = [];
+
+  // Crossfade duration for the icon -> live model swap, in ms. Mirrored in
+  // the inline transition set on the viewer element below; kept here as a
+  // number since the icon's own removal has to be timed off it.
+  var MODEL_FADE_MS = 400;
+
+  // Pops the next still-wanted card off the queue and starts it. Entries
+  // whose card scrolled back out while they waited are dropped rather than
+  // loaded — the whole point of queueing is that by the time a slot frees
+  // up, some of what's waiting is no longer worth fetching.
+  function pumpLoadQueue() {
+    while (activeModelLoads < MAX_CONCURRENT_MODEL_LOADS && loadQueue.length) {
+      var entry = loadQueue.shift();
+      entry.queued = false;
+      if (entry.wantsViewer && !entry.modelHandle) startViewerLoad(entry);
+    }
+  }
+
   // No metal picker on the homepage grid — always the product's own default
   // metal (product["default-metal"]). window.EmjiveModelViewer is exposed
   // by js/three-viewer.js — reused here so the viewer construction/material
@@ -243,21 +290,100 @@
   // couldn't grant a WebGL context (see its own comment) — the icon (never
   // removed from the card, only hidden) is left showing in that case,
   // same as a product with no "assets.model" field at all.
-  function buildViewerFor(entry) {
-    if (entry.modelHandle || !entry.product.assets || !entry.product.assets.model) return;
+  function startViewerLoad(entry) {
+    activeModelLoads++;
+    var settled = false;
+    // Whether it loaded or failed, the slot has to come back — and exactly
+    // once, however the viewer resolves (including a dispose that beats
+    // the load to the finish line).
+    function releaseSlot() {
+      if (settled) return;
+      settled = true;
+      activeModelLoads--;
+      pumpLoadQueue();
+    }
+
     var handle = window.EmjiveModelViewer(
       entry.product,
       entry.product["default-metal"],
-      { hdri: window.EmjiveSeries.hdriPath(activeSlug) }
+      {
+        hdri: window.EmjiveSeries.hdriPath(activeSlug),
+        // The card's own icon is already on screen and already framed
+        // for this product, so the viewer's built-in poster would just be
+        // a second, differently-cropped copy of the same ring fading over
+        // the first. See options.poster in js/three-viewer.js.
+        poster: false,
+        // Several of these can be alive at once, and iOS Safari's canvas
+        // budget is a page-wide total — see maxPixelRatio's comment in
+        // js/three-viewer.js. product.html's single carousel viewer keeps
+        // the full 2x.
+        maxPixelRatio: 1.5,
+        onReady: function () {
+          releaseSlot();
+          revealViewer(entry);
+        },
+        // A model or HDRI that never arrives leaves the icon exactly where
+        // it is, rather than an empty box — the same degraded state a
+        // product with no model at all already gets.
+        onError: releaseSlot
+      }
     );
-    if (!handle) return;
+    if (!handle) {
+      releaseSlot();
+      return;
+    }
     entry.modelHandle = handle;
     wireModelClickNavigation(handle.el, entry.href);
-    if (entry.iconEl) entry.iconEl.hidden = true;
+    // Mounted transparent: the icon stays visible underneath for the whole
+    // load, and the model dissolves in over it once it's actually ready.
+    // Previously the icon was hidden the instant the viewer was CREATED,
+    // which meant the card went icon -> blank/poster -> model, with the
+    // first swap happening long before anything had finished loading.
+    handle.el.style.opacity = "0";
+    handle.el.style.transition = "opacity " + MODEL_FADE_MS + "ms ease";
     entry.figure.appendChild(handle.el);
   }
 
+  function revealViewer(entry) {
+    if (!entry.modelHandle) return;
+    entry.modelHandle.el.style.opacity = "1";
+    // The icon is only taken out of the layout once the model has fully
+    // faded in over it — hiding it mid-crossfade would show the page
+    // background through the model's transparent areas for the rest of
+    // the fade. Re-checks entry.modelHandle because the card can be
+    // disposed during those 400ms, which puts the icon back.
+    entry.fadeTimer = setTimeout(function () {
+      entry.fadeTimer = null;
+      if (entry.modelHandle && entry.iconEl) entry.iconEl.hidden = true;
+    }, MODEL_FADE_MS);
+  }
+
+  function buildViewerFor(entry) {
+    entry.wantsViewer = true;
+    if (entry.modelHandle || entry.queued) return;
+    if (!entry.product.assets || !entry.product.assets.model) return;
+    if (activeModelLoads >= MAX_CONCURRENT_MODEL_LOADS) {
+      entry.queued = true;
+      loadQueue.push(entry);
+      return;
+    }
+    startViewerLoad(entry);
+  }
+
   function disposeViewerFor(entry) {
+    entry.wantsViewer = false;
+    // Still waiting its turn: drop the intent now so pumpLoadQueue skips
+    // it, instead of letting a card that's long since scrolled past still
+    // claim a slot and pull its model down.
+    if (entry.queued) {
+      var i = loadQueue.indexOf(entry);
+      if (i !== -1) loadQueue.splice(i, 1);
+      entry.queued = false;
+    }
+    if (entry.fadeTimer) {
+      clearTimeout(entry.fadeTimer);
+      entry.fadeTimer = null;
+    }
     if (!entry.modelHandle) return;
     entry.modelHandle.dispose();
     entry.figure.removeChild(entry.modelHandle.el);
@@ -285,17 +411,43 @@
     var figure = el("div", "product-card__figure");
     var href = window.EmjiveSeries.productHref(product, activeSlug);
 
-    // The icon is now always the card's initial content (previously only a
-    // fallback for a model-less product, or one that failed to get a WebGL
-    // context) — the live 3D viewer, when there's a model to show, is
-    // swapped in later, lazily, by buildViewerFor above.
-    var gridIcon = product.assets && product.assets.icons && product.assets.icons[product["default-metal"]];
+    // The card's initial content, standing in for the 3D viewer until one
+    // is lazily built and its model has actually loaded (buildViewerFor /
+    // revealViewer above).
+    //
+    // WHICH image matters, and the two are not interchangeable. "icons" is
+    // re-framed art: scripts/auto-render.js trims it to its own alpha
+    // bounding box and rescales that to a fixed 80% of the frame
+    // (ICON_CONTENT_FRACTION), deliberately, so thumbnails all read at a
+    // consistent size next to each other. That normalization is exactly
+    // what makes it WRONG here — a thin ring's silhouette is far smaller
+    // than the bounding SPHERE frameCamera() fits to the viewport, so a
+    // trimmed-and-rescaled icon draws the ring visibly larger than the
+    // live camera ever will, and the handover reads as the model snapping
+    // smaller the instant it appears.
+    //
+    // "fallback-img" is the same capture saved WITHOUT that treatment —
+    // the model's own default pose at its own default framing, which is
+    // the one thing that lines up with the live canvas pixel-for-pixel.
+    // It only exists for products that have a model to render, so the icon
+    // stays the fallback for everything else.
+    var assets = product.assets || {};
+    var defaultMetal = product["default-metal"];
+    var placeholderSrc =
+      (assets.model && assets["fallback-img"] && assets["fallback-img"][defaultMetal]) ||
+      (assets.icons && assets.icons[defaultMetal]);
     var iconEl = null;
-    if (gridIcon) {
+    if (placeholderSrc) {
       iconEl = el("img");
-      iconEl.src = gridIcon;
+      iconEl.src = placeholderSrc;
       iconEl.alt = product.name || "";
       iconEl.loading = "lazy";
+      // Keeps the decode off the main thread. These are 512px WebPs and a
+      // grid can hold a dozen, so the synchronous default would land a
+      // burst of decodes on whichever frame the images happen to arrive in
+      // — exactly while the viewer for the card being scrolled toward is
+      // trying to parse its own model.
+      iconEl.decoding = "async";
       figure.appendChild(iconEl);
     }
 
@@ -353,7 +505,12 @@
         figure: built.figure,
         iconEl: built.iconEl,
         href: built.href,
-        modelHandle: null
+        modelHandle: null,
+        // Set/cleared by the two observers; read by pumpLoadQueue to skip
+        // anything that stopped being worth loading while it queued.
+        wantsViewer: false,
+        queued: false,
+        fadeTimer: null
       };
       cards.push(entry);
       grid.appendChild(built.el);

@@ -4,11 +4,26 @@
 
 ```json
 "dev": "vite", "build": "vite build", "preview": "vite preview",
-"auto-render": "node scripts/auto-render.js", "scene-tool": "node scripts/scene-tool-server.js",
+"auto-render": "node scripts/auto-render.js",
+"optimize-models": "node scripts/optimize-models.js",
+"optimize-images": "node scripts/optimize-images.js",
+"scene-tool": "node scripts/scene-tool-server.js",
 "json-tool": "node scripts/json-tool-server.js"
 ```
 
-`dev`/`build`/`preview` are genuinely wired up and work; `npm run dev` is the documented way to run the site locally (see `procedures.md`) and is required specifically for `js/three-viewer.js`'s bare-specifier imports (`three`, `three/addons/...`) — this is a real, live-site file (loaded as `<script type="module">`), not a dev-only one, so Vite is a hard requirement to run the site at all now, not an optional convenience. `three` is a real runtime `dependencies` entry (not just a devDependency) since `three-viewer.js` imports it directly; `puppeteer-core`/`sharp` are `devDependencies`, used only by `auto-render.js`. `scene-tool` and `json-tool` each start their own, completely separate bare Node server (see below for both) — neither touches Vite at all, and both can run alongside `npm run dev` (and each other) on their own ports.
+`dev`/`build`/`preview` are genuinely wired up and work; `npm run dev` is the documented way to run the site locally (see `procedures.md`) and is required specifically for `js/three-viewer.js`'s bare-specifier imports (`three`, `three/addons/...`) — this is a real, live-site file (loaded as `<script type="module">`), not a dev-only one, so Vite is a hard requirement to run the site at all now, not an optional convenience. `three` is a real runtime `dependencies` entry (not just a devDependency) since `three-viewer.js` imports it directly; `puppeteer-core`/`sharp` are `devDependencies`, used only by `auto-render.js`, as are `@gltf-transform/*`/`draco3dgltf`/`meshoptimizer`, used only by `optimize-models`. `scene-tool` and `json-tool` each start their own, completely separate bare Node server (see below for both) — neither touches Vite at all, and both can run alongside `npm run dev` (and each other) on their own ports.
+
+## `scripts/optimize-models.js` + `scripts/optimize-images.js`
+
+The two "source art arrives heavy" squeezers. Both rewrite files **in place and delete nothing else** — git is the undo — and both take `--dry-run` to report without writing, or explicit paths to limit what they touch.
+
+`optimize-models` walks `assets/series/*/products/*/*.glb` and runs: strip textures + `TEXCOORD_n`/`COLOR_n`/`TANGENT` → `weld()` → `dedup()` → `prune()` → `draco()`. It then **re-reads each written file and decodes its Draco payload**, asserting the triangle count is unchanged, the bounding box hasn't moved by more than one quantization step, and the vertex count is within 2% (Draco's encoder re-splits vertices at attribute seams, so it wobbles slightly in both directions by design). It exits non-zero if any model fails that round trip — it is overwriting the only copy of an art asset, so "the encoder said it was fine" isn't the standard. First run: 66.85MB → 8.26MB across eight models, all verified.
+
+`--simplify=<ratio>` additionally runs meshoptimizer's `simplify()` and is **opt-in on purpose**: it genuinely changes the silhouette, and these same models are what `auto-render.js` re-renders every icon and top shot from, so it's an art call. For reference, `--simplify=0.25` cuts five of the eight cleanly (e.g. cartilage 762K → 190K triangles) but barely moves `rib-cage`/`rib-cage-extended`/`suture`, whose exports are effectively unwelded and so have no shared edges to collapse.
+
+`optimize-images` converts stray PNG/JPEG under `assets/` to WebP (quality 82, alpha preserved, downscaled to fit 2048px) and deletes the source. It prints the old→new path list rather than editing `products.json` itself — see `assets.md`.
+
+Neither is wired into `build`. They're deliberate, occasional, reviewable passes, not something that silently rewrites binaries on every deploy.
 
 ## `vite.config.js`
 

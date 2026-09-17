@@ -192,6 +192,13 @@
     var link = document.createElement("link");
     link.rel = "preload";
     link.as = "image";
+    // These are the hero — the one thing on the homepage that is both
+    // above the fold and impossible to discover early (it lives in a
+    // fragment fetched two round trips deep, so the preload scanner never
+    // sees it). By the time this runs the grid's own product icons are
+    // usually already queued, and without an explicit priority the browser
+    // has no way to know the hero outranks a card sitting below the fold.
+    link.fetchPriority = "high";
     link.href = href;
     document.head.appendChild(link);
   }

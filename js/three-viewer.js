@@ -33,19 +33,66 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 (function () {
   "use strict";
 
-  // Shared across every viewer instance and every GLTFLoader.load() call —
-  // unlike loadEnvironment()'s PMREM texture (tied to one WebGLRenderer's
-  // context), Draco decoding is plain WASM/JS with no GPU context involved,
-  // so one decoder can serve every model on the page. Self-hosted (not the
-  // Google CDN three.js's own examples default to) so this stays a fully
-  // offline, no-external-request static site like the rest of it — see
-  // assets.md for the assets/draco/ folder these three files came from
-  // (verbatim, unmodified, copied from three's own npm package). Only
-  // products actually using KHR_draco_mesh_compression ever trigger a
-  // fetch of these; GLTFLoader ignores an attached DRACOLoader entirely for
-  // a model that doesn't use the extension.
+  // ---- Draco decoding -----------------------------------------------------
+  //
+  // ONE decoder instance for the whole page, shared by every viewer and
+  // every GLTFLoader.load() call. This is not just a tidiness preference:
+  // constructing a DRACOLoader per load is the single most-reported cause
+  // of Draco failing specifically on iOS Safari (three.js#22445,
+  // discourse#68835) — each instance spawns its own worker pool and its
+  // own WASM heap, and iOS tears the page down long before desktop would.
+  // Unlike loadEnvironment()'s PMREM texture (tied to one WebGLRenderer's
+  // context), Draco decoding is plain WASM with no GPU context involved,
+  // so one decoder can legitimately serve every model on the page.
+  //
+  // Self-hosted (not the Google CDN three.js's own examples default to) so
+  // this stays a fully offline, no-external-request static site like the
+  // rest of it — see assets.md for the assets/draco/ folder these three
+  // files came from (verbatim, unmodified, copied from three's own npm
+  // package). Only products actually using KHR_draco_mesh_compression ever
+  // trigger a fetch of these; GLTFLoader ignores an attached DRACOLoader
+  // entirely for a model that doesn't use the extension.
   var dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath("assets/draco/");
+  // Resolved against the document rather than left as the bare relative
+  // string "assets/draco/". DRACOLoader hands these paths to a FileLoader
+  // that resolves them against the *document* URL — fine today (every page
+  // sits at the repo root) but silently wrong the moment a page moves into
+  // a subdirectory, and wrong in a way that only shows up on Draco models.
+  // new URL(..., document.baseURI) pins it once, here, instead.
+  dracoLoader.setDecoderPath(new URL("assets/draco/", document.baseURI).href);
+  // Default is 4. Every viewer on this site decodes exactly one model, and
+  // the grid deliberately keeps only a handful alive at a time, so 4
+  // workers can never be usefully busy — they'd just be 4 separate copies
+  // of the Draco WASM heap (the decoder config, wasmBinary included, is
+  // structured-cloned into each one). On a phone that is pure memory
+  // pressure against the very budget the lazy grid exists to protect.
+  // hardwareConcurrency is the usual proxy for "how much parallelism is
+  // real here"; iPhones report 4-6 but have far less memory headroom than
+  // that implies, so this is capped at 2 regardless.
+  dracoLoader.setWorkerLimit(Math.max(1, Math.min(2, (navigator.hardwareConcurrency || 2) - 1)));
+
+  // The decoder libraries (draco_wasm_wrapper.js + draco_decoder.wasm,
+  // ~336KB together) are fetched lazily by DRACOLoader on the first decode
+  // — which, left alone, lands them *inside* the first model's load, after
+  // its .glb has already arrived. That's a wasted serial round trip on the
+  // exact request path we care most about. Kicking preload() off as soon
+  // as we know a model is coming overlaps it with the .glb fetch instead,
+  // which is always the larger of the two. Guarded so a page that never
+  // shows a 3D model (every page but index/product) never pays for it, and
+  // so it's a no-op after the first call (preload() itself memoizes via
+  // decoderPending, this just avoids the call entirely).
+  var dracoPreloaded = false;
+  function preloadDracoDecoder() {
+    if (dracoPreloaded) return;
+    dracoPreloaded = true;
+    dracoLoader.preload();
+  }
+
+  // Also shared, for the same reason and with the same caveat as the
+  // DRACOLoader above — a GLTFLoader holds no per-context state, so one
+  // instance with the decoder attached once serves every load.
+  var gltfLoader = new GLTFLoader();
+  gltfLoader.setDRACOLoader(dracoLoader);
 
   // Fallback only, now — the real per-call choice is data/series.json's
   // top-level "hdris" map, resolved by the caller (js/main.js, js/product.js,
@@ -185,35 +232,77 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // hdriSrc is the caller-resolved path (data/series.json's "hdris" map,
   // looked up via that series' "hdri" key — see js/series.js's hdriPath()),
   // falling back to DEFAULT_HDRI_SRC when omitted or unresolved.
+  // The PIXELS, though, are plain CPU-side data with no context affinity at
+  // all — and decoding a 2K RGBE .hdr into half-floats is genuinely
+  // expensive main-thread work (tens of ms), which the comment above was
+  // quietly signing every viewer up to repeat from scratch. This caches the
+  // decode (and the fetch) per source file, keyed on the URL and shared by
+  // an in-flight promise so N simultaneous viewers asking for the same HDRI
+  // during one scroll trigger exactly one decode between them. Each viewer
+  // still gets its own throwaway DataTexture wrapper around that one shared
+  // pixel buffer, so the per-renderer GPU upload/dispose lifecycle below is
+  // exactly what it was before — only the redundant decoding is gone. A
+  // failed load evicts its own entry so a later viewer can retry rather
+  // than inheriting a permanently-rejected promise.
+  var hdrSourceCache = {};
+
+  function loadHdrSource(src) {
+    if (!hdrSourceCache[src]) {
+      hdrSourceCache[src] = new Promise(function (resolve, reject) {
+        new HDRLoader().load(src, resolve, undefined, function (err) {
+          delete hdrSourceCache[src];
+          reject(err);
+        });
+      });
+    }
+    return hdrSourceCache[src];
+  }
+
   function loadEnvironment(renderer, hdriSrc) {
     var src = hdriSrc || DEFAULT_HDRI_SRC;
     var pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
-    return new Promise(function (resolve, reject) {
-      new HDRLoader().load(
-        src,
-        function (hdrTexture) {
-          var envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
-          hdrTexture.dispose();
-          pmremGenerator.dispose();
-          resolve(envMap);
-        },
-        undefined,
-        // Without this, a failed HDRI request (network blip, server
-        // hiccup) left this promise neither resolved nor rejected —
-        // Promise.all([modelPromise, environmentPromise]) below then hung
-        // forever with zero console output, so the model silently never
-        // appeared and there was no way to tell why. Rejecting here at
-        // least surfaces the failure and lets it fall through to the same
-        // "poster stays as the fallback" behavior a model-load failure
-        // already gets.
-        function (err) {
-          pmremGenerator.dispose();
-          console.error("emjive: failed to load HDRI environment", src, err);
-          reject(err);
-        }
-      );
-    });
+    return loadHdrSource(src).then(
+      function (sourceTexture) {
+        // A fresh DataTexture per call, sharing sourceTexture's pixel
+        // buffer by reference rather than copying it. It exists only long
+        // enough for PMREM to upload it into THIS renderer's context and
+        // is disposed immediately after — disposing a DataTexture frees
+        // the GPU copy, never the JS typed array behind it, so the cached
+        // source survives untouched for the next viewer.
+        var image = sourceTexture.image;
+        var equirect = new THREE.DataTexture(image.data, image.width, image.height, sourceTexture.format, sourceTexture.type);
+        equirect.colorSpace = sourceTexture.colorSpace;
+        equirect.magFilter = sourceTexture.magFilter;
+        equirect.minFilter = sourceTexture.minFilter;
+        equirect.generateMipmaps = sourceTexture.generateMipmaps;
+        equirect.flipY = sourceTexture.flipY;
+        equirect.needsUpdate = true;
+
+        // The whole render target, not just its .texture. PMREMGenerator
+        // hands ownership of the target to the caller — pmremGenerator
+        // .dispose() below frees only the generator's own scratch
+        // resources — so disposing the texture alone would leave the
+        // target's framebuffer behind with nothing holding a reference
+        // that could ever free it.
+        var renderTarget = pmremGenerator.fromEquirectangular(equirect);
+        equirect.dispose();
+        pmremGenerator.dispose();
+        return renderTarget;
+      },
+      // Without this, a failed HDRI request (network blip, server hiccup)
+      // left this promise neither resolved nor rejected —
+      // Promise.all([modelPromise, environmentPromise]) below then hung
+      // forever with zero console output, so the model silently never
+      // appeared and there was no way to tell why. Rejecting here at least
+      // surfaces the failure and lets it fall through to the same "poster
+      // stays as the fallback" behavior a model-load failure already gets.
+      function (err) {
+        pmremGenerator.dispose();
+        console.error("emjive: failed to load HDRI environment", src, err);
+        throw err;
+      }
+    );
   }
 
   // ---- session-wide idle-nudge suppression: once the visitor has really
@@ -230,11 +319,30 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // sessionStorage unavailable (private browsing, etc.) — just falls
     // back to per-page-load behavior instead of remembering across nav.
   }
+  // Every LIVE viewer's cancelNudge, so the first real drag anywhere can
+  // silence the hint everywhere at once. Entries MUST be removed on
+  // dispose() — see unregisterCancelNudge below. A cancelNudge is a
+  // closure over its whole buildThreeViewer() invocation, so holding one
+  // holds that viewer's scene, renderer and fully decoded model geometry
+  // with it; while this array only ever grew, every viewer the homepage
+  // grid had ever built stayed in memory for the life of the page, however
+  // diligently dispose() freed its GPU-side resources. Measured on the
+  // Bones grid, that was ~1GB of unreclaimable JS heap per three passes of
+  // scrolling the page end to end — a straight line up until the tab died,
+  // which on iOS Safari means the page reloading itself.
   var allCancelNudgeFns = [];
+
+  function unregisterCancelNudge(cancel) {
+    var i = allCancelNudgeFns.indexOf(cancel);
+    if (i !== -1) allCancelNudgeFns.splice(i, 1);
+  }
 
   function suppressNudgeEverywhere() {
     interactionSuppressed = true;
-    allCancelNudgeFns.forEach(function (cancel) {
+    // Copied before iterating: a cancel() implementation is free to
+    // unregister itself, which would otherwise shift the array out from
+    // under this loop and skip entries.
+    allCancelNudgeFns.slice().forEach(function (cancel) {
       cancel();
     });
     try {
@@ -268,11 +376,15 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // (the homepage grid, and the product detail page's carousel) can swap
   // its metal finish later without reloading the .glb or losing whatever
   // camera angle the visitor left it at. Exposed as window.EmjiveModelViewer
-  // at the bottom of this file. `options.onReady` (used only by
-  // scripts/auto-render.js's render harness) fires once after the model
+  // at the bottom of this file. `options.onReady` fires once after the model
   // has loaded, been framed to its default pose, and painted one frame —
-  // the direct replacement for the old model-viewer harness's
-  // `load` event + `jumpCameraToGoal()` + settle-frame wait.
+  // for scripts/auto-render.js's render harness it's the direct replacement
+  // for the old model-viewer harness's `load` event + `jumpCameraToGoal()` +
+  // settle-frame wait; js/main.js's grid uses the same hook to time its
+  // icon -> model crossfade off the real "there is something to see now"
+  // moment. `options.onError` is its counterpart for a model/HDRI that
+  // never arrives, so a caller can restore its own fallback instead of
+  // leaving an empty box.
   function buildThreeViewer(product, metalKey, options) {
     options = options || {};
     // `transparentBackground`/`static` only exist for
@@ -331,7 +443,17 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       console.error("emjive: could not create a WebGL context for", product.name, err);
       return null;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // Canvas backing-store memory is width * height * pixelRatio^2 * 4
+    // bytes, doubled again by antialias: true's multisample buffer — and
+    // iOS Safari enforces a hard TOTAL canvas budget across the whole
+    // page, not a per-canvas one, killing the tab ("A problem repeatedly
+    // occurred") once every canvas added together crosses it. The homepage
+    // grid is the only place several viewers are alive at once, so it's
+    // the only caller that lowers this (see js/main.js); a phone's DPR 3
+    // capped at 2 still meant each card carried 2.25x the pixels of a
+    // DPR-1.5 one, for a ~400px box where the difference is invisible.
+    var maxPixelRatio = typeof options.maxPixelRatio === "number" ? options.maxPixelRatio : 2;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -349,8 +471,16 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // instant the real model swapped in. fallback-img is the model's own
     // default-orbit capture saved as-is (see scripts/auto-render.js), so it
     // lines up with the live canvas's first frame instead.
+    // options.poster: false opts out entirely — for a caller that already
+    // has its own image sitting behind the viewer and does its own
+    // crossfade (js/main.js's grid cards, where the card's icon is already
+    // on screen). Running both there would mean fading the model in over a
+    // poster that's simultaneously fading out over the icon: three images
+    // of the same ring, two of them semi-transparent, for half a second.
     var posterEl = null;
-    var posterSrc = product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metalKey];
+    var posterSrc = options.poster === false
+      ? null
+      : product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metalKey];
     if (posterSrc) {
       posterEl = document.createElement("img");
       posterEl.className = "emjive-3d-viewer__poster";
@@ -369,14 +499,52 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var scene = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
 
+    // Declared up here, not down by dispose(), because both async load
+    // chains below have to be able to read it. js/main.js's grid disposes
+    // a viewer the moment its card scrolls clear — which routinely happens
+    // while that card's .glb (tens of MB) and HDRI are still in flight, so
+    // "was I torn down before this arrived?" is the normal case during a
+    // fast scroll, not an edge case.
+    var isDisposed = false;
+
+    // Frees a loaded model's own GPU buffers. Split out of dispose()
+    // because the late-arrival paths below need exactly the same teardown
+    // for a model that showed up after the viewer was already gone —
+    // without it, everything a fast scroll started but didn't finish
+    // leaked its full decoded geometry, which is precisely the memory the
+    // lazy grid exists to cap.
+    function disposeObject3D(root) {
+      if (!root) return;
+      root.traverse(function (node) {
+        if (!node.isMesh) return;
+        if (node.geometry) node.geometry.dispose();
+        var material = node.material;
+        if (!material) return;
+        if (Array.isArray(material)) material.forEach(function (m) { m.dispose(); });
+        else material.dispose();
+      });
+    }
+
     // Not fired-and-forgotten: the environment load and the GLTF load
     // below are two independent async chains with no inherent ordering,
     // and Promise.all()'d together (see below) rather than racing —
     // otherwise the first frame (the one the render harness screenshots)
     // could get captured before the environment texture has actually
     // landed on the scene, rendering flat black.
-    var environmentPromise = loadEnvironment(renderer, options.hdri).then(function (envMap) {
-      scene.environment = envMap;
+    // Held separately from scene.environment (which is only the target's
+    // .texture) so dispose() can free the whole render target — see
+    // loadEnvironment's own comment.
+    var environmentTarget = null;
+    var environmentPromise = loadEnvironment(renderer, options.hdri).then(function (renderTarget) {
+      // Arriving after teardown: the PMREM target is real GPU memory on a
+      // renderer that's already been released, so it has to be freed here
+      // rather than attached to a scene nothing will ever draw again.
+      if (isDisposed) {
+        renderTarget.dispose();
+        return;
+      }
+      environmentTarget = renderTarget;
+      scene.environment = renderTarget.texture;
     });
 
     // Initial size read synchronously (before any async load resolves) so
@@ -385,6 +553,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // first callback, which could lose the race against the GLTF load.
     var currentWidth = 1;
     var currentHeight = 1;
+    // Set by anything that changes what the canvas should show WITHOUT
+    // moving the camera — a resize, a metal swap. Declared here rather
+    // than beside the rest of the animate-loop state because applySize()
+    // is called synchronously below, well before that block. Consumed (and
+    // cleared) once per frame by the animate loop.
+    var needsRender = false;
     // `controls` isn't constructed yet the first time applySize() runs
     // (see below) — referencing it here is safe regardless, since `var`
     // hoists the declaration and this function isn't CALLED until after
@@ -398,6 +572,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       renderer.setSize(w, h, false); // false: don't fight the existing CSS sizing
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      // A resize repaints nothing by itself, and the render-on-demand loop
+      // keys off camera MOTION — which a resize isn't — so an idle viewer
+      // would keep showing the pre-resize frame stretched to the new box
+      // until something else happened to move. See needsRender's own
+      // comment down in the animate loop.
+      needsRender = true;
       // TrackballControls caches the element's screen rect itself
       // (.screen.width/left/etc, read via handleResize()) rather than
       // measuring it fresh on every pointer event — it only does this
@@ -539,12 +719,25 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       scene.add(modelRoot);
       modelPromise = Promise.resolve();
     } else {
+      // Overlaps the Draco decoder's own ~336KB fetch with this model's
+      // (always larger) download instead of letting it serialize after it.
+      // Safe to call for a non-Draco model too — GLTFLoader simply never
+      // asks the decoder for anything.
+      preloadDracoDecoder();
       modelPromise = new Promise(function (resolve, reject) {
-        var gltfLoader = new GLTFLoader();
-        gltfLoader.setDRACOLoader(dracoLoader);
         gltfLoader.load(
           product.assets.model,
           function (gltf) {
+            // Same late-arrival case as the environment above, and the
+            // more expensive of the two: this is the fully decoded
+            // geometry of a model that can be tens of MB on the wire and
+            // several times that in memory. Freed immediately rather than
+            // added to a scene belonging to a released renderer.
+            if (isDisposed) {
+              disposeObject3D(gltf.scene);
+              resolve();
+              return;
+            }
             modelRoot = gltf.scene;
             applyMaterial();
             scene.add(modelRoot);
@@ -559,19 +752,39 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       });
     }
 
-    Promise.all([modelPromise, environmentPromise]).then(function () {
-      frameCamera(defaultOrbit);
-      modelLoaded = true;
+    Promise.all([modelPromise, environmentPromise])
+      .then(function () {
+        // Both halves already free their own late arrivals above; this
+        // guard is what stops the rest of the ready path from running on a
+        // torn-down viewer — frameCamera() and especially
+        // renderer.render() against a context that forceContextLoss() has
+        // already killed, which is what filled the console with repeating
+        // "THREE.WebGLRenderer: Context Lost" on every fast scroll.
+        if (isDisposed) return;
 
-      renderer.render(scene, camera);
-      if (posterEl) {
-        posterEl.style.opacity = "0";
-        posterEl.style.pointerEvents = "none";
-      }
+        frameCamera(defaultOrbit);
+        modelLoaded = true;
 
-      scheduleIdleNudge();
-      if (options.onReady) options.onReady();
-    });
+        renderer.render(scene, camera);
+        if (posterEl) {
+          posterEl.style.opacity = "0";
+          posterEl.style.pointerEvents = "none";
+        }
+
+        scheduleIdleNudge();
+        if (options.onReady) options.onReady();
+      })
+      // Previously absent, which made any model/HDRI failure an unhandled
+      // promise rejection — noisy, and on a page with several viewers,
+      // repeating. Both branches already logged the real cause on their
+      // way to rejecting, so there's nothing to add here: the viewer just
+      // stops at "poster still showing", the same degraded state a product
+      // with no model at all gets. options.onError lets a caller (the grid)
+      // put its own static icon back instead of leaving a dead box.
+      .catch(function () {
+        if (isDisposed) return;
+        if (options.onError) options.onError();
+      });
 
     // ---- idle reset / nudge / drift state (per-instance) ----
     var isDragging = false;
@@ -646,37 +859,55 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // bare tap/click doesn't count as "they've discovered it's draggable" —
     // only a real drag past a small threshold suppresses the nudge. Skipped
     // entirely in static/harness mode — headless, nothing to ever suppress.
+    //
+    // Registered through wrapperListeners rather than directly, so
+    // dispose() can take them off again. This matters far more than it
+    // looks: each of these handlers is a closure over the whole
+    // buildThreeViewer() invocation — renderer, scene, controls, the
+    // decoded model — and a listener on an element is reachable from that
+    // element. As long as anything anywhere still referenced this
+    // wrapper's <div> (and something does: three.js's own WebGL context
+    // teardown keeps the canvas reachable for a while after
+    // forceContextLoss), every viewer the grid had ever built stayed
+    // fully in memory, disposed or not. Measured on the Bones grid before
+    // this: 26 live WebGLRenderers after two scroll passes with zero
+    // viewers actually on screen, growing linearly with every further
+    // pass.
+    var wrapperListeners = [];
+    function addWrapperListener(type, handler) {
+      wrapperListeners.push([type, handler]);
+      wrapper.addEventListener(type, handler);
+    }
+
     if (!isStatic) {
       var suppressDragStartX = null;
       var suppressDragStartY = null;
-      wrapper.addEventListener("pointerdown", function (e) {
+      addWrapperListener("pointerdown", function (e) {
         suppressDragStartX = e.clientX;
         suppressDragStartY = e.clientY;
       });
-      wrapper.addEventListener("pointermove", function (e) {
+      addWrapperListener("pointermove", function (e) {
         if (interactionSuppressed || suppressDragStartX === null) return;
         var dx = e.clientX - suppressDragStartX;
         var dy = e.clientY - suppressDragStartY;
         if (Math.sqrt(dx * dx + dy * dy) > 6) suppressNudgeEverywhere();
       });
-      wrapper.addEventListener("pointerup", function () {
+      addWrapperListener("pointerup", function () {
         suppressDragStartX = null;
         suppressDragStartY = null;
       });
     }
-
-    // Tool-only: never becomes true for the interactive site or the
-    // render harness (neither ever calls .dispose()) — guards the animate
-    // IIFE below against continuing to recurse on a canvas the caller has
-    // already discarded (scene-tool.html is the first caller that ever
-    // builds-and-replaces a viewer mid-session).
-    var isDisposed = false;
 
     var handle = {
       el: wrapper,
       applyMetal: function (newMetalKey) {
         currentMetal = newMetalKey;
         if (modelLoaded) applyMaterial();
+        // The camera hasn't moved, so the render-on-demand loop below
+        // would otherwise skip every frame and leave the old finish on
+        // screen indefinitely — this is the "something changed that isn't
+        // camera motion" signal it watches for.
+        needsRender = true;
       },
       setCameraOrbit: function (orbitConfig) {
         frameCamera(orbitConfig);
@@ -693,17 +924,33 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       camera: camera,
       renderer: renderer,
       target: controls.target,
-      // Tool-only teardown (scene-tool.html) — every existing caller
-      // (main.js's grid, product.js's carousel, the render harness) builds
-      // exactly one, page-lifetime viewer and never calls this. Without
-      // it, rebuilding mid-session would leak: the animate loop keeps
+      // Teardown for any caller that builds-and-replaces a viewer
+      // mid-session — scene-tool.html, and js/main.js's grid, which
+      // disposes a card's viewer as soon as it scrolls clear. Without it,
+      // rebuilding mid-session would leak: the animate loop keeps
       // recursing on a detached canvas forever, TrackballControls' own
       // window-level keydown/keyup listeners are never released, and the
-      // ResizeObserver is never disconnected.
+      // ResizeObserver is never disconnected. Idempotent — a double
+      // dispose (or a dispose racing a caller's own cleanup) is a no-op
+      // rather than a second forceContextLoss() on a dead context.
       dispose: function () {
+        if (isDisposed) return;
         isDisposed = true;
         cancelReturnToPose();
         clearIdleTimer();
+        // The one piece of teardown that isn't about GPU resources, and
+        // the one that was missing: without it this viewer's cancelNudge
+        // — and through it the entire closure, model geometry included —
+        // stays reachable from the module-level registry forever. See the
+        // comment on allCancelNudgeFns.
+        unregisterCancelNudge(cancelNudge);
+        // Same reasoning as the registry above, for the DOM side — see
+        // wrapperListeners' own comment. controls.dispose() below only
+        // covers TrackballControls' own listeners, not these.
+        wrapperListeners.forEach(function (pair) {
+          wrapper.removeEventListener(pair[0], pair[1]);
+        });
+        wrapperListeners.length = 0;
         resizeObserver.disconnect();
         controls.dispose();
         // Beyond the renderer/controls/observer teardown above, the loaded
@@ -714,17 +961,11 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // card on scroll rather than building one, page-lifetime — without
         // a real teardown here, repeated build/dispose cycles would leak
         // exactly the GPU memory this whole lazy scheme exists to cap.
-        if (modelRoot) {
-          modelRoot.traverse(function (node) {
-            if (!node.isMesh) return;
-            if (node.geometry) node.geometry.dispose();
-            var material = node.material;
-            if (!material) return;
-            if (Array.isArray(material)) material.forEach(function (m) { m.dispose(); });
-            else material.dispose();
-          });
-        }
-        if (scene.environment) scene.environment.dispose();
+        // Anything still in flight at this point is freed by the
+        // isDisposed branches in the two load callbacks instead.
+        disposeObject3D(modelRoot);
+        if (environmentTarget) environmentTarget.dispose();
+        scene.environment = null;
         renderer.dispose();
         // renderer.dispose() alone frees the renderer's own bookkeeping
         // (shader program cache, render lists) but doesn't reliably return
@@ -743,6 +984,54 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // the idle nudge) can shift the framing between the harness's onReady
     // firing and its screenshot actually being taken a few ms later.
     if (isStatic) return handle;
+
+    // ---- render-on-demand bookkeeping ---------------------------------
+    // The pose the canvas currently SHOWS, as opposed to the pose the
+    // camera currently holds. Every frame below updates the camera, then
+    // only actually draws if the two have diverged by more than a
+    // sub-pixel amount (or if needsRender flags a non-camera change).
+    //
+    // This loop used to end in an unconditional renderer.render(), so a
+    // viewer that had finished loading and was sitting perfectly still
+    // still issued a full WebGL draw 60+ times a second, forever, for as
+    // long as it existed. On the homepage that's every live card in the
+    // grid at once, permanently — a constant GPU/battery/thermal draw for
+    // pixels identical to the ones already on screen, and on a phone the
+    // thermal throttling that causes makes the *next* real interaction
+    // worse. Comparing angles rather than world-space distances keeps the
+    // threshold meaningful regardless of how large a given model is.
+    var renderedEye = new THREE.Vector3();
+    var renderedUp = new THREE.Vector3();
+    // Its own scratch vector rather than reusing eyeDirection: that one is
+    // the else-branch's frame-to-frame angular-speed state (it's read via
+    // eyeDirectionPrev at the top of the next frame), and writing to it
+    // from here — which also runs during the nudge/reset tweens, where the
+    // else branch isn't maintaining it — would quietly feed a bogus dt
+    // into lastAngularSpeed on the first frame after a tween ends.
+    var currentEye = new THREE.Vector3();
+    var hasRenderedOnce = false;
+    // ~0.006 degrees: far below one pixel of movement at any canvas size
+    // this site uses, so nothing perceptible is ever skipped. Also smaller
+    // than SETTLE_ANGULAR_VELOCITY * dt, so a release always registers as
+    // settled (arming the ease-back-to-default) BEFORE drawing stops —
+    // never the other way round, which would strand the camera wherever
+    // the inertia happened to fade out.
+    var STILL_ANGLE_EPSILON = 1e-4;
+
+    function drawIfChanged() {
+      currentEye.copy(camera.position).sub(controls.target).normalize();
+      var changed = needsRender ||
+                    !hasRenderedOnce ||
+                    currentEye.angleTo(renderedEye) > STILL_ANGLE_EPSILON ||
+                    camera.up.angleTo(renderedUp) > STILL_ANGLE_EPSILON;
+      if (!changed) return;
+
+      needsRender = false;
+      hasRenderedOnce = true;
+      renderedEye.copy(currentEye);
+      renderedUp.copy(camera.up);
+      renderer.render(scene, camera);
+    }
 
     (function animate(now) {
       if (isDisposed) return; // torn down mid-session (scene-tool.html) — stop recursing for good
@@ -857,7 +1146,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         }
       }
 
-      renderer.render(scene, camera);
+      drawIfChanged();
     })();
 
     return handle;

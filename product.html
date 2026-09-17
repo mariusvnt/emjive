@@ -21,9 +21,26 @@
 <meta name="twitter:description" content="Item detail" />
 <meta name="twitter:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<!-- Both typefaces are self-hosted (see the @font-face blocks in
+     css/style.css) — this used to be a render-blocking Google Fonts
+     stylesheet on a third-party origin. Preloaded rather than left for the
+     CSS parser to discover: a webfont is otherwise found only once
+     style.css has downloaded AND parsed, which puts it a full round trip
+     behind everything else in the head.
+     crossorigin is mandatory on a font preload even same-origin — fonts
+     are always fetched in CORS mode, and a preload whose mode doesn't
+     match the real request is simply downloaded twice. -->
+<link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-mono-woff2/GeistMono-latin.woff2" crossorigin />
+<link rel="preload" as="font" type="font/woff2" href="assets/fonts/dinish-woff2/DINish-Regular.woff2" crossorigin />
+
+<!-- data/series.json gates EVERYTHING on every page: which series is
+     shown, its products, and (on the homepage) the hero bundle, which
+     can't even start until this resolves. js/series.js below fetches it,
+     but only once the browser has downloaded and executed that script —
+     so without this the request sits a round trip behind where it could.
+     The preload scanner sees this while still parsing the head and starts
+     it in parallel with series.js itself. -->
+<link rel="preload" as="fetch" href="data/series.json" crossorigin />
 
 <link rel="stylesheet" href="css/style.css" />
 
