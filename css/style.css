@@ -756,28 +756,44 @@ button, input, textarea {
   display: none;
 }
 
-/* A fixed-width box centered in the right column (grid-column: 2 — itself
-   already the right half of .product-grid's centered, max-width-capped
-   row, so centering here reads as centering in "the right column of the
-   viewport"), with its text left-justified inside that box. Replaces an
-   earlier version flush against the center line with a fluid
-   padding-left: 12vw push — fine on wide screens, but that push scales
-   with viewport width while the model column's own clamp()-based sizing
-   doesn't, so the two drifted out of proportion on narrow phone screens
-   specifically (the label crowding the model or overflowing toward the
-   screen edge). A fixed box width anchored to the column's own center
-   stays visually consistent at any viewport size instead. */
+/* Starts exactly where the old fixed-width, centered-in-column-2 box used
+   to: column 2 is the right half of .product-card (50%–100%, no gap/
+   padding on the card), and centering a 6.25rem box in it puts that box's
+   left edge at 50% + (50% - 6.25rem)/2 = 75% - 3.125rem — reproduced here
+   directly rather than through grid placement, since this is no longer a
+   sized grid item. Its right edge, instead of closing the box at a fixed
+   width, is broken out to the TRUE viewport edge via right: calc(50% -
+   50vw) — the same full-bleed math .product-card__bar-link uses for its
+   own 100vw span — leaving left+right (no explicit width) to stretch the
+   box open between the two. A name+category combo long enough to overflow
+   the old fixed box used to just run off toward the screen edge, clipped
+   wherever html's own overflow-x: hidden (see the base-rule gotchas)
+   happened to land rather than anywhere this rule controlled — possibly
+   mid-letter. The mask below fades the label's own text out over its
+   last 0.75rem instead, and because the box's 100% mark IS the true edge
+   now (not an arbitrary fixed width), that fade always lands exactly at
+   the real edge, at any viewport size. Masking the label itself — rather
+   than a shared overlay painted across the whole row — is deliberate:
+   .product-card__bar-link sits directly behind this box at that same
+   edge and has to stay solid black all the way out; an overlay would
+   have faded it right along with the text, a mask scoped to just this
+   element can't touch it at all. A short label, nowhere near that last
+   0.75rem, renders exactly as before either way. */
 .product-card__label {
-  grid-column: 2;
-  justify-self: center;
-  width: 6.25rem; /* 100px at the root 16px font-size */
-  position: relative;
+  position: absolute;
+  left: calc(75% - 3.125rem);
+  right: calc(50% - 50vw);
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 1;
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
   font-size: 1rem;
   letter-spacing: 0.05em;
   color: var(--black);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
 }
 .product-card__label-name {
   font-family: var(--font-main);
