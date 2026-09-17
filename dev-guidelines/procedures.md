@@ -121,7 +121,11 @@ and they re-render whenever a visitor switches the metal picker.
 always-present 3D model slide (or the `assets.icons[metal]` fallback if there's no
 model). Leave it as `[]` until you have real photos — the carousel hides its
 arrows/dots entirely rather than showing a placeholder when there's only one
-slide.
+slide. Each entry is `{ "src": "...", "description": "..." }`, not a bare path —
+`description` is what the product page prints under that photo as
+"On display: ...", `npm run json-tool` gives each saved photo its own text
+input for it (immediate save, not deferred to the product Save button), and an
+empty one just falls back to an em-dash rather than an empty label.
 
 `assets` also holds a few other per-product files: `xray` (a single path,
 used as the carousel's backdrop — leave `""` until you have one),

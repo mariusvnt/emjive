@@ -33,8 +33,8 @@
           "bronze": "assets/series/bones/products/furcula_ring/furcula_top-shot_bronze.webp"
         },
         "photos": [
-          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo1.webp", "description": "" },
-          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo2.webp", "description": "" }
+          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo1.webp", "description": "Furcula.ring.steel.62" },
+          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo2.webp", "description": "Furcula.ring.steel.62" }
         ]
       }
     },
