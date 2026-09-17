@@ -175,6 +175,7 @@
     }
 
     var slideSources = [];
+    var modelSlide = null;
     // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused
     // here so the viewer construction/material logic lives in exactly one
     // place. It can return null if the browser couldn't grant a WebGL
@@ -182,13 +183,24 @@
     // fallback branch a product with no "assets.model" field at all uses,
     // rather than leaving the carousel empty.
     state.modelHandle = (product.assets && product.assets.model)
-      ? window.EmjiveModelViewer(product, state.selectedMetal, { hdri: window.EmjiveSeries.hdriPath(state.seriesSlug) })
+      ? window.EmjiveModelViewer(product, state.selectedMetal, {
+          hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
+          // Fires for an initial load/HDRI failure OR — since
+          // three-viewer.js also treats a WebGL context loss as a failure
+          // — for a model that HAD already loaded and was on screen: iOS
+          // Safari can silently reclaim a GPU context under memory
+          // pressure at any time, not just during load. Previously nothing
+          // here handled this at all (unlike js/main.js's grid), so either
+          // failure just left an empty, permanently blank 3D-viewer slide
+          // with no fallback ever shown.
+          onError: replaceModelSlideWithIcon
+        })
       : null;
     if (state.modelHandle) {
       // Smaller than the photo slides on purpose — leaves generous empty
       // space around the model to drag/swipe the carousel from without
       // that drag landing on the viewer's own TrackballControls instead.
-      var modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
+      modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
       modelSlide.appendChild(state.modelHandle.el);
       track.appendChild(modelSlide);
       slideSources.push("model");
@@ -202,6 +214,35 @@
         state.iconFallbackImg = iconSlide.querySelector("img");
         track.appendChild(iconSlide);
         slideSources.push("icon");
+      }
+    }
+
+    // Swaps a failed model slide's contents for the same icon fallback a
+    // model-less product gets, IN PLACE — the slide itself (its position in
+    // slideSources/state.slideCount and therefore the carousel's own
+    // bounds/offset math) never changes, only what's rendered inside it,
+    // so a failure arriving well after the carousel has already been
+    // measured/scrolled can't desync its geometry. Reuses
+    // state.iconFallbackImg (not a separate field) so onMetalSelect's
+    // existing "if (state.iconFallbackImg) swap its src" branch already
+    // handles a later metal switch with no further changes needed here.
+    function replaceModelSlideWithIcon() {
+      if (state.modelHandle) {
+        state.modelHandle.dispose();
+        state.modelHandle = null;
+      }
+      if (!modelSlide) return;
+      modelSlide.classList.remove("product-carousel__slide--model");
+      modelSlide.innerHTML = "";
+      var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
+      if (fallbackIconSrc) {
+        var img = document.createElement("img");
+        img.src = fallbackIconSrc;
+        img.alt = product.name || "";
+        img.loading = "lazy";
+        img.draggable = false;
+        modelSlide.appendChild(img);
+        state.iconFallbackImg = img;
       }
     }
 

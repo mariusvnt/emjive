@@ -507,6 +507,42 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // fast scroll, not an edge case.
     var isDisposed = false;
 
+    // options.onError is meant to fire at most once — see reportError()
+    // below — but it now has two independent triggers (the load/HDRI
+    // failure path further down, and a WebGL context loss that can happen
+    // well after a successful load, see handleContextLost). Without this
+    // guard, a context loss arriving after an already-rejected load promise
+    // (or vice versa) would call a caller's onError twice.
+    var hasErrored = false;
+    function reportError() {
+      if (isDisposed || hasErrored) return;
+      hasErrored = true;
+      if (options.onError) options.onError();
+    }
+
+    // iOS Safari silently reclaims WebGL contexts under memory pressure —
+    // independent of, and often well after, a model's own successful load
+    // (several simultaneous viewers on the homepage grid, or just the page
+    // being backgrounded and foregrounded again). Nothing else in this file
+    // would ever notice: modelLoaded stays true, the poster/icon crossfade
+    // already finished, and the render-on-demand loop below only redraws on
+    // camera motion, so a lost context just leaves the canvas permanently
+    // blank with every piece of this module's own state insisting
+    // everything is fine. Not attempting real restoration here (re-
+    // uploading textures/geometry into a webglcontextrestored context) —
+    // deliberately NOT calling event.preventDefault(), which per spec means
+    // the browser won't try to restore it — since iOS Safari's own
+    // memory-pressure losses are frequently never restorable anyway, and
+    // this site already has a proven, always-available fallback for "can't
+    // show the 3D model": the same static icon a product with no model at
+    // all gets. reportError() routes there via options.onError exactly like
+    // a load failure does.
+    function handleContextLost() {
+      console.error("emjive: WebGL context lost for", product.name);
+      reportError();
+    }
+    renderer.domElement.addEventListener("webglcontextlost", handleContextLost, false);
+
     // Frees a loaded model's own GPU buffers. Split out of dispose()
     // because the late-arrival paths below need exactly the same teardown
     // for a model that showed up after the viewer was already gone —
@@ -779,12 +815,11 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       // repeating. Both branches already logged the real cause on their
       // way to rejecting, so there's nothing to add here: the viewer just
       // stops at "poster still showing", the same degraded state a product
-      // with no model at all gets. options.onError lets a caller (the grid)
-      // put its own static icon back instead of leaving a dead box.
-      .catch(function () {
-        if (isDisposed) return;
-        if (options.onError) options.onError();
-      });
+      // with no model at all gets. reportError() (shared with
+      // handleContextLost above) is what actually calls options.onError,
+      // letting a caller (the grid, the product-page carousel) put its own
+      // static icon back instead of leaving a dead box.
+      .catch(reportError);
 
     // ---- idle reset / nudge / drift state (per-instance) ----
     var isDragging = false;
@@ -879,6 +914,19 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       wrapper.addEventListener(type, handler);
     }
 
+    // Same idea for listeners this viewer has to put on shared objects
+    // (document/window) rather than on its own DOM. These are the ones it
+    // would be easiest to leak — nothing about a document-level listener
+    // goes away when the wrapper is removed from the page — and each is a
+    // closure over this whole invocation, exactly like the wrapper
+    // listeners above. Populated further down (see the render-on-demand
+    // block); torn down in dispose() alongside them.
+    var globalListeners = [];
+    function addGlobalListener(targetEl, type, handler) {
+      globalListeners.push([targetEl, type, handler]);
+      targetEl.addEventListener(type, handler);
+    }
+
     if (!isStatic) {
       var suppressDragStartX = null;
       var suppressDragStartY = null;
@@ -951,6 +999,18 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
           wrapper.removeEventListener(pair[0], pair[1]);
         });
         wrapperListeners.length = 0;
+        // The document/window ones matter more than the wrapper ones: the
+        // shared targets they're attached to outlive this viewer by the
+        // whole page, so a missed removal here retains the entire closure
+        // (renderer, scene, decoded model) for good.
+        globalListeners.forEach(function (triple) {
+          triple[0].removeEventListener(triple[1], triple[2]);
+        });
+        globalListeners.length = 0;
+        // Same closure-retention concern as wrapperListeners above, just on
+        // the canvas rather than the wrapper — handleContextLost is a
+        // closure over this entire buildThreeViewer() invocation too.
+        renderer.domElement.removeEventListener("webglcontextlost", handleContextLost, false);
         resizeObserver.disconnect();
         controls.dispose();
         // Beyond the renderer/controls/observer teardown above, the loaded
@@ -1000,6 +1060,47 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // thermal throttling that causes makes the *next* real interaction
     // worse. Comparing angles rather than world-space distances keeps the
     // threshold meaningful regardless of how large a given model is.
+    //
+    // The catch, and it is not hypothetical: skipping redundant draws is
+    // only safe while the canvas actually KEEPS what was last drawn into
+    // it. Every viewer here is created with preserveDrawingBuffer: false
+    // (the default; only auto-render.js's harness sets it true), which
+    // explicitly licenses the browser to throw the drawing buffer away
+    // after compositing it — and iOS Safari genuinely does, under memory
+    // pressure, on tab/app backgrounding, and on a bfcache restore. No
+    // webglcontextlost fires for this: the context stays perfectly alive,
+    // only the pixels are gone, so handleContextLost's icon fallback never
+    // triggers either. The old unconditional per-frame render hid this
+    // completely by repainting within ~16ms of any discard; with
+    // render-on-demand, an idle viewer that has settled never draws again,
+    // and the blank canvas is permanent until the page is reloaded. On
+    // this site the easiest way to hit it is the most ordinary navigation
+    // there is: tap a product, press Back, and every model on the restored
+    // homepage is gone.
+    //
+    // So: flag a redraw on each documented occasion the buffer can come
+    // back empty. needsRender (rather than a direct render() call) so the
+    // repaint lands in the normal animate-loop path — on a bfcache restore
+    // or a tab return, rAF is paused at the moment these fire, and drawing
+    // straight into a context the compositor isn't servicing yet is how
+    // you get a frame that's silently dropped anyway.
+    function requestRepaint() {
+      needsRender = true;
+    }
+    // Tab/app switch return. Fires on the way out too (visibilityState
+    // "hidden"), which is harmless — the flag just sits set until the loop
+    // resumes, which is exactly when it's wanted.
+    addGlobalListener(document, "visibilitychange", requestRepaint);
+    // Back/forward bfcache restore — the case above that this site hits
+    // most. Not gated on event.persisted: a normal load fires pageshow too,
+    // where the flag is redundant rather than wrong (the load path renders
+    // once itself), and the gate would only add a way to get this wrong.
+    addGlobalListener(window, "pageshow", requestRepaint);
+    // If the browser DOES restore a genuinely lost context, three.js
+    // re-initializes its GL state automatically, but nothing asks for the
+    // first frame back. Costs one listener to not leave that blank.
+    addGlobalListener(renderer.domElement, "webglcontextrestored", requestRepaint);
+
     var renderedEye = new THREE.Vector3();
     var renderedUp = new THREE.Vector3();
     // Its own scratch vector rather than reusing eyeDirection: that one is

@@ -322,10 +322,19 @@
           releaseSlot();
           revealViewer(entry);
         },
-        // A model or HDRI that never arrives leaves the icon exactly where
-        // it is, rather than an empty box — the same degraded state a
-        // product with no model at all already gets.
-        onError: releaseSlot
+        // Fires for an initial load/HDRI failure (the icon is still showing
+        // then — never faded out — so teardownViewer's own iconEl.hidden =
+        // false is a no-op) OR, since three-viewer.js also treats a WebGL
+        // context loss as a failure, for a model that HAD already loaded
+        // and was on screen: iOS Safari can silently reclaim a GPU context
+        // under memory pressure at any time, not just during load. Either
+        // way this puts the icon back and drops the dead viewer, rather
+        // than leaving a blank canvas with nothing telling the visitor
+        // anything's wrong.
+        onError: function () {
+          releaseSlot();
+          teardownViewer(entry);
+        }
       }
     );
     if (!handle) {
@@ -370,6 +379,27 @@
     startViewerLoad(entry);
   }
 
+  // Disposes an in-progress or already-live viewer and puts the icon back —
+  // shared by disposeViewerFor (card scrolled out of range) and
+  // startViewerLoad's onError above (the viewer itself failed, whether
+  // during the initial load or well after, via a later WebGL context
+  // loss). Deliberately doesn't touch entry.wantsViewer/entry.queued —
+  // callers that mean "give up on this card for now" (disposeViewerFor)
+  // set those themselves; the onError path leaves wantsViewer true so a
+  // later rebuild is attempted the next time this card's build margin
+  // re-fires, same as a WebGL-context-budget rejection already does.
+  function teardownViewer(entry) {
+    if (entry.fadeTimer) {
+      clearTimeout(entry.fadeTimer);
+      entry.fadeTimer = null;
+    }
+    if (!entry.modelHandle) return;
+    entry.modelHandle.dispose();
+    entry.figure.removeChild(entry.modelHandle.el);
+    entry.modelHandle = null;
+    if (entry.iconEl) entry.iconEl.hidden = false;
+  }
+
   function disposeViewerFor(entry) {
     entry.wantsViewer = false;
     // Still waiting its turn: drop the intent now so pumpLoadQueue skips
@@ -380,15 +410,7 @@
       if (i !== -1) loadQueue.splice(i, 1);
       entry.queued = false;
     }
-    if (entry.fadeTimer) {
-      clearTimeout(entry.fadeTimer);
-      entry.fadeTimer = null;
-    }
-    if (!entry.modelHandle) return;
-    entry.modelHandle.dispose();
-    entry.figure.removeChild(entry.modelHandle.el);
-    entry.modelHandle = null;
-    if (entry.iconEl) entry.iconEl.hidden = false;
+    teardownViewer(entry);
   }
 
   // Two observers, not one, for the hysteresis noted above — figure.cardEntry
