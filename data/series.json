@@ -10,7 +10,7 @@
   },
 
   "hdris": {
-    "studio":         "assets/hdri/studio_kontrast_04_2k.hdr",
+    "studio":         "assets/hdri/studio_kontrast_04_1k.hdr",
     "blue-pure-sky":  "assets/hdri/autumn_field_puresky_1k.hdr",
     "white-room":     "assets/hdri/white-room_2k.hdr"
   },
@@ -33,7 +33,7 @@
         "css":      "series/bones/hero.css",
         "js":       "series/bones/hero.js",
         "preload": [
-          "assets/series/bones/hero/hand-rings-under-flesh_4k.webp",
+          "assets/series/bones/hero/hand-rings-under-flesh_3k.webp",
           "assets/series/bones/hero/hand_xray.webp"
         ]
       }

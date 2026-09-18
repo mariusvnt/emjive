@@ -100,7 +100,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // metalKey already is. Used whenever a caller omits options.hdri (this
   // module is deliberately series-unaware, and auto-render.js's headless
   // harness never loads js/series.js at all, so it can't be resolved here).
-  var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_2k.hdr";
+  var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -271,9 +271,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
   // What this cache actually costs is invisible in a heap profile, because a
   // DataTexture's pixels live in an external ArrayBuffer rather than the JS
-  // heap: Bones' studio_kontrast_04_2k.hdr is 5.9MB on the wire and decodes
-  // to 2048 x 1024 half-float RGBA — ~16.8MB — held at module scope for the
-  // life of the document. Worth every byte while viewers are being built and
+  // heap: Bones' studio_kontrast_04_1k.hdr is 1.4MB on the wire and decodes
+  // to 1024 x 512 half-float RGBA — ~4.2MB — held at module scope for the
+  // life of the document. (Both figures were 4x larger before
+  // `npm run optimize-hdri` halved the source to 1k; the cache mattered
+  // proportionally more then, and still earns its keep.) Worth every byte
+  // while viewers are being built and
   // rebuilt during a scroll (it's what stops N simultaneous viewers decoding
   // the same file N times), and worth nothing at all once the page is frozen
   // or backgrounded, which on iOS is precisely when the memory is wanted
@@ -408,6 +411,25 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   var PROGRESSIVE_BOOST_SPEED = 0.5; // rad/s
   var PROGRESSIVE_BOOST_MAX = 4;
 
+  // ---- prefers-reduced-motion -------------------------------------------
+  //
+  // Held as a live MediaQueryList rather than read once into a boolean.
+  // Every site that reads it below already runs per-frame (the animate
+  // loop) or per-timer (scheduleIdleNudge), so `.matches` gets re-evaluated
+  // naturally and an OS-level toggle takes effect on the next frame — with
+  // no `change` listener to register, to remember to remove in dispose(),
+  // or to leak a closure over an entire viewer (scene, renderer, decoded
+  // model) the way allCancelNudgeFns once did.
+  //
+  // Deliberately module-scope here rather than a shared window.EmjiveMotion
+  // on js/series.js, and not for tidiness: this module is also loaded by
+  // scene-tool.html, which loads no js/series.js at all. A shared helper
+  // would be undefined there, so this file would need the query locally
+  // regardless — and it is the only JS on the site that needs it, since
+  // every other piece of motion is a CSS transition the stylesheet's own
+  // reduced-motion block already covers. See css/style.css.
+  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
   // Builds a three.js viewer for a product and returns a handle so callers
   // (the homepage grid, and the product detail page's carousel) can swap
   // its metal finish later without reloading the .glb or losing whatever
@@ -440,6 +462,27 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // manually setting a pose and having it stay exactly there so it can
     // be read back and saved.
     var isFreeOrbit = !!options.freeOrbit;
+    // prefers-reduced-motion turns out to want exactly the same four
+    // behaviors off that freeOrbit does — release inertia, the
+    // ease-back-to-default pose reset, the continuous up-vector leveling
+    // drift, and the idle nudge — so they share one predicate rather than
+    // growing a parallel set of conditions. The two arrive at it for
+    // different reasons: freeOrbit wants a pose to STAY put so the tool can
+    // read it back and save it; reduced motion wants nothing to move that
+    // the visitor didn't move themselves.
+    //
+    // What neither disables is dragging. That's visitor-initiated, so it
+    // isn't what the media query is about, and a model you can't turn is a
+    // product you can't see. The reset in particular is SKIPPED rather than
+    // applied instantly: snapping the camera home the moment a spin settles
+    // is an unrequested view change, which for a vestibular-sensitive
+    // visitor is worse than simply leaving the model where they put it.
+    //
+    // A function, not a boolean captured here, so the media query stays
+    // live — see `reducedMotion`'s own comment at module scope.
+    function noAutoMotion() {
+      return isFreeOrbit || reducedMotion.matches;
+    }
     // `transparentBackground` used to also gate the renderer's own alpha
     // (the interactive site rendered opaque, near-black, on purpose — see
     // git history) but that traded a real bug (a solid black square behind
@@ -688,11 +731,20 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // (TrackballControls.update() itself takes no delta-time argument).
     controls.dynamicDampingFactor = 0.04032;
     var SPIN_DECAY_LAMBDA = (-0.5 * Math.log(1 - controls.dynamicDampingFactor)) / REF_DT;
-    // three.js's own built-in "no momentum" flag — under freeOrbit, rotation
-    // only ever tracks the pointer's current position, never coasts on
-    // release. Simpler and more robust than fighting the decay math below
+    // three.js's own built-in "no momentum" flag — rotation only ever tracks
+    // the pointer's current position, never coasts on release. Simpler and
+    // more robust than fighting the decay math below
     // (dynamicDampingFactor/SPIN_DECAY_LAMBDA) to approximate a dead stop.
-    if (isFreeOrbit) controls.staticMoving = true;
+    //
+    // Assigned here AND re-asserted every frame in the animate loop, which
+    // is not redundant: this line runs exactly once, at construction, while
+    // noAutoMotion() is live — so a visitor toggling reduced motion
+    // mid-session would otherwise keep whatever value was captured when the
+    // viewer happened to be built. It's read inside controls.update(), and
+    // controls.update() is called from two places (frameCamera below, and
+    // the animate loop), so the flag has to be correct before each of them
+    // rather than just once here.
+    controls.staticMoving = noAutoMotion();
 
     var defaultOrbit = product["3d-viewer-camera-default"] || DEFAULT_ORBIT;
     var explicitTarget = parseTargetString(product.cameraTarget);
@@ -906,7 +958,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     function scheduleIdleNudge() {
       clearIdleTimer();
-      if (interactionSuppressed || isStatic || isFreeOrbit) return;
+      if (interactionSuppressed || isStatic || noAutoMotion()) return;
       idleTimeoutId = setTimeout(function () {
         idleTimeoutId = null;
         nudgePhase = 0;
@@ -1241,6 +1293,10 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         var slowness = 1 - Math.min(1, lastAngularSpeed / PROGRESSIVE_BOOST_SPEED);
         var lambdaThisFrame = SPIN_DECAY_LAMBDA * (1 + slowness * PROGRESSIVE_BOOST_MAX);
         controls.dynamicDampingFactor = 1 - Math.exp(-2 * lambdaThisFrame * dt);
+        // Re-asserted per frame, not just at construction — see its own
+        // comment there. controls.update() reads it, so it has to be right
+        // for the frame that is about to consume it.
+        controls.staticMoving = noAutoMotion();
         controls.update();
 
         eyeDirectionPrev.copy(eyeDirection);
@@ -1249,11 +1305,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
         var poleAlignment = Math.abs(eyeDirection.dot(WORLD_UP));
 
-        // freeOrbit skips this leveling-drift correction entirely — the
-        // whole point is that camera.up (and therefore the framing) stays
+        // freeOrbit and reduced motion both skip this leveling-drift
+        // correction entirely — camera.up (and therefore the framing) stays
         // exactly wherever the drag left it, with no auto-correction ever
-        // nudging it back toward level.
-        if (!isFreeOrbit) {
+        // nudging it back toward level. It's the subtlest of the four, and
+        // the most unsettling to watch if you didn't ask for it: the image
+        // rotates slowly under a stationary pointer.
+        if (!noAutoMotion()) {
           var s = preFrameUp.dot(WORLD_UP);
           tangentTowardUp.copy(WORLD_UP).addScaledVector(preFrameUp, -s);
           var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);
@@ -1266,11 +1324,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
           var frameAngle = eyeDirectionPrev.angleTo(eyeDirection);
           if (frameAngle < SETTLE_ANGULAR_VELOCITY * dt) {
             waitingForSettle = false;
-            // freeOrbit skips arming the ease-back-to-default reset too —
-            // combined with staticMoving above (no coasting) and the drift
-            // skip just above (no up-vector correction), the camera simply
-            // stays exactly where the drag left it once released.
-            if (!isFreeOrbit) {
+            // freeOrbit and reduced motion both skip arming the
+            // ease-back-to-default reset too — combined with staticMoving
+            // above (no coasting) and the drift skip just above (no
+            // up-vector correction), the camera simply stays exactly where
+            // the drag left it once released.
+            if (!noAutoMotion()) {
               pauseTimeoutId = setTimeout(function () {
                 pauseTimeoutId = null;
                 resetTweenFromPosition.copy(camera.position);

@@ -30,7 +30,7 @@
 /* ==========================================================================
    Entry reveal — scroll pins the stage for --reveal-scroll-vh, during which
    js/main.js clips hand_xray.webp open from the bottom up over
-   hand-rings-under-flesh_4k.webp.
+   hand-rings-under-flesh_3k.webp.
    ========================================================================== */
 
 .reveal {
@@ -107,7 +107,13 @@
   transform: translateX(-50%);
   height: 100%;
   width: auto;
-  aspect-ratio: 3840 / 2160; /* same 16:9 as hand_xray.webp (3840x2160) and hand-rings-under-flesh_4k.webp (5760x3240) */
+  /* The RATIO is what matters here, not the pixel counts — every hero image
+     is 16:9, at whatever native resolution each happens to ship at
+     (hand_xray.webp 1920x1080, hand-rings-under-flesh_3k.webp 2880x1620, the
+     two extension panels 3840x2160). Written as 3840/2160 rather than 16/9
+     because .reveal__extension below derives its width from the same pair of
+     numbers, and the two must not drift apart. */
+  aspect-ratio: 3840 / 2160;
   /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
      the section scrolls, revealing from the bottom edge upward. */
   clip-path: inset(100% 0 0 0);

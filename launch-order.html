@@ -4,20 +4,20 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#ffffff" />
-<title>em·ji·ve</title>
+<title>Your selection — em·ji·ve</title>
 <meta name="description" content="Your current selection" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
-<meta property="og:title" content="em·ji·ve" />
+<meta property="og:title" content="Your selection — em·ji·ve" />
 <meta property="og:description" content="Your current selection" />
 <meta property="og:url" content="https://mariusvnt.github.io/emjive/launch-order.html" />
 <meta property="og:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 <meta property="og:image:width" content="512" />
 <meta property="og:image:height" content="512" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="em·ji·ve" />
+<meta name="twitter:title" content="Your selection — em·ji·ve" />
 <meta name="twitter:description" content="Your current selection" />
 <meta name="twitter:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 
@@ -82,6 +82,11 @@
 </header>
 
 <main class="selection-page">
+  <!-- Visually hidden for the same reason index.html's is: the design has
+       nowhere to put a visible title (the page opens on the item list), but
+       it had no heading at all. See .visually-hidden in css/style.css. -->
+  <h1 class="visually-hidden">Your selection</h1>
+
   <div class="selection-empty" id="selectionEmpty">
     <p>No selected item</p>
     <a class="selection-empty__back" href="index.html#products">Back to gallery</a>
@@ -117,10 +122,16 @@
      pattern product.html's Select button uses, with a metal picker added
      above the size row. Static/empty here; js/selection-page.js
      repopulates both per item each time it opens, since different rows
-     can be different products (even different series). -->
-<div class="size-modal" id="modifyModal" aria-hidden="true">
+     can be different products (even different series).
+
+     role/aria-modal/aria-label sit on THIS element rather than on
+     .size-modal__panel, for the reason product.html's own size modal
+     documents: the "Size guide" toggle is a sibling of the panel, and
+     aria-modal hides everything outside the declared dialog. -->
+<div class="size-modal" id="modifyModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Modify selection" tabindex="-1">
   <div class="size-modal__backdrop" id="modifyModalBackdrop"></div>
-  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-label="Modify selection">
+  <div class="size-modal__panel">
     <div class="size-modal__content">
       <div class="product-metals">
         <span class="product-metals__label">Metal</span>
@@ -156,6 +167,9 @@
 </div>
 
 <script src="js/main.js"></script>
+<!-- Before js/selection-page.js, which uses window.EmjiveFocusTrap. Only
+     loaded on the two pages that have a modal. -->
+<script src="js/focus-trap.js"></script>
 <script src="js/selection.js"></script>
 <script src="js/selection-page.js"></script>
 </body>

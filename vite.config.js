@@ -29,6 +29,33 @@ import { defineConfig } from "vite";
 // only as string paths inside data/series.json and injected at runtime, so
 // Vite's build has no way to see it. That's also why a hero bundle's JS can
 // never use a bare specifier — nothing resolves it.
+// Copying whole trees is the right default (see above) but it is not free:
+// each of these was verified to ship in dist/ and never be requested by any
+// built page. Together they were ~2MB of the output.
+//
+//   assets/fonts/  — Vite DOES trace the @font-face url()s in css/style.css
+//     and the <link rel="preload"> hrefs in every page's <head>, so it emits
+//     its own content-hashed copies (dist/assets/DINish-Regular-<hash>.woff2
+//     et al) and rewrites both references to point at them. Nothing in the
+//     built output mentions assets/fonts/ at all — and only 5 of the 45
+//     files in there were ever referenced to begin with. Re-check this if a
+//     font is ever loaded from a runtime string rather than from CSS.
+//   assets/hand_normal.webp — genuinely dead, in the repo and in the build
+//     (see assets.md); it's the plain hand the ring-embossed hero replaced.
+//   js/three-viewer.js — the unbundled ES module source. The built pages
+//     load Vite's bundled copy (dist/assets/three-viewer-<hash>.js); this
+//     one still carries the bare `import "three"` specifier that nothing at
+//     runtime can resolve, so shipping it is at best dead weight and at
+//     worst a trap for anyone who finds it in dist/ and assumes it runs.
+//     Every OTHER file in js/ is a classic script the built HTML really
+//     does load by its original path, which is why this is one exclusion
+//     rather than a rule about js/.
+const NEVER_COPY = [
+  resolve(__dirname, "assets", "fonts"),
+  resolve(__dirname, "assets", "hand_normal.webp"),
+  resolve(__dirname, "js", "three-viewer.js")
+];
+
 function copyFilesVitesBuildCantTrace() {
   return {
     name: "copy-files-vites-build-cant-trace",
@@ -36,8 +63,36 @@ function copyFilesVitesBuildCantTrace() {
       for (const dir of ["assets", "data", "js", "series"]) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
-          cpSync(src, resolve(__dirname, "dist", dir), { recursive: true });
+          cpSync(src, resolve(__dirname, "dist", dir), {
+            recursive: true,
+            filter: (from) => !NEVER_COPY.includes(from)
+          });
         }
+      }
+    }
+  };
+}
+
+// three's own DRACOLoader.js resolves its bundled decoder with
+// `new URL('../libs/draco/draco_decoder.wasm', import.meta.url)` (and four
+// siblings). Vite treats that pattern as a static asset reference, so it
+// emits all five into dist/assets/ — ~1.26MB of .wasm and .js — even though
+// this site can never request them: js/three-viewer.js calls
+// setDecoderPath(new URL("assets/draco/", document.baseURI).href) before any
+// load, which replaces every one of those URLs with our own self-hosted copy
+// under assets/draco/ (kept, and still copied by the plugin above).
+//
+// Deleting them from the bundle rather than from disk afterwards, so the
+// manifest stays truthful and nothing else can end up referencing a file
+// that isn't there. If the decoder path in js/three-viewer.js is ever
+// removed or made conditional, this has to go with it — three would then
+// genuinely need the copies it emitted.
+function dropUnusedDracoDecoderCopies() {
+  return {
+    name: "drop-unused-draco-decoder-copies",
+    generateBundle(options, bundle) {
+      for (const fileName of Object.keys(bundle)) {
+        if (/draco_(decoder|wasm_wrapper)/.test(fileName)) delete bundle[fileName];
       }
     }
   };
@@ -49,7 +104,7 @@ export default defineConfig({
   // reference needs that prefix to resolve correctly. Flip this back to
   // "/" (the default) once the site moves to its own domain.
   base: "/emjive/",
-  plugins: [copyFilesVitesBuildCantTrace()],
+  plugins: [dropUnusedDracoDecoderCopies(), copyFilesVitesBuildCantTrace()],
   build: {
     rollupOptions: {
       // Vite only treats index.html as an entry by default — every other

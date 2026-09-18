@@ -51,6 +51,11 @@
   var toggleBtn = el("button", "selection-bar__toggle");
   toggleBtn.type = "button";
   toggleBtn.setAttribute("aria-expanded", "false");
+  // Its only content is the icon strip, which is [hidden] whenever nothing
+  // is selected — so with an empty selection this button had no accessible
+  // name at all AND collapsed to near-zero width. A keyboard visitor could
+  // land on it and be told nothing about what it was.
+  toggleBtn.setAttribute("aria-label", "Selected items");
   var iconsEl = el("span", "selection-bar__icons");
   toggleBtn.appendChild(iconsEl);
 

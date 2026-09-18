@@ -34,6 +34,18 @@
   var selectedShippingId = SHIPPING_OPTIONS[0].id;
   var termsAccepted = false;
 
+  // Falls back to the first option rather than returning undefined: every
+  // caller wants a price out of this, and SHIPPING_OPTIONS[0] is also what
+  // selectedShippingId is seeded with, so a desynced id resolves to the
+  // option the UI is already showing as selected instead of silently
+  // dropping shipping from the total.
+  function selectedShippingOption() {
+    for (var i = 0; i < SHIPPING_OPTIONS.length; i++) {
+      if (SHIPPING_OPTIONS[i].id === selectedShippingId) return SHIPPING_OPTIONS[i];
+    }
+    return SHIPPING_OPTIONS[0];
+  }
+
   function updateCheckoutGate() {
     checkoutButton.disabled = !(selectedShippingId && termsAccepted);
   }
@@ -123,10 +135,21 @@
   // Unselect/Undo — cheap enough to just recompute from scratch rather
   // than tracking a running total, and decoupled from render() since
   // neither action rebuilds the row list any more.
+  //
+  // Shipping is part of the total, not a separate line: this bar shows one
+  // figure, and a "total" that silently excluded the € 15 the visitor just
+  // picked would be the one number on the page that's wrong. Also called
+  // from the shipping buttons' own click handler, since changing carrier
+  // changes this without touching storage at all.
+  //
+  // A `price: 0` item contributes 0 rather than poisoning the whole sum:
+  // that's today's "Price on request" placeholder, which is transitional —
+  // every product carries a real price at launch. See data.md's
+  // per-metal-specs notes.
   function updateCheckoutSummary() {
     var items = window.EmjiveSelection.getSelection();
     checkoutBar.hidden = !items.length;
-    var total = 0;
+    var total = selectedShippingOption().price || 0;
     items.forEach(function (item) { total += item.price || 0; });
     checkoutTotalEl.textContent = window.EmjiveSelection.formatPrice(total);
   }
@@ -452,6 +475,11 @@
       btn.className = "product-metals__option";
       btn.dataset.metal = metal;
       btn.setAttribute("aria-label", metal);
+      // See js/product.js's renderMetalOptions — the selected finish was
+      // conveyed by a wrapper class and a dot, neither of which a screen
+      // reader can reach, on a control that changes the price. This whole
+      // function re-runs on every pick, so setting it here is enough.
+      btn.setAttribute("aria-pressed", String(metal === modifyState.selectedMetal));
       btn.addEventListener("click", function () {
         if (metal === modifyState.selectedMetal) return;
         modifyState.selectedMetal = metal;
@@ -468,12 +496,20 @@
     });
   }
 
+  // Mirrors js/product.js's markStandardSelected — one place that owns both
+  // the class and the aria-pressed state, since three paths change it.
+  function markModifyStandardSelected(selectedBtn) {
+    modifyModalStandardOptions.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
+      var on = b === selectedBtn;
+      b.classList.toggle("is-selected", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+  }
+
   function selectModifyStandardSize(size, btn) {
     modifyState.selectedSize = size;
     modifyModalConfirm.disabled = false;
-    modifyModalStandardOptions.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
-      b.classList.toggle("is-selected", b === btn);
-    });
+    markModifyStandardSelected(btn);
     modifyModalCustomRow.classList.remove("is-selected");
     modifyModalCustomInput.value = "";
   }
@@ -491,6 +527,7 @@
       btn.type = "button";
       btn.className = "size-modal__standard-option";
       btn.textContent = size;
+      btn.setAttribute("aria-pressed", String(size === currentSize));
       if (size === currentSize) {
         btn.classList.add("is-selected");
         matchedStandard = true;
@@ -520,9 +557,7 @@
       cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
     }
     modifyModalCustomInput.value = cleaned;
-    modifyModalStandardOptions.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
-      b.classList.remove("is-selected");
-    });
+    markModifyStandardSelected(null);
     if (cleaned) {
       modifyState.selectedSize = cleaned;
       modifyModalConfirm.disabled = false;
@@ -542,12 +577,32 @@
     modifyModal.classList.remove("is-open");
     modifyModal.setAttribute("aria-hidden", "true");
     document.body.classList.remove("is-modal-open");
+    window.EmjiveFocusTrap.release();
   }
 
   modifyModalBackdrop.addEventListener("click", closeModifyModal);
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && modifyModal.classList.contains("is-open")) closeModifyModal();
-  });
+  // Escape lives in the focus trap's own keydown listener now — see the
+  // equivalent note in js/product.js's wireSelectButton.
+
+  // Where focus goes when the modal closes. A FUNCTION, not the button that
+  // opened it, because that button is routinely gone by then: confirming a
+  // Modify calls render(), which rebuilds every row from scratch, so the
+  // trigger is detached even on the ordinary success path — not just when
+  // the row was unselected. Looking the row up by index instead lands on
+  // whatever occupies that slot now, falling back to the last row if the
+  // list shrank.
+  //
+  // .order-item__overlay hides via opacity and pointer-events, never
+  // visibility, so a row whose overlay is currently closed still has a
+  // focusable Modify button — and focusing it fires that row's own focusin
+  // handler, which re-opens the overlay around it. That's the behaviour we
+  // want, for free.
+  function modifyReturnFocus(index) {
+    return function () {
+      var row = itemsEl.children[index] || itemsEl.lastElementChild;
+      return row && row.querySelector('.order-item__overlay-btn[data-action="modify"]');
+    };
+  }
 
   modifyModalConfirm.addEventListener("click", function () {
     if (!modifyState.selectedSize) return;
@@ -558,8 +613,14 @@
       price: details.price || 0,
       image: (modifyState.product.assets && modifyState.product.assets.icons && modifyState.product.assets.icons[modifyState.selectedMetal]) || ""
     });
-    closeModifyModal();
+    // render() BEFORE closeModifyModal(), and the order matters: closing
+    // releases the focus trap, which resolves where focus goes by looking
+    // the row up by index — so the list has to already be rebuilt, or that
+    // lookup finds the button this rebuild is about to discard. Rebuilding
+    // itemsEl while focus sits on the modal's Save button is safe; the
+    // modal is a sibling of the list and render() doesn't touch it.
     render();
+    closeModifyModal();
   });
 
   // Product ids are only unique within a series (see selection.js) — falls
@@ -591,7 +652,27 @@
         modifyModal.classList.add("is-open");
         modifyModal.setAttribute("aria-hidden", "false");
         document.body.classList.add("is-modal-open");
+        // After .is-open — the modal is visibility: hidden until then, and
+        // focus() on a hidden element is a no-op. fallbackFocus covers the
+        // case where the whole list is gone by close time (every row
+        // unselected while the modal was open), since the empty state's
+        // "Back to gallery" link is then the only thing left to land on.
+        window.EmjiveFocusTrap.activate(modifyModal, {
+          returnFocus: modifyReturnFocus(index),
+          fallbackFocus: emptyEl.querySelector(".selection-empty__back"),
+          onEscape: closeModifyModal
+        });
       });
+    })
+    // Without this, a failed data/series.json or products.json fetch made
+    // "Modify" do nothing at all — no modal, no message, an unhandled
+    // rejection in the console and a button that looks broken. Same alert
+    // the "product no longer in this series' catalog" branch above uses:
+    // from the visitor's side both are "we can't open this right now", and
+    // the distinction only matters to whoever reads the console.
+    .catch(function (err) {
+      console.error("emjive: could not open the modify modal", err);
+      alert("This item's original product listing couldn't be loaded, so it can't be modified right now.");
     });
   }
 
@@ -604,6 +685,9 @@
       btn.type = "button";
       btn.className = "order-shipping__option";
       btn.classList.toggle("is-selected", option.id === selectedShippingId);
+      // Same gap as the metal and size pickers: the chosen carrier was a
+      // CSS class only, on a control that now changes the total.
+      btn.setAttribute("aria-pressed", String(option.id === selectedShippingId));
 
       var name = document.createElement("span");
       name.className = "order-shipping__option-name";
@@ -619,6 +703,10 @@
         selectedShippingId = option.id;
         renderShippingOptions();
         updateCheckoutGate();
+        // Shipping is part of the total (see updateCheckoutSummary), and
+        // this is the one mutation that changes it without going through
+        // storage — so nothing else would refresh the bar.
+        updateCheckoutSummary();
       });
       shippingOptionsEl.appendChild(btn);
     });

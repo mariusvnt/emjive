@@ -700,6 +700,11 @@
       btn.className = "product-metals__option";
       btn.dataset.metal = metal;
       btn.setAttribute("aria-label", metal);
+      // Which finish is selected was conveyed only by a class on the WRAPPER
+      // plus a floating dot — both purely visual, neither reachable by a
+      // screen reader, on a control that changes the price. aria-pressed is
+      // the same pattern the terms toggle in js/selection-page.js uses.
+      btn.setAttribute("aria-pressed", String(metal === state.selectedMetal));
       btn.addEventListener("click", function () { onMetalSelect(product, metal); });
 
       optionWrap.appendChild(btn);
@@ -713,7 +718,9 @@
     state.selectedMetal = metal;
     document.querySelectorAll(".product-metals__option-wrap").forEach(function (optionWrap) {
       var btn = optionWrap.querySelector(".product-metals__option");
-      optionWrap.classList.toggle("is-selected", btn.dataset.metal === metal);
+      var on = btn.dataset.metal === metal;
+      optionWrap.classList.toggle("is-selected", on);
+      btn.setAttribute("aria-pressed", String(on));
     });
     // Re-tints the existing model in place (no reload, no camera reset).
     if (state.modelHandle) state.modelHandle.applyMetal(metal);
@@ -796,21 +803,31 @@
       clearTimeout(nudgeTimer);
     }
 
+    // Same reasoning as the metal picker's aria-pressed (see
+    // renderMetalOptions): which size is chosen was a CSS class and nothing
+    // else. Funnelled through one helper because three separate paths
+    // change it — picking a standard size, typing a custom one, and
+    // clearing — and they were already drifting into three near-identical
+    // querySelectorAll loops.
+    function markStandardSelected(selectedBtn) {
+      standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
+        var on = b === selectedBtn;
+        b.classList.toggle("is-selected", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
+    }
+
     function clearSelection() {
       state.selectedSize = null;
       resetNudge();
-      standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
-        b.classList.remove("is-selected");
-      });
+      markStandardSelected(null);
       customRow.classList.remove("is-selected");
     }
 
     function selectStandard(size, btn) {
       state.selectedSize = size;
       resetNudge();
-      standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
-        b.classList.toggle("is-selected", b === btn);
-      });
+      markStandardSelected(btn);
       customRow.classList.remove("is-selected");
       customInput.value = "";
     }
@@ -821,6 +838,7 @@
       btn.type = "button";
       btn.className = "size-modal__standard-option";
       btn.textContent = size;
+      btn.setAttribute("aria-pressed", "false");
       btn.addEventListener("click", function () { selectStandard(size, btn); });
       standardWrap.appendChild(btn);
     });
@@ -843,9 +861,7 @@
         state.selectedSize = cleaned;
         resetNudge();
         customRow.classList.add("is-selected");
-        standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
-          b.classList.remove("is-selected");
-        });
+        markStandardSelected(null);
       } else {
         clearSelection();
       }
@@ -862,19 +878,32 @@
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       document.body.classList.add("is-modal-open");
+      // AFTER .is-open, not before: the modal is visibility: hidden until
+      // that class lands, and focus() on a hidden element is a no-op.
+      // selectBtn is resolved once at wireSelectButton() time and is never
+      // re-rendered, so a plain element reference is enough here — unlike
+      // js/selection-page.js's per-row trigger.
+      window.EmjiveFocusTrap.activate(modal, {
+        returnFocus: selectBtn,
+        onEscape: closeModal
+      });
     }
 
     function closeModal() {
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
       document.body.classList.remove("is-modal-open");
+      window.EmjiveFocusTrap.release();
     }
 
     selectBtn.addEventListener("click", openModal);
     document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal();
-    });
+    // Escape is handled by the focus trap's own keydown listener (registered
+    // on activate, removed on release) rather than by a permanent
+    // document-level one here. That listener already exists for Tab, and
+    // folding Escape into it means the two can't disagree about whether the
+    // modal is open — the old handler gated on .is-open, a second source of
+    // truth for exactly that.
 
     confirmBtn.addEventListener("click", function () {
       if (!state.selectedSize) {

@@ -748,10 +748,21 @@
   // The header's filter row renders on EVERY page, including the ones that
   // load no product data at all — which is exactly why the category list
   // lives in data/series.json's index rather than inside a products file.
-  window.EmjiveSeries.ready.then(function () {
-    activeCats = parseCatsFromQuery(window.EmjiveSeries.categories());
-    renderHeaderFilter();
-  });
+  window.EmjiveSeries.ready
+    .then(function () {
+      activeCats = parseCatsFromQuery(window.EmjiveSeries.categories());
+      renderHeaderFilter();
+    })
+    // The grid's own chain below reports a failed load in the page itself;
+    // this one has nowhere to put a message — the filter row simply stays
+    // empty, which is the correct degraded state. What it must NOT do is
+    // leave an unhandled rejection: this runs on all seven pages, including
+    // the four that load no product data at all, so a broken
+    // data/series.json would otherwise surface only as a console error with
+    // no indication of which of the two chains produced it.
+    .catch(function (err) {
+      console.error("emjive: could not render the header filter row", err);
+    });
 
   function signalContentReady() {
     if (window.EmjiveScrollMemory) window.EmjiveScrollMemory.contentReady();

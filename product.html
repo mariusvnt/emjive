@@ -4,20 +4,20 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#ffffff" />
-<title>em·ji·ve</title>
+<title>Product — em·ji·ve</title>
 <meta name="description" content="Item detail" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
-<meta property="og:title" content="em·ji·ve" />
+<meta property="og:title" content="Product — em·ji·ve" />
 <meta property="og:description" content="Item detail" />
 <meta property="og:url" content="https://mariusvnt.github.io/emjive/product.html" />
 <meta property="og:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 <meta property="og:image:width" content="512" />
 <meta property="og:image:height" content="512" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="em·ji·ve" />
+<meta name="twitter:title" content="Product — em·ji·ve" />
 <meta name="twitter:description" content="Item detail" />
 <meta name="twitter:image" content="https://mariusvnt.github.io/emjive/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 
@@ -154,10 +154,20 @@
   </div>
 </main>
 
-<!-- Size-selection modal, opened by the Select button -->
-<div class="size-modal" id="sizeModal" aria-hidden="true">
+<!-- Size-selection modal, opened by the Select button.
+
+     role/aria-modal/aria-label sit on THIS element, not on
+     .size-modal__panel where they used to: the "Size guide" toggle below is
+     a sibling of the panel rather than a child, and aria-modal hides
+     everything outside the declared dialog from a screen reader. Declaring
+     the panel while js/focus-trap.js (correctly) traps the whole modal
+     would have made that toggle tabbable but unannounced. tabindex="-1" is
+     what lets the trap focus this element on open so the aria-label is read
+     before the first control. -->
+<div class="size-modal" id="sizeModal" aria-hidden="true"
+     role="dialog" aria-modal="true" aria-label="Choose a size" tabindex="-1">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
-  <div class="size-modal__panel" role="dialog" aria-modal="true" aria-label="Choose a size">
+  <div class="size-modal__panel">
     <div class="size-modal__content">
       <div class="size-modal__standard-row" id="sizeModalStandardRow">
         <span class="size-modal__standard-label">Standard sizes</span>
@@ -202,6 +212,10 @@
      scripts — selection.js still runs (and sets window.EmjiveSelection)
      before the deferred pair below, same as today. -->
 <script src="js/main.js" defer></script>
+<!-- Plain (non-deferred) so window.EmjiveFocusTrap exists before the whole
+     deferred queue runs — js/product.js, which uses it, is deferred. Only
+     loaded on the two pages that have a modal. -->
+<script src="js/focus-trap.js"></script>
 <script src="js/selection.js"></script>
 <script src="js/product.js" defer></script>
 <script src="js/selection-bar.js"></script>

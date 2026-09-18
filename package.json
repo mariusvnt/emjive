@@ -9,6 +9,7 @@
     "auto-render": "node scripts/auto-render.js",
     "optimize-models": "node scripts/optimize-models.js",
     "optimize-images": "node scripts/optimize-images.js",
+    "optimize-hdri": "node scripts/optimize-hdri.js",
     "scene-tool": "node scripts/scene-tool-server.js",
     "json-tool": "node scripts/json-tool-server.js"
   },

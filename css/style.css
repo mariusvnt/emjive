@@ -257,6 +257,28 @@ button, input, textarea {
   color: inherit;
 }
 
+/* Present to assistive tech, absent from the visual design. Used for the
+   page-title h1 on index.html and launch-order.html: both pages need a real
+   top-level heading (they had none at all, so their document outline started
+   nowhere), but neither has anywhere to put one visibly — the homepage opens
+   straight into the hero, the order page into the item list.
+
+   The 1px-clipped-rect recipe rather than display:none/visibility:hidden,
+   both of which remove the element from the accessibility tree entirely and
+   would defeat the point. white-space: nowrap stops a long heading being
+   wrapped into a tall invisible column that can still affect layout. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ==========================================================================
    Shared 3D viewer (js/three-viewer.js) — the wrapper js/three-viewer.js's
    buildThreeViewer() returns as `el`. Width/height of the wrapper itself
@@ -606,7 +628,13 @@ button, input, textarea {
   border-top: 1px solid var(--black);
   padding-top: 0.4rem;
 }
-.section-head h2 {
+/* h1 OR h2: a .section-head is the page's own title on the shell pages
+   (archives/terms/creation-process, and series.html's manifest title), where
+   it's an h1, and a subsection heading on product.html ("Description",
+   "Characteristics", "Shipping & Returns"), where it stays an h2 under that
+   page's product h1. Same visual treatment either way — the level is about
+   document structure, not size. */
+.section-head :is(h1, h2) {
   font-size: clamp(1.8rem, 3.5vw, 2.4rem);
   font-weight: 400;
 }
@@ -1547,7 +1575,7 @@ body:has(.order-checkout-bar:not([hidden])) {
      .product-carousel__viewport adds these on top of --tile so a photo
      slide's caption gets real reserved room instead of eating into the
      photo's own --tile box (see that class further down). */
-  --caption-gap: 0.4rem;
+  --caption-gap: 2px;
   --caption-h: 0.75rem;
 }
 /* No peek to reserve space for when there's nothing to peek at. */
@@ -1688,6 +1716,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .product-carousel__caption { font-size: 0.5rem; }
 }
 
 /* ---- 3. metal selection: horizontal gradient bars (one per swatch),
@@ -2081,7 +2112,12 @@ body:has(.order-checkout-bar:not([hidden])) {
      capped at --max) is roughly 600px wide. */
   width: clamp(1rem, 8cqw, 3rem);
   border: none;
-  outline: none;
+  /* No `outline: none` here. It used to sit alongside `border: none` as part
+     of the same "strip the browser's chrome off this field" intent, but the
+     two aren't equivalent: the border is decoration, the outline is the
+     ONLY thing telling a keyboard visitor where they are — on the one field
+     on the site that exists to be typed into. The focus ring is styled
+     properly at the bottom of this file instead. */
   background: none;
   padding: 0.3rem 0;
   font-family: var(--font-secondary);
@@ -2521,3 +2557,147 @@ body.has-series-hero .selection-bar {
 .selection-bar__row-unselect:hover { color: var(--white); }
 .selection-bar__row-unselect:disabled { opacity: 0.4; cursor: not-allowed; }
 
+
+/* ==========================================================================
+   Focus visibility
+
+   The site had no :focus/:focus-visible rule of any kind, so every control
+   fell back to whatever ring the UA draws — which on a black bar or a dark
+   modal panel is frequently a black outline on black. One control was worse
+   than that: .size-modal__custom-input carried the file's only
+   `outline: none` and therefore had no focus indicator at all, on the
+   single most keyboard-dependent control on the site (you type a ring size
+   into it).
+
+   :focus-visible rather than :focus, so a mouse click on a button doesn't
+   leave a ring behind it — that heuristic is exactly what the pseudo-class
+   exists for, and it's why the ring can afford to be this visible.
+
+   Two colours, because this site is half light-on-light and half
+   dark-on-dark and a single ring colour cannot read on both. The default is
+   --black for the page background; anything sitting on a black surface
+   (the floating selection bar, the order rows, the size modal's panel and
+   its confirm button) opts into --white below. Both are re-stated as a
+   token so a theme change moves them together.
+
+   outline-offset is what keeps the ring legible against a control that has
+   its own background — without it the ring hugs the border box and reads as
+   a thicker edge rather than a separate indicator. Negative offsets are
+   used where the control is flush against its container's edge and an
+   outset ring would be clipped.
+   ========================================================================== */
+:root {
+  --focus-ring: 2px solid var(--black);
+  --focus-ring-inverted: 2px solid var(--white);
+  --focus-ring-offset: 3px;
+}
+
+/* The single site-wide rule. Every interactive element below is either a
+   real <button>/<a href>/<input> in page markup or one built by js/ — the
+   one deliberate exception is .product-card__bar-link, which carries
+   tabindex="-1" + aria-hidden (js/main.js) precisely because it duplicates
+   .product-card__label, and so can never match :focus-visible anyway. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  /* The ring must never be the thing that's clipped. Several of these sit
+     inside overflow: hidden / auto scrollers (.product-metals__options,
+     .size-modal__standard-options, .selection-bar__drawer-inner). */
+  position: relative;
+  z-index: 1;
+}
+
+/* Controls on a black surface. Kept as one list rather than scattered
+   next to each component so the inverted set stays reviewable at a glance —
+   if a new control lands on black, it belongs here and nowhere else. */
+.selection-bar a:focus-visible,
+.selection-bar button:focus-visible,
+.order-item button:focus-visible,
+.order-checkout-bar button:focus-visible,
+.size-modal__panel a:focus-visible,
+.size-modal__panel button:focus-visible,
+.size-modal__panel input:focus-visible,
+.product-detail__select:focus-visible {
+  outline: var(--focus-ring-inverted);
+}
+
+/* Flush-edge cases: an outset ring would be clipped by the parent, so the
+   ring is drawn just inside the control's own box instead. */
+.selection-bar__order:focus-visible,
+.selection-bar__toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The size input has no border and no background of its own — it's a bare
+   caret sitting on an underline — so a ring at the standard offset floats
+   unattached to anything. Tight to the box, which reads as the field
+   lighting up. */
+.size-modal__custom-input:focus-visible {
+  outline-offset: 1px;
+}
+
+/* ==========================================================================
+   Reduced motion
+
+   Site-wide motion kill switch, deliberately the LAST thing in this file
+   and the only place !important appears anywhere in it: it has to beat the
+   inline `style.transition` strings that js/selection-bar.js,
+   js/selection-page.js and js/product.js assign per-element, and an
+   !important declaration in a stylesheet is the only author-origin
+   declaration that outranks the style attribute (which wins on specificity
+   WITHIN its origin, not against !important).
+
+   Only the transition-duration longhand is overridden. transition-property
+   from those inline shorthands survives, which is what keeps transitionend
+   firing for the right propertyName — see below. The `transition: none`
+   writes in selection-bar.js's playEnterAnimation and selection-page.js's
+   crossfadeToEmpty also survive (they set transition-property: none, which
+   no duration override can resurrect), so both "force a starting position
+   before animating" tricks still behave.
+
+   0.01ms, NOT 0s, and this is load-bearing rather than copied from a
+   boilerplate: a transition whose combined duration is 0s is never STARTED,
+   so it fires no transitionend at all — and three pieces of real logic hang
+   off transitionend here:
+
+     js/selection-bar.js  width      -> removes the item from localStorage
+                                        and re-enables every Unselect button
+     js/selection-page.js max-height -> li.remove()
+     js/selection-page.js opacity    -> swaps the order list to the empty state
+
+   All three have setTimeout fallbacks, but those are the SLOW path (350 /
+   400ms). At 0.01ms the transition still runs, completes sub-frame, and
+   still fires — so a reduced-motion visitor gets the fast path, not a
+   third of a second of apparent lag on every Unselect. Keep the fallbacks
+   regardless: they also cover a transitionend lost to a backgrounded tab.
+
+   The animation-* lines are inert today — there is not one @keyframes or
+   `animation:` property in this file or in any series' hero.css. They're
+   here so the first keyframes anyone adds is covered without them having to
+   discover this block first.
+
+   scroll-behavior covers html's `smooth` (see the html rule near the top).
+   js/scroll-memory.js already forces `auto` inline plus behavior: "instant"
+   on its own restores, so this agrees with it rather than fighting it.
+
+   What this CANNOT reach is JS-driven per-frame motion: the 3D viewer's
+   idle nudge, its release inertia, its ease-back-to-default pose reset and
+   its up-vector leveling drift. Those are gated in js/three-viewer.js,
+   which reads the same media query via matchMedia. The homepage hero's
+   x-ray wipe is deliberately NOT gated — it is scroll-linked and entirely
+   visitor-driven, nothing plays on its own. See client-scripts.md.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
