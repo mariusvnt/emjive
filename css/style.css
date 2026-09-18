@@ -6,10 +6,7 @@
   --bg: #f8f8f8;
   --black: #000000;
   --white: #ffffff;
-  --category-col: #777777;
-  /* 90%-black gray — the shade already used for the select button's own
-     hover state, promoted to a token so the floating selection bar and
-     the size modal's confirm button share exactly the same value. */
+  --category-col: #727272;
   --black-bg: #1a1a1a;
   /* The three tokens below exist purely for the "invert band" trick used
      around the site (backdrop-filter: invert(1) strips crossing
@@ -21,7 +18,7 @@
      while using a distinct value everywhere else. */
   --bg-inverted: #070707;
   --black-bg-inverted: #e5e5e5;
-  --category-col-inverted: #888888;
+  --category-col-inverted: #8d8d8d;
   /* Shared by the floating selection bar's own summary-row height and
      body's reserved bottom padding (see the "Floating selection bar"
      section) so the two can't drift apart. */
@@ -39,7 +36,7 @@
      copy. 900 exactly matches a registered DINish face (see @font-face
      below) rather than relying on the browser's nearest-weight fallback. */
   --button-font-weight: 900;
-  --button-font-size: 0.75rem;
+  --button-font-size: calc(0.75rem * var(--text-scale));
   --button-letter-spacing: 0.05rem;
   --button-text-transform: uppercase;
 
@@ -53,6 +50,22 @@
      flat --gutter: 1.25rem token (which only ever matched this at its
      20px floor, never past it) was retired in favor of this one. */
   --edge-px: clamp(20px, 2.5vw, 28px);
+
+  /* Global type-scale multiplier — every font-size declaration in the
+     file reads through this rather than off the root element's own
+     font-size, because rem is also used throughout for spacing/sizing
+     (gaps, dots, icon boxes) that must NOT grow alongside text. Stays 1
+     on phones, where the layout is already tuned; see the min-width
+     override below for the desktop bump. */
+  --text-scale: 1;
+}
+
+/* Mobile is the tuned baseline; past the site's one breakpoint (see the
+   max-width: 640px blocks throughout), text runs 20% larger. */
+@media (min-width: 641px) {
+  :root {
+    --text-scale: 1.2;
+  }
 }
 
 /* Geist Mono (SIL OFL, by Vercel) — self-hosted for the same reason DINish
@@ -185,7 +198,7 @@ body {
   background: var(--bg);
   color: var(--black);
   font-family: var(--font-secondary);
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   /* See html's own overscroll-behavior-x comment above — repeated here
@@ -479,7 +492,7 @@ button, input, textarea {
   gap: var(--header-rubric-gap);
 }
 .site-header__nav a {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   /* text-transform: uppercase; */
   color: var(--black);
   /* transition: color 0.2s ease; */
@@ -495,7 +508,7 @@ button, input, textarea {
 }
 .site-header__nav a.is-info {
   font-family: var(--font-main);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 
 /* Selected category tag(s) — a dot, not a color change (js/main.js's
@@ -547,7 +560,7 @@ button, input, textarea {
    reach a <span>. */
 .site-header__filter-label {
   font-family: var(--font-main);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   color: var(--black);
 }
 /* js/main.js hides the whole row only for a zero-category series (nothing
@@ -622,7 +635,7 @@ button, input, textarea {
   margin-bottom: 2.5rem;
 }
 .section-head__index {
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   text-transform: uppercase;
   color: var(--black);
   border-top: 1px solid var(--black);
@@ -635,11 +648,11 @@ button, input, textarea {
    page's product h1. Same visual treatment either way — the level is about
    document structure, not size. */
 .section-head :is(h1, h2) {
-  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-size: clamp(calc(1.8rem * var(--text-scale)), calc(3.5vw * var(--text-scale)), calc(2.4rem * var(--text-scale)));
   font-weight: 400;
 }
 .section-head__note {
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
   margin-left: auto;
 }
@@ -852,7 +865,7 @@ button, input, textarea {
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
-  font-size: 1rem;
+  font-size: calc(1rem * var(--text-scale));
   letter-spacing: 0.05em;
   color: var(--black);
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
@@ -883,7 +896,7 @@ button, input, textarea {
   min-height: 55vh;
 }
 .page-shell__loading {
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--text-scale));
   color: var(--category-col);
 }
 /* The section-head inside a .page-shell is already inside the max-width and
@@ -894,7 +907,7 @@ button, input, textarea {
 }
 .series-manifest__subtitle {
   font-family: var(--font-main);
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--text-scale));
   color: var(--category-col);
   max-width: 46ch;
 }
@@ -926,7 +939,7 @@ button, input, textarea {
 .selection-empty p {
   margin: 0;
   font-family: var(--font-main);
-  font-size: 1rem;
+  font-size: calc(1rem * var(--text-scale));
   color: var(--black);
 }
 /* Plain text button, not the bordered .btn box — same "text only" recipe
@@ -1107,7 +1120,7 @@ button, input, textarea {
 }
 .order-item__name { font-family: var(--font-main); color: var(--white); }
 .order-item__attrs {
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   font-family: var(--font-secondary);
   /* --category-col-inverted, not --category-col — this line sits under
      .order-item::before's invert band same as .order-item__name, so
@@ -1287,7 +1300,7 @@ button, input, textarea {
   min-width: 0;
   margin: 0 0 0 7px;
   font-family: var(--font-main);
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--text-scale));
   line-height: 1.6;
   color: var(--category-col);
 }
@@ -1517,7 +1530,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   min-width: 0;
   margin: 0;
   font-weight: 400;
-  font-size: 1rem;
+  font-size: calc(1rem * var(--text-scale));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1534,7 +1547,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__label-price {
   flex: 0 0 auto;
   font-family: var(--font-main);
-  font-size: 1rem;
+  font-size: calc(1rem * var(--text-scale));
   white-space: nowrap;
 }
 
@@ -1576,7 +1589,11 @@ body:has(.order-checkout-bar:not([hidden])) {
      slide's caption gets real reserved room instead of eating into the
      photo's own --tile box (see that class further down). */
   --caption-gap: 2px;
-  --caption-h: 0.75rem;
+  /* Tied to .product-carousel__caption's own font-size below, not just a
+     matching guess — that rule sets line-height: 1 and clips overflow, so
+     this box must always equal its text's rendered height exactly or the
+     caption gets cropped. Scaling by --text-scale keeps the two in sync. */
+  --caption-h: calc(0.75rem * var(--text-scale));
 }
 /* No peek to reserve space for when there's nothing to peek at. */
 .product-carousel-frame.product-carousel--single {
@@ -1709,7 +1726,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   height: var(--caption-h);
   line-height: 1;
   font-family: var(--font-main);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
   text-align: right;
   max-width: 100%;
@@ -1756,7 +1773,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: flex;
   align-items: center;
   font-family: var(--font-main);
-  font-size: 1rem;
+  font-size: calc(1rem * var(--text-scale));
   letter-spacing: 0.06em;
   color: var(--black);
 }
@@ -1820,6 +1837,11 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-metals__option-label {
   font-family: var(--font-secondary);
+  /* Deliberately NOT wrapped in --text-scale, unlike the rest of the
+     file's font-size declarations: this exact clamp() is shared verbatim
+     with .product-metals__option's own height above, by design (see that
+     rule's comment) — scaling one without the other would either
+     overflow the swatch or distort its aspect ratio. */
   font-size: clamp(0.4rem, calc(0.2385rem + 0.7385cqw), 0.7rem);
   line-height: 1;
   color: var(--category-col);
@@ -1893,7 +1915,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__shipping {
   max-width: 640px;
   color: var(--category-col);
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--text-scale));
   line-height: 1.7;
   font-family: var(--font-main);
 }
@@ -1908,7 +1930,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-specs dt {
   font-family: var(--font-main);
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--text-scale));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--category-col);
@@ -1916,7 +1938,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-specs dd {
   font-family: var(--font-main);
   margin: 0;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--text-scale));
   padding-bottom: 0.5rem;
 }
 
@@ -2027,7 +2049,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: none;
   padding: 0;
   font-family: var(--font-secondary);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
   cursor: pointer;
 }
@@ -2121,14 +2143,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: none;
   padding: 0.3rem 0;
   font-family: var(--font-secondary);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
 }
 .size-modal__custom-unit {
   flex: 0 0 auto;
   padding-bottom: 0.3rem;
   font-family: var(--font-secondary);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
 }
 /* ---- confirm: full-bleed breakout to the true viewport edge, same
@@ -2220,7 +2242,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: none;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   letter-spacing: var(--button-letter-spacing);
   text-transform: var(--button-text-transform);
   color: var(--black);
@@ -2238,7 +2260,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin: 0 auto;
   padding: 0 var(--edge-px) 1.5rem;
   font-family: var(--font-main);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
 }
 
@@ -2530,7 +2552,7 @@ body.has-series-hero .selection-bar {
 .selection-bar__row-name { font-family: var(--font-main); }
 .selection-bar__row-attrs {
   font-family: var(--font-secondary);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--text-scale));
   /* --category-col-inverted, not --category-col — same reasoning as
      .order-item__attrs: this sits under .selection-bar__row::before's
      invert band, so inverting it needs to land back on plain
