@@ -291,11 +291,6 @@
   var activeModelLoads = 0;
   var loadQueue = [];
 
-  // Crossfade duration for the icon -> live model swap, in ms. Mirrored in
-  // the inline transition set on the viewer element below; kept here as a
-  // number since the icon's own removal has to be timed off it.
-  var MODEL_FADE_MS = 400;
-
   // Pops the next still-wanted card off the queue and starts it. Entries
   // whose card scrolled back out while they waited are dropped rather than
   // loaded — the whole point of queueing is that by the time a slot frees
@@ -388,27 +383,36 @@
     entry.modelHandle = handle;
     wireModelClickNavigation(handle.el, entry.href);
     // Mounted transparent: the icon stays visible underneath for the whole
-    // load, and the model dissolves in over it once it's actually ready.
-    // Previously the icon was hidden the instant the viewer was CREATED,
-    // which meant the card went icon -> blank/poster -> model, with the
-    // first swap happening long before anything had finished loading.
+    // load, and the model snaps in over it the instant it's ready (see
+    // revealViewer). Previously the icon was hidden the instant the viewer
+    // was CREATED, which meant the card went icon -> blank/poster ->
+    // model, with the first swap happening long before anything had
+    // finished loading.
+    //
+    // Left interactive (no pointerEvents: none) on purpose: this
+    // transparent wrapper already sits on top of the icon in the figure's
+    // stacking order, so a drag over the icon while the model is still
+    // loading lands on the (invisible) canvas above it and spins
+    // TrackballControls for real — the model shows up already rotated,
+    // by design, instead of visitors who start dragging early having it
+    // ignored. See revealViewer for the one piece that WAS a problem: an
+    // opacity transition made that buffered spin visibly mid-motion during
+    // the crossfade.
     handle.el.style.opacity = "0";
-    handle.el.style.transition = "opacity " + MODEL_FADE_MS + "ms ease";
     entry.figure.appendChild(handle.el);
   }
 
   function revealViewer(entry) {
     if (!entry.modelHandle) return;
+    // Instant, not a crossfade: buffered dragging during load (see
+    // startViewerLoad) is expected and fine, but a fade window here is
+    // exactly the time during which that already-applied rotation (plus
+    // any release inertia still decaying) would be visibly mid-motion
+    // underneath the fading icon — reads as the model twitching rather
+    // than materializing. Swapping both in the same frame removes that
+    // window entirely.
     entry.modelHandle.el.style.opacity = "1";
-    // The icon is only taken out of the layout once the model has fully
-    // faded in over it — hiding it mid-crossfade would show the page
-    // background through the model's transparent areas for the rest of
-    // the fade. Re-checks entry.modelHandle because the card can be
-    // disposed during those 400ms, which puts the icon back.
-    entry.fadeTimer = setTimeout(function () {
-      entry.fadeTimer = null;
-      if (entry.modelHandle && entry.iconEl) entry.iconEl.hidden = true;
-    }, MODEL_FADE_MS);
+    if (entry.iconEl) entry.iconEl.hidden = true;
   }
 
   function buildViewerFor(entry) {
@@ -433,10 +437,6 @@
   // later rebuild is attempted the next time this card's build margin
   // re-fires, same as a WebGL-context-budget rejection already does.
   function teardownViewer(entry) {
-    if (entry.fadeTimer) {
-      clearTimeout(entry.fadeTimer);
-      entry.fadeTimer = null;
-    }
     if (!entry.modelHandle) return;
     entry.modelHandle.dispose();
     entry.figure.removeChild(entry.modelHandle.el);
@@ -651,7 +651,6 @@
         // anything that stopped being worth loading while it queued.
         wantsViewer: false,
         queued: false,
-        fadeTimer: null,
         // Set only while this entry holds one of the concurrent load slots
         // — see startViewerLoad.
         releaseSlot: null
