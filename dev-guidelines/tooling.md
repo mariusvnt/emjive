@@ -7,27 +7,46 @@
 "auto-render": "node scripts/auto-render.js",
 "optimize-models": "node scripts/optimize-models.js",
 "optimize-images": "node scripts/optimize-images.js",
+"optimize-hdri": "node scripts/optimize-hdri.js",
 "scene-tool": "node scripts/scene-tool-server.js",
 "json-tool": "node scripts/json-tool-server.js"
 ```
 
 `dev`/`build`/`preview` are genuinely wired up and work; `npm run dev` is the documented way to run the site locally (see `procedures.md`) and is required specifically for `js/three-viewer.js`'s bare-specifier imports (`three`, `three/addons/...`) — this is a real, live-site file (loaded as `<script type="module">`), not a dev-only one, so Vite is a hard requirement to run the site at all now, not an optional convenience. `three` is a real runtime `dependencies` entry (not just a devDependency) since `three-viewer.js` imports it directly; `puppeteer-core`/`sharp` are `devDependencies`, used only by `auto-render.js`, as are `@gltf-transform/*`/`draco3dgltf`/`meshoptimizer`, used only by `optimize-models`. `scene-tool` and `json-tool` each start their own, completely separate bare Node server (see below for both) — neither touches Vite at all, and both can run alongside `npm run dev` (and each other) on their own ports.
 
-## `scripts/optimize-models.js` + `scripts/optimize-images.js`
+## `scripts/optimize-models.js` + `scripts/optimize-images.js` + `scripts/optimize-hdri.js`
 
-The two "source art arrives heavy" squeezers. Both rewrite files **in place and delete nothing else** — git is the undo — and both take `--dry-run` to report without writing, or explicit paths to limit what they touch.
+The three "source art arrives heavy" squeezers. All take `--dry-run` to report without writing, or explicit paths to limit what they touch. The first two rewrite files **in place and delete nothing else** — git is the undo. `optimize-hdri` is the exception and writes a **sibling** file instead; see its own paragraph.
 
 `optimize-models` walks `assets/series/*/products/*/*.glb` and runs: strip textures + `TEXCOORD_n`/`COLOR_n`/`TANGENT` → `weld()` → `dedup()` → `prune()` → `draco()`. It then **re-reads each written file and decodes its Draco payload**, asserting the triangle count is unchanged, the bounding box hasn't moved by more than one quantization step, and the vertex count is within 2% (Draco's encoder re-splits vertices at attribute seams, so it wobbles slightly in both directions by design). It exits non-zero if any model fails that round trip — it is overwriting the only copy of an art asset, so "the encoder said it was fine" isn't the standard. First run: 66.85MB → 8.26MB across eight models, all verified.
 
 `--simplify=<ratio>` additionally runs meshoptimizer's `simplify()` and is **opt-in on purpose**: it genuinely changes the silhouette, and these same models are what `auto-render.js` re-renders every icon and top shot from, so it's an art call. For reference, `--simplify=0.25` cuts five of the eight cleanly (e.g. cartilage 762K → 190K triangles) but barely moves `rib-cage`/`rib-cage-extended`/`suture`, whose exports are effectively unwelded and so have no shared edges to collapse.
 
-`optimize-images` converts stray PNG/JPEG under `assets/` to WebP (quality 82, alpha preserved, downscaled to fit 2048px) and deletes the source. It prints the old→new path list rather than editing `products.json` itself — see `assets.md`.
+`optimize-images` converts stray PNG/JPEG under `assets/` to WebP (quality 82, alpha preserved, downscaled to fit 2048px) and deletes the source. It prints the old→new path list rather than editing `products.json` itself — see `assets.md`. **It is not the tool for hero art**: it only matches `.png`/`.jpe?g`, it deletes its input, its `MAX_DIMENSION = 2048` would silently cap anything wider (producing a file whose name no longer describes it), and it encodes at quality 82 while `assets.md` specifies 90 for hero renders.
 
-Neither is wired into `build`. They're deliberate, occasional, reviewable passes, not something that silently rewrites binaries on every deploy.
+`optimize-hdri` halves the Radiance `.hdr` environment maps in `assets/hdri/`, defaulting to every one wider than 1024px (`--width=<n>` overrides the target). This mattered more than its size suggests: `studio_kontrast_04_2k.hdr` was 5.62MB — 61% of the homepage's total weight, and over five times the combined size of the three ring models it was lighting — and it sits on the critical path, since `three-viewer.js` `Promise.all`s the model and the environment before its first render, so no model appears until the whole HDRI has landed. Halving it to 1024×512 cost 4.22MB and nothing visible: the texture is never displayed, only prefiltered by `PMREMGenerator` into a roughness-blurred mip chain whose top level is 256px a side.
+
+It is a **hand-rolled RGBE codec with no new dependencies**, because `sharp` cannot read Radiance — the libvips build it ships has that format compiled out (`sharp.format.rad.input.file === false`), and making ImageMagick or ffmpeg a prerequisite would be the repo's only non-npm system dependency. Two things to preserve if it is ever modified: the downsample happens in **linear space**, never on the RGBE bytes (RGBE packs three mantissas against one shared exponent, so neighbouring pixels on different exponents cannot be averaged directly — in an HDR image that error is orders of magnitude, not a rounding artefact); and the box filter is guarded to exact integer ratios, where it *is* the correct area average and cannot undershoot into a negative radiance the format can't represent. Like `optimize-models`, it re-decodes what it wrote and checks both the dimensions and the mean luminance (≤1% drift) before reporting success — a real run drifts ~0.23%, which is RGBE's 8-bit mantissa quantization.
+
+Unlike its two siblings it writes a sibling file rather than overwriting, because width is part of the filename by convention (`_2k` → `_1k`), so a halved file under the old name would be a lie. It prints the old→new path and leaves updating `data/series.json`'s `hdris` map and deleting the original to you.
+
+None of the three is wired into `build`. They're deliberate, occasional, reviewable passes, not something that silently rewrites binaries on every deploy.
 
 ## `vite.config.js`
 
 Exists specifically because `npm run build`'s output needs to be *deployable*, not just correct in dev — a plain `vite build` with no config silently produces a broken `dist/` for this site (confirmed by inspecting the output directly): Vite only treats `index.html` as a build entry by default (every other page would ship unprocessed, with the same unresolved bare-specifier `three` import that breaks on any plain static host), and it can't bundle or copy classic `<script src>` tags at all (so `js/main.js`, `js/product.js`, and the other classic scripts vanish from the build entirely — not just left unbundled, actually absent) or trace paths that only exist as runtime string data (a series' `products.json` icon/model paths, the hero-bundle paths in `data/series.json`, the HDRI path in `three-viewer.js`). Two things fix this: `build.rollupOptions.input` lists all seven HTML pages explicitly, and a small inline `closeBundle` plugin copies `js/`, `assets/`, `data/`, and `series/` into `dist/` verbatim after the real build runs. `series/` is on that list for the same reason as `data/` — it holds each series' hero bundle, referenced only as string paths and injected at runtime, which is also why a hero bundle's JS can never use a bare specifier. Also sets `base: "/emjive/"` — GitHub Pages project-page-specific, see below and `README.md`'s "Deploying" section for why and when to change it.
+
+### What the build deliberately does *not* ship
+
+Copying whole trees is the right default but it isn't free, and two separate mechanisms trim it. Both were added after measuring `dist/` at 28MB and finding ~6MB of it unreachable; it now builds at 20MB.
+
+`NEVER_COPY` is a `cpSync` filter listing three paths the copy step skips:
+
+- **`assets/fonts/`** (1.35MB) — Vite *does* trace the `@font-face` `url()`s in `css/style.css` and the `<link rel="preload">` hrefs in every page's `<head>`, emits its own content-hashed copies, and rewrites both references to point at them. Nothing in the built output mentions `assets/fonts/` at all, and only 5 of the 45 files there were ever referenced. Re-check this if a font is ever loaded from a runtime string rather than from CSS.
+- **`assets/hand_normal.webp`** (0.64MB) — dead in the repo and in the build; see `assets.md`.
+- **`js/three-viewer.js`** (~50KB) — the unbundled ES module source. Built pages load Vite's bundled copy; this one still carries the bare `import "three"` that nothing at runtime can resolve. Every *other* file in `js/` is a classic script the built HTML really does load by its original path, which is why this is one exclusion rather than a rule about `js/`.
+
+`dropUnusedDracoDecoderCopies()` is a `generateBundle` hook deleting bundle entries matching `/draco_(decoder|wasm_wrapper)/` (~1.26MB). Those come from three's own `DRACOLoader.js`, which resolves its bundled decoder with `new URL('../libs/draco/…', import.meta.url)` — a pattern Vite treats as a static asset reference and emits. This site can never request them: `js/three-viewer.js` calls `setDecoderPath(new URL("assets/draco/", document.baseURI).href)` before any load, replacing every one of those URLs with the self-hosted copy under `assets/draco/` (which stays, and is still copied). **If that `setDecoderPath` call is ever removed or made conditional, this hook has to go with it** — three would then genuinely need the copies it emitted.
 
 ## `.github/workflows/deploy.yml`
 

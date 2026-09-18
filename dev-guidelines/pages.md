@@ -4,6 +4,26 @@ The 7 HTML files at the repo root.
 
 **They all stay at the repo root, deliberately.** `js/series.js` fetches `data/series.json` with a *relative* path, and every path inside the JSON is repo-root-relative too. Combined with `vite.config.js`'s `base: "/emjive/"`, a page moved into a subdirectory would resolve all of them against the wrong prefix and break silently. Any new page also needs adding to `vite.config.js`'s `rollupOptions.input` or it ships unprocessed (see `tooling.md`).
 
+## Titles and headings — one `h1` per page, one distinct `<title>` per page
+
+Every page used to ship `<title>em·ji·ve</title>`, with `product.html` and `series.html` overwriting it at runtime — so crawlers, browser history and shared links saw the same six characters for the homepage, Terms and the order page alike. Only `product.html` had an `h1`.
+
+| page | static `<title>` | `h1` |
+|---|---|---|
+| `index.html` | `em·ji·ve` | `.visually-hidden`, first child of `<main>` |
+| `product.html` | `Product — em·ji·ve` | `.product-detail__label-text` (the product name) |
+| `launch-order.html` | `Your selection — em·ji·ve` | `.visually-hidden`, first child of `<main>` |
+| `archives.html` | `Archives — em·ji·ve` | inside `.section-head` |
+| `creation-process.html` | `Creation process — em·ji·ve` | inside `.section-head` |
+| `terms.html` | `Terms & Conditions — em·ji·ve` | inside `.section-head` |
+| `series.html` | `Series — em·ji·ve` | `#seriesManifestTitle`, inside `.section-head` |
+
+Three things to keep in step when adding a page:
+
+- `product.html` and `series.html` still overwrite `document.title` at runtime (`js/product.js`, `js/series-page.js`) with the real product/series name, in the same `<name> — em·ji·ve` shape. The static value is what a crawler and a social preview see, so it has to stand on its own.
+- `og:title` and `twitter:title` carry the same string as `<title>` on every page. They were the same hardcoded `em·ji·ve` everywhere, which is why every shared link previewed identically.
+- The shell pages' heading is the *page's own title*, so it is an `h1`. `product.html`'s "Description"/"Characteristics"/"Shipping & Returns" stay `h2` — they are subsections under the product's `h1`. `css/style.css` targets `.section-head :is(h1, h2)` so both get the same treatment; the level is about document structure, not size. `.visually-hidden` (see `styling.md`) is for the two pages whose design has nowhere to put a visible title.
+
 ## Shared header — one byte-identical nav
 
 All seven pages open with the same `<header class="site-header">`: brand logo linking home, a `+`/`-` hamburger toggle, and a dropdown nav with exactly three rows, in this order:
@@ -86,15 +106,15 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
-|---|---|---|---|---|---|---|---|---|---|
-| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | | ✓ | | |
-| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ (defer) | ✓ | | |
-| `launch-order.html` | | ✓ | | ✓ | ✓ | | | ✓ | |
-| `archives.html` | | ✓ | | ✓ | ✓ | | ✓ | | |
-| `creation-process.html` | | ✓ | | ✓ | ✓ | | ✓ | | |
-| `terms.html` | | ✓ | | ✓ | ✓ | | ✓ | | |
-| `series.html` | | ✓ | | ✓ | ✓ | | ✓ | | ✓ |
+| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | | ✓ | | ✓ | | |
+| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ (defer) | ✓ | | |
+| `launch-order.html` | | ✓ | | ✓ | ✓ | ✓ | | | ✓ | |
+| `archives.html` | | ✓ | | ✓ | | ✓ | | ✓ | | |
+| `creation-process.html` | | ✓ | | ✓ | | ✓ | | ✓ | | |
+| `terms.html` | | ✓ | | ✓ | | ✓ | | ✓ | | |
+| `series.html` | | ✓ | | ✓ | | ✓ | | ✓ | | ✓ |
 
 `main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. Only `index.html`/`product.html` load `three-viewer.js`; nothing else has 3D content.
 
